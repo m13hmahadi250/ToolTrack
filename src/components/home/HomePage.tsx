@@ -16,7 +16,8 @@ import {
   Sparkles,
   FileText,
   Clock,
-  Trash2
+  Trash2,
+  Star,
 } from 'lucide-react';
 import { useToolTrack } from '../../context/ToolTrackContext';
 import { TOOLS_LIST } from '../../data/toolsList';
@@ -26,7 +27,16 @@ import { GlobalToolSearch } from '../common/GlobalToolSearch';
 import { searchTools, getCategoryLabel } from '../../lib/searchEngine';
 
 export const HomePage: React.FC = () => {
-  const { setActiveToolId, t, recentToolIds, clearRecentTools } = useToolTrack();
+  const {
+    setActiveToolId,
+    t,
+    recentToolIds,
+    clearRecentTools,
+    favoriteToolIds,
+    toggleFavoriteTool,
+    isFavoriteTool,
+    clearFavoriteTools,
+  } = useToolTrack();
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,6 +49,13 @@ export const HomePage: React.FC = () => {
       .map((id) => TOOLS_LIST.find((t) => t.id === id))
       .filter(Boolean) as typeof TOOLS_LIST;
   }, [recentToolIds]);
+
+  // Derive favorite tools list
+  const favoriteTools = useMemo(() => {
+    return (favoriteToolIds || [])
+      .map((id) => TOOLS_LIST.find((t) => t.id === id))
+      .filter(Boolean) as typeof TOOLS_LIST;
+  }, [favoriteToolIds]);
 
   // Listen for category selection events (e.g. from header dropdown "View All")
   useEffect(() => {
@@ -300,6 +317,98 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
 
+      {/* Favorite Tools Section */}
+      {!searchQuery && favoriteTools.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                <Star className="w-4 h-4 fill-amber-400" />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                  <span>Favorite Tools</span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400">
+                    {favoriteTools.length}
+                  </span>
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+                  Your starred shortcuts for rapid access
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={clearFavoriteTools}
+              className="text-xs font-semibold text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer flex items-center gap-1.5"
+              title="Clear favorite tools"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clear Favorites</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+            {favoriteTools.map((tool) => {
+              const Icon = getIconComponent(tool.iconName);
+              const isFav = isFavoriteTool(tool.id);
+
+              return (
+                <div
+                  key={tool.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setActiveToolId(tool.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setActiveToolId(tool.id);
+                    }
+                  }}
+                  className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-amber-200/70 dark:border-amber-900/40 hover:border-amber-400 dark:hover:border-amber-500 shadow-xs hover:shadow-md transition-all text-left group flex flex-col justify-between h-44 cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-500 relative overflow-hidden"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavoriteTool(tool.id);
+                        }}
+                        className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition cursor-pointer"
+                        title="Remove from favorites"
+                        aria-label="Remove from favorites"
+                      >
+                        <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
+                      </button>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] font-medium text-slate-400 dark:text-slate-400 mb-0.5">
+                        {getCategoryLabel(tool.category)}
+                      </div>
+                      <h3 className="font-bold text-base text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors truncate">
+                        {tool.name}
+                      </h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 mt-1 leading-snug">
+                        {tool.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center text-xs font-bold text-amber-600 dark:text-amber-400 group-hover:translate-x-1 transition-transform">
+                    <span>Launch Tool</span>
+                    <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Recently Used Tools Section */}
       {!searchQuery && recentTools.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
@@ -335,9 +444,17 @@ export const HomePage: React.FC = () => {
             {recentTools.map((tool) => {
               const Icon = getIconComponent(tool.iconName);
               return (
-                <button
+                <div
                   key={tool.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setActiveToolId(tool.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setActiveToolId(tool.id);
+                    }
+                  }}
                   className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-indigo-100/80 dark:border-indigo-950/60 hover:border-indigo-400 dark:hover:border-indigo-500 shadow-xs hover:shadow-md transition-all text-left group flex flex-col justify-between h-44 cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500 relative overflow-hidden"
                 >
                   <div className="space-y-3">
@@ -368,7 +485,7 @@ export const HomePage: React.FC = () => {
                     <span>Resume Tool</span>
                     <ArrowRight className="w-3.5 h-3.5 ml-1" />
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -393,9 +510,17 @@ export const HomePage: React.FC = () => {
             {popularTools.map((tool) => {
               const Icon = getIconComponent(tool.iconName);
               return (
-                <button
+                <div
                   key={tool.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setActiveToolId(tool.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setActiveToolId(tool.id);
+                    }
+                  }}
                   className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 shadow-xs hover:shadow-md transition-all text-left group flex flex-col justify-between h-44 cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500"
                 >
                   <div className="space-y-3">
@@ -403,11 +528,32 @@ export const HomePage: React.FC = () => {
                       <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
                         <Icon className="w-5 h-5" />
                       </div>
-                      {tool.badge && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
-                          {tool.badge}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {tool.badge && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
+                            {tool.badge}
+                          </span>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavoriteTool(tool.id);
+                          }}
+                          className={`p-1.5 rounded-lg transition cursor-pointer ${
+                            isFavoriteTool(tool.id)
+                              ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/60'
+                              : 'text-slate-300 dark:text-slate-600 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-700'
+                          }`}
+                          title={isFavoriteTool(tool.id) ? 'Remove favorite' : 'Add to favorites'}
+                          aria-label={isFavoriteTool(tool.id) ? 'Remove favorite' : 'Add to favorites'}
+                        >
+                          <Star
+                            className={`w-4 h-4 ${
+                              isFavoriteTool(tool.id) ? 'fill-amber-400 text-amber-500' : ''
+                            }`}
+                          />
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <div className="text-[11px] font-medium text-slate-400 dark:text-slate-400 mb-0.5">
@@ -426,7 +572,7 @@ export const HomePage: React.FC = () => {
                     <span>Open Tool</span>
                     <ArrowRight className="w-3.5 h-3.5 ml-1" />
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -509,9 +655,17 @@ export const HomePage: React.FC = () => {
               const isSelected = selectedSearchIndex === idx;
 
               return (
-                <button
+                <div
                   key={tool.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setActiveToolId(tool.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setActiveToolId(tool.id);
+                    }
+                  }}
                   className={`p-5 rounded-2xl border shadow-xs hover:shadow-md transition-all text-left group flex flex-col justify-between h-44 cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                     isSelected
                       ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/60 ring-2 ring-indigo-500/20'
@@ -523,11 +677,32 @@ export const HomePage: React.FC = () => {
                       <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/60 group-hover:text-indigo-600 transition flex items-center justify-center">
                         <Icon className="w-4 h-4" />
                       </div>
-                      {tool.badge && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                          {tool.badge}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {tool.badge && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                            {tool.badge}
+                          </span>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavoriteTool(tool.id);
+                          }}
+                          className={`p-1 rounded-md transition cursor-pointer ${
+                            isFavoriteTool(tool.id)
+                              ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/60'
+                              : 'text-slate-300 dark:text-slate-600 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-700'
+                          }`}
+                          title={isFavoriteTool(tool.id) ? 'Remove favorite' : 'Add to favorites'}
+                          aria-label={isFavoriteTool(tool.id) ? 'Remove favorite' : 'Add to favorites'}
+                        >
+                          <Star
+                            className={`w-3.5 h-3.5 ${
+                              isFavoriteTool(tool.id) ? 'fill-amber-400 text-amber-500' : ''
+                            }`}
+                          />
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <div className="text-[10px] font-medium text-slate-400 dark:text-slate-400 mb-0.5">
@@ -546,7 +721,7 @@ export const HomePage: React.FC = () => {
                     <span>Use Tool</span>
                     <ArrowRight className="w-3.5 h-3.5 ml-1" />
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

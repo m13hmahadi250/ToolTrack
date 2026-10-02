@@ -36,11 +36,11 @@ import { PdfSecurityTool } from './components/tools/PdfSecurityTool';
 import { OcrPdfTool } from './components/tools/OcrPdfTool';
 import { PdfInspectorTool } from './components/tools/PdfInspectorTool';
 import { PdfCompareTool } from './components/tools/PdfCompareTool';
-import { ChevronRight, Home } from 'lucide-react';
+import { ChevronRight, Home, Star } from 'lucide-react';
 import { TOOLS_LIST } from './data/toolsList';
 
 function MainContent() {
-  const { activeToolId, setActiveToolId } = useToolTrack();
+  const { activeToolId, setActiveToolId, toggleFavoriteTool, isFavoriteTool } = useToolTrack();
 
   const currentTool = activeToolId
     ? TOOLS_LIST.find((t) => t.id === activeToolId) ||
@@ -215,9 +215,31 @@ function MainContent() {
               </span>
             </div>
 
-            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50/80 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-900/60">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>100% In-Browser Safe</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => toggleFavoriteTool(currentTool.id)}
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+                  isFavoriteTool(currentTool.id)
+                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700/60'
+                    : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-amber-500'
+                }`}
+                title={isFavoriteTool(currentTool.id) ? 'Remove from favorites' : 'Add to favorites'}
+                aria-label={isFavoriteTool(currentTool.id) ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Star
+                  className={`w-3.5 h-3.5 ${
+                    isFavoriteTool(currentTool.id) ? 'fill-amber-400 text-amber-500' : ''
+                  }`}
+                />
+                <span className="hidden sm:inline">
+                  {isFavoriteTool(currentTool.id) ? 'Favorited' : 'Favorite'}
+                </span>
+              </button>
+
+              <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50/80 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-900/60">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>100% In-Browser Safe</span>
+              </div>
             </div>
           </nav>
         )}

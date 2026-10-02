@@ -13,7 +13,8 @@ import {
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { FileUploader } from '../common/FileUploader';
-import { processImage } from '../../lib/imageUtils';
+import { ToolTrackFileFlow } from '../common/ToolTrackFileFlow';
+import { compressImage, convertImage } from '../../lib/compressionEngine';
 import { useToolTrack } from '../../context/ToolTrackContext';
 
 export const ImageTools: React.FC = () => {
@@ -82,13 +83,34 @@ export const ImageTools: React.FC = () => {
 
         const outFileName = `${baseName}-${activeTab}.${ext}`;
 
-        const { blob, savedBytes } = await processImage(file, {
-          format: targetFmt,
-          quality: activeTab === 'compress' ? quality : 0.88,
-          targetSizeKb: typeof targetSizeKb === 'number' && targetSizeKb > 0 ? targetSizeKb : undefined,
-          maxWidth: resizePercent < 100 ? undefined : undefined,
-          removeExif: true,
-        });
+        let blob: Blob;
+        let savedBytes = 0;
+
+        if (activeTab === 'compress') {
+          const compResult = await compressImage(file, {
+            format: 'same',
+            quality,
+            targetSizeKb: typeof targetSizeKb === 'number' && targetSizeKb > 0 ? targetSizeKb : undefined,
+          });
+          blob = compResult.blob;
+          savedBytes = compResult.savedBytes;
+        } else if (activeTab === 'convert') {
+          const convResult = await convertImage(file, {
+            targetFormat: outputFormat,
+            quality,
+          });
+          blob = convResult.blob;
+          savedBytes = convResult.savedBytes;
+        } else {
+          // resize or exif
+          const compResult = await compressImage(file, {
+            format: 'same',
+            quality: 0.85,
+            removeMetadata: true,
+          });
+          blob = compResult.blob;
+          savedBytes = compResult.savedBytes;
+        }
 
         results.push({
           name: outFileName,

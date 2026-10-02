@@ -36,9 +36,25 @@ export const AssignmentPdfMaker: React.FC = () => {
   const [includeBanner, setIncludeBanner] = useState(true);
   const [courseName, setCourseName] = useState('Computer Science 101');
   const [assignmentTitle, setAssignmentTitle] = useState('Homework Assignment 2');
-  const [studentName, setStudentName] = useState('');
-  const [studentId, setStudentId] = useState('');
+  const [studentName, setStudentName] = useState(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem('tt_assignment_student_name') || '' : '';
+  });
+  const [studentId, setStudentId] = useState(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem('tt_assignment_student_id') || '' : '';
+  });
   const [submissionDate, setSubmissionDate] = useState(new Date().toISOString().split('T')[0]);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('tt_assignment_student_name', studentName);
+    }
+  }, [studentName]);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('tt_assignment_student_id', studentId);
+    }
+  }, [studentId]);
 
   // Page formatting
   const [pageSize, setPageSize] = useState<'A4' | 'Letter'>('A4');
@@ -321,77 +337,82 @@ export const AssignmentPdfMaker: React.FC = () => {
           {/* Left Column: Academic Metadata & Format (1 col) */}
           <div className="space-y-6">
             {/* Student Cover Banner Box */}
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
-              <div className="flex items-center justify-between">
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-5 text-xs transition-all hover:shadow-sm">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                 <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                  <GraduationCap className="w-4 h-4 text-indigo-600" />
+                  <GraduationCap className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   <span>Academic Cover Banner</span>
                 </h3>
-                <label className="flex items-center gap-1.5 cursor-pointer">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={includeBanner}
                     onChange={(e) => setIncludeBanner(e.target.checked)}
-                    className="rounded accent-indigo-600"
+                    className="sr-only peer"
                   />
-                  <span className="font-semibold text-slate-600 dark:text-slate-400">Include</span>
+                  <div className="w-8 h-4.5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600 relative"></div>
+                  <span className={`font-bold transition-colors ${includeBanner ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
+                    Include
+                  </span>
                 </label>
               </div>
 
               {includeBanner && (
-                <div className="space-y-3 pt-1">
+                <div className="space-y-4 pt-1">
                   <div>
-                    <label className="font-bold block mb-1">Course / Subject:</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Course / Subject:</label>
                     <input
                       type="text"
                       placeholder="e.g. Physics 101, Math 204"
                       value={courseName}
                       onChange={(e) => setCourseName(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
+                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-xs text-slate-900 dark:text-white outline-hidden"
                     />
                   </div>
 
-                  <div>
-                    <label className="font-bold block mb-1">Assignment Title:</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Homework 3, Problem Set"
-                      value={assignmentTitle}
-                      onChange={(e) => setAssignmentTitle(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
-                    />
+                  <div className="space-y-1">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Assignment Title:</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Homework 3, Problem Set"
+                        value={assignmentTitle}
+                        onChange={(e) => setAssignmentTitle(e.target.value)}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-xs text-slate-900 dark:text-white outline-hidden"
+                      />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="font-bold block mb-1">Student Name:</label>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Student Name:</label>
                       <input
                         type="text"
                         placeholder="John Doe"
                         value={studentName}
                         onChange={(e) => setStudentName(e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                        className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-xs text-slate-900 dark:text-white outline-hidden"
                       />
                     </div>
                     <div>
-                      <label className="font-bold block mb-1">Student ID / Roll:</label>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Student ID / Roll:</label>
                       <input
                         type="text"
                         placeholder="ID-99214"
                         value={studentId}
                         onChange={(e) => setStudentId(e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono"
+                        className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 font-mono focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-xs text-slate-900 dark:text-white outline-hidden"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="font-bold block mb-1">Submission Date:</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Submission Date:</label>
                     <input
                       type="date"
                       value={submissionDate}
                       onChange={(e) => setSubmissionDate(e.target.value)}
-                      className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono"
+                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 font-mono focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-xs text-slate-900 dark:text-white outline-hidden"
                     />
                   </div>
                 </div>

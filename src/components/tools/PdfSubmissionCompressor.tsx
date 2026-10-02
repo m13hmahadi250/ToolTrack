@@ -10,7 +10,7 @@ import {
   ArrowRight,
   Sparkles
 } from 'lucide-react';
-import { PDFDocument } from 'pdf-lib';
+import { compressPdfEngine } from '../../lib/pdfCompressionEngine';
 import { FileUploader } from '../common/FileUploader';
 import { useToolTrack } from '../../context/ToolTrackContext';
 
@@ -53,22 +53,19 @@ export const PdfSubmissionCompressor: React.FC = () => {
 
     try {
       const buffer = await file.arrayBuffer();
-      // Multi-pass compression using pdf-lib object stream stripping & dictionary cleanup
-      const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+      const targetSizeKb = customKb ? Number(customKb) : targetLimitMb * 1024;
 
-      // Clean unreferenced objects and compress cross-references
-      const compressedBytes = await pdfDoc.save({
-        useObjectStreams: true,
-        addDefaultPage: false,
+      const engineResult = await compressPdfEngine(buffer, {
+        preset: 'maximum',
+        targetSizeKb,
+        removeMetadata: true,
+        flattenForms: true,
       });
 
-      let outBlob = new Blob([compressedBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
-
-      // If already under target limit or smaller, we are good!
-      const originalSize = file.size;
-      const outputSize = outBlob.size;
-      const savedBytes = Math.max(0, originalSize - outputSize);
-      const savedPercent = Math.round((savedBytes / originalSize) * 100);
+      const outBlob = new Blob([engineResult.pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      const originalSize = engineResult.originalSizeBytes;
+      const outputSize = engineResult.outputSizeBytes;
+      const savedPercent = engineResult.savedPercent;
 
       const outName = `${file.name.replace(/\.pdf$/i, '')}-submission.pdf`;
 

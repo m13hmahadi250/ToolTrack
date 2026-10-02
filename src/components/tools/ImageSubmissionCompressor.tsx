@@ -9,7 +9,8 @@ import {
   FileCheck
 } from 'lucide-react';
 import { FileUploader } from '../common/FileUploader';
-import { processImage, inspectImage, ImageDetails } from '../../lib/imageUtils';
+import { inspectImage, ImageDetails } from '../../lib/imageUtils';
+import { compressImage } from '../../lib/compressionEngine';
 import { useToolTrack } from '../../context/ToolTrackContext';
 
 export const ImageSubmissionCompressor: React.FC = () => {
@@ -57,7 +58,7 @@ export const ImageSubmissionCompressor: React.FC = () => {
     });
 
     try {
-      const res = await processImage(file, {
+      const compResult = await compressImage(file, {
         format: file.type === 'image/png' ? 'image/png' : 'image/jpeg',
         targetSizeKb: finalTargetKb,
         quality: 0.85,
@@ -65,25 +66,24 @@ export const ImageSubmissionCompressor: React.FC = () => {
 
       const outName = `${file.name.replace(/\.[^/.]+$/, '')}-target${finalTargetKb}kb.jpg`;
 
-      const originalSize = file.size;
-      const outputSize = res.blob.size;
-      const savedBytes = Math.max(0, originalSize - outputSize);
-      const savedPercent = Math.round((savedBytes / originalSize) * 100);
+      const originalSize = compResult.originalSizeBytes;
+      const outputSize = compResult.outputSizeBytes;
+      const savedPercent = compResult.savedPercent;
 
       setResult({
         originalSize,
         outputSize,
         savedPercent,
-        blob: res.blob,
-        width: res.width,
-        height: res.height,
+        blob: compResult.blob,
+        width: compResult.outputWidth,
+        height: compResult.outputHeight,
         name: outName,
       });
 
       updateJob(jobId, {
         status: 'completed',
         progress: 1.0,
-        outputBlob: res.blob,
+        outputBlob: compResult.blob,
         outputFileName: outName,
         outputSize,
       });

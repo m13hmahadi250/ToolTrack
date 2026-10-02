@@ -12,6 +12,7 @@ import {
   Check
 } from 'lucide-react';
 import { FileUploader } from '../common/FileUploader';
+import { ToolTrackFileFlow } from '../common/ToolTrackFileFlow';
 import { getPdfPagesInfo, loadPdfDocument, renderPageToCanvas, STANDARD_SIZES_MM, MM_TO_PT } from '../../lib/pdfRenderer';
 import { normalizePdfPageSizes } from '../../lib/pdfUtils';
 import { useToolTrack } from '../../context/ToolTrackContext';
@@ -561,19 +562,51 @@ export const PageSizeNormalizer: React.FC = () => {
             </div>
           </div>
 
-          {/* Action & Result Section */}
-          <div className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div>
-              <h4 className="font-bold text-base text-slate-900 dark:text-white">
-                Ready to Normalize All Pages
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Every page will be adapted to {targetSize} standard dimensions without vector loss.
-              </p>
-            </div>
+          {/* Processing / Result Flow */}
+          {processing && (
+            <ToolTrackFileFlow
+              mode="processing"
+              stage="processing"
+              stageLabel={`Standardizing ${pagesInfo.length} pages to uniform ${targetSize} (${orientation})...`}
+              progress={progress * 100}
+              fileName={file.name}
+              fileType="PDF Document"
+              details={`${pagesInfo.length} pages`}
+            />
+          )}
 
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              {!resultBlob ? (
+          {resultBlob && (
+            <ToolTrackFileFlow
+              mode="success"
+              stage="ready"
+              stageLabel={`Successfully standardized all ${pagesInfo.length} pages to uniform ${targetSize}!`}
+              fileName={resultFileName}
+              fileSize={formatBytes(outputSize || 0)}
+              fileType="Normalized PDF"
+              details={`${pagesInfo.length} pages • ${targetSize}`}
+              onDownload={handleDownload}
+              onReset={() => {
+                setFile(null);
+                setResultBlob(null);
+              }}
+              downloadLabel="Download Normalized PDF"
+              downloadFileName={resultFileName}
+            />
+          )}
+
+          {/* Action & Result Section */}
+          {!resultBlob && (
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h4 className="font-bold text-base text-slate-900 dark:text-white">
+                  Ready to Normalize All Pages
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Every page will be adapted to {targetSize} standard dimensions without vector loss.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto">
                 <button
                   onClick={handleNormalize}
                   disabled={processing}
@@ -591,27 +624,9 @@ export const PageSizeNormalizer: React.FC = () => {
                     </>
                   )}
                 </button>
-              ) : (
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <button
-                    onClick={handleDownload}
-                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Download Normalized PDF ({formatBytes(outputSize || 0)})</span>
-                  </button>
-
-                  <button
-                    onClick={() => setResultBlob(null)}
-                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                    title="Change settings and re-process"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>

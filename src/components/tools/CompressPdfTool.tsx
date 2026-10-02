@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Minimize2, Download, CheckCircle2, RotateCcw, Sliders, ShieldCheck } from 'lucide-react';
 import { FileUploader } from '../common/FileUploader';
-import { compressPdf, flattenPdf } from '../../lib/pdfUtils';
+import { ToolTrackFileFlow } from '../common/ToolTrackFileFlow';
+import { compressPdfEngine } from '../../lib/pdfCompressionEngine';
 import { useToolTrack } from '../../context/ToolTrackContext';
 
 export const CompressPdfTool: React.FC = () => {
@@ -22,9 +23,13 @@ export const CompressPdfTool: React.FC = () => {
     setResultBlob(null);
   };
 
+  const [statusMessage, setStatusMessage] = useState('');
+  const [isAlreadyOptimized, setIsAlreadyOptimized] = useState(false);
+
   const handleCompress = async () => {
     if (!file) return;
     setProcessing(true);
+    setIsAlreadyOptimized(false);
 
     const outName = `${file.name.replace(/\.[^/.]+$/, '')}-compressed.pdf`;
     setResultFileName(outName);
@@ -40,26 +45,27 @@ export const CompressPdfTool: React.FC = () => {
     });
 
     try {
-      let buffer = await file.arrayBuffer();
-      updateJob(jobId, { progress: 0.4 });
+      const buffer = await file.arrayBuffer();
+      updateJob(jobId, { progress: 0.5 });
 
-      if (alsoFlatten) {
-        const flatBytes = await flattenPdf(buffer);
-        buffer = flatBytes.buffer as ArrayBuffer;
-      }
+      const result = await compressPdfEngine(buffer, {
+        preset: level,
+        flattenForms: alsoFlatten,
+        removeMetadata: true,
+      });
 
-      updateJob(jobId, { progress: 0.7 });
-      const compressedBytes = await compressPdf(buffer, level);
-      const blob = new Blob([new Uint8Array(compressedBytes)], { type: 'application/pdf' });
+      const blob = new Blob([result.pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
 
       setResultBlob(blob);
-      setOutputSize(blob.size);
+      setOutputSize(result.outputSizeBytes);
+      setStatusMessage(result.statusMessage);
+      setIsAlreadyOptimized(result.isAlreadyOptimized);
 
       updateJob(jobId, {
         status: 'completed',
         progress: 1.0,
         outputBlob: blob,
-        outputSize: blob.size,
+        outputSize: result.outputSizeBytes,
       });
 
       addRecentActivity('compress-pdf', 'Compress PDF', file.name, 'completed');
@@ -199,36 +205,37 @@ export const CompressPdfTool: React.FC = () => {
             </div>
           </div>
 
+          {/* Processing / Result ToolTrack File Flow */}
+          {processing && (
+            <ToolTrackFileFlow
+              mode="processing"
+              stage="optimizing"
+              stageLabel="Optimizing internal PDF streams & removing unreferenced xref objects..."
+              fileName={file.name}
+              fileSize={formatBytes(file.size)}
+              fileType="PDF Document"
+            />
+          )}
+
           {/* Results Card */}
           {resultBlob && (
-            <div className="p-6 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in duration-200">
-              <div className="space-y-1 text-center sm:text-left">
-                <div className="flex items-center justify-center sm:justify-start gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                  <span className="font-bold text-base text-slate-900 dark:text-white">
-                    Compression Complete!
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300">
-                  {formatBytes(file.size)} →{' '}
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                    {formatBytes(outputSize || 0)}
-                  </span>
-                  {calculateSavedPercent() > 0 && (
-                    <span className="ml-2 font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 text-[11px]">
-                      Saved {calculateSavedPercent()}%
-                    </span>
-                  )}
-                </p>
-              </div>
-
-              <button
-                onClick={handleDownload}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Compressed PDF</span>
-              </button>
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <ToolTrackFileFlow
+                mode="success"
+                stage="ready"
+                stageLabel={`Optimization complete! Reduced size from ${formatBytes(file.size)} to ${formatBytes(outputSize || 0)}`}
+                fileName={resultFileName}
+                fileSize={formatBytes(outputSize || 0)}
+                fileType="Optimized PDF"
+                details={calculateSavedPercent() > 0 ? `Saved ${calculateSavedPercent()}% file size` : 'Stream-optimized'}
+                onDownload={handleDownload}
+                onReset={() => {
+                  setFile(null);
+                  setResultBlob(null);
+                }}
+                downloadLabel="Download Compressed PDF"
+                downloadFileName={resultFileName}
+              />
             </div>
           )}
 

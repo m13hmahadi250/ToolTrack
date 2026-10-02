@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Combine, ArrowUp, ArrowDown, Trash2, Download, Plus, CheckCircle2 } from 'lucide-react';
 import { FileUploader } from '../common/FileUploader';
+import { ToolTrackFileFlow } from '../common/ToolTrackFileFlow';
 import { mergePdfs } from '../../lib/pdfUtils';
 import { useToolTrack } from '../../context/ToolTrackContext';
 
@@ -272,20 +273,49 @@ export const MergePdfTool: React.FC = () => {
             </div>
           </div>
 
-          {/* Action Bar */}
-          <div className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div>
-              <h4 className="font-bold text-base text-slate-900 dark:text-white">
-                {files.length < 2
-                  ? 'Add at least 2 files to merge'
-                  : `Ready to combine ${files.length} PDFs`}
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Output will maintain the exact order shown above.
-              </p>
-            </div>
+          {/* Processing / Result Flow */}
+          {processing && (
+            <ToolTrackFileFlow
+              mode="processing"
+              stage="processing"
+              stageLabel={`Combining ${files.length} documents into unified page stream...`}
+              details={`${files.length} PDFs queued`}
+            />
+          )}
 
-            {!resultBlob ? (
+          {resultBlob && (
+            <ToolTrackFileFlow
+              mode="success"
+              stage="ready"
+              stageLabel={`Successfully combined ${files.length} PDF documents!`}
+              fileName={resultFileName}
+              fileSize={formatBytes(outputSize || 0)}
+              fileType="Merged PDF Document"
+              details={`${files.length} files combined`}
+              onDownload={handleDownload}
+              onReset={() => {
+                setFiles([]);
+                setResultBlob(null);
+              }}
+              downloadLabel="Download Merged PDF"
+              downloadFileName={resultFileName}
+            />
+          )}
+
+          {/* Action Bar */}
+          {!resultBlob && (
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h4 className="font-bold text-base text-slate-900 dark:text-white">
+                  {files.length < 2
+                    ? 'Add at least 2 files to merge'
+                    : `Ready to combine ${files.length} PDFs`}
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Output will maintain the exact order shown above.
+                </p>
+              </div>
+
               <button
                 onClick={handleMerge}
                 disabled={processing || files.length < 2}
@@ -303,16 +333,8 @@ export const MergePdfTool: React.FC = () => {
                   </>
                 )}
               </button>
-            ) : (
-              <button
-                onClick={handleDownload}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Merged PDF ({formatBytes(outputSize || 0)})</span>
-              </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>

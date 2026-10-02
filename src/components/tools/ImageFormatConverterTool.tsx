@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { FileUploader } from '../common/FileUploader';
-import { processImage, inspectImage, ImageDetails, SupportedImageFormat } from '../../lib/imageUtils';
+import { inspectImage, ImageDetails, SupportedImageFormat } from '../../lib/imageUtils';
+import { convertImage } from '../../lib/compressionEngine';
 import { useToolTrack } from '../../context/ToolTrackContext';
 
 export const ImageFormatConverterTool: React.FC = () => {
@@ -79,8 +80,8 @@ export const ImageFormatConverterTool: React.FC = () => {
 
         const outName = `${baseName}.${ext}`;
 
-        const res = await processImage(file, {
-          format: targetFormat,
+        const res = await convertImage(file, {
+          targetFormat,
           quality: getQualityValue(),
           backgroundColor: jpgBgColor,
         });
@@ -90,8 +91,8 @@ export const ImageFormatConverterTool: React.FC = () => {
           blob: res.blob,
           origSize: file.size,
           outSize: res.blob.size,
-          width: res.width,
-          height: res.height,
+          width: res.outputWidth,
+          height: res.outputHeight,
         });
 
         zip.file(outName, res.blob);

@@ -192,22 +192,22 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
 
         <div className="flex flex-col items-center justify-center space-y-4">
           <div
-            className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${
+            className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 ${
               isDragging
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
-                : 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400'
+                ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/40 scale-110 ring-4 ring-indigo-400/30'
+                : 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 group-hover:scale-105 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/60'
             }`}
           >
             {validating ? (
               <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
             ) : (
-              <UploadCloud className="w-8 h-8" />
+              <UploadCloud className={`w-8 h-8 transition-transform duration-300 ${isDragging ? '-translate-y-1' : ''}`} />
             )}
           </div>
 
           <div className="space-y-1.5 max-w-sm">
             <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
-              {title}
+              {isDragging ? 'Drop your file right here' : title}
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
               <span className="font-semibold text-indigo-600 dark:text-indigo-400 underline underline-offset-2">
@@ -215,6 +215,14 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
               </span>{' '}
               {description}
             </p>
+            <div className="pt-0.5">
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                <span>or paste with</span>
+                <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-600 dark:text-slate-300">
+                  Ctrl + V
+                </kbd>
+              </span>
+            </div>
           </div>
 
           {/* Formats badges */}

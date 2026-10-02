@@ -30,6 +30,10 @@ interface ToolTrackContextType {
   recentToolIds: string[];
   trackAccessedTool: (toolId: string) => void;
   clearRecentTools: () => void;
+  favoriteToolIds: string[];
+  toggleFavoriteTool: (toolId: string) => void;
+  isFavoriteTool: (toolId: string) => boolean;
+  clearFavoriteTools: () => void;
   isQueueOpen: boolean;
   setIsQueueOpen: (open: boolean) => void;
   isActivityOpen: boolean;
@@ -82,15 +86,9 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('tt_recent_tools');
-        if (saved) return JSON.parse(saved);
-        // Fallback: populate from recent activity history if available
-        const activity = localStorage.getItem('tt_recent');
-        if (activity) {
-          const parsed = JSON.parse(activity);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const ids = Array.from(new Set(parsed.map((a: any) => a.toolId))).filter(Boolean) as string[];
-            return ids.slice(0, 8);
-          }
+        if (saved !== null) {
+          const parsed = JSON.parse(saved);
+          return Array.isArray(parsed) ? parsed : [];
         }
       } catch {
         return [];
@@ -114,7 +112,43 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
   const clearRecentTools = () => {
     setRecentToolIds([]);
     try {
-      localStorage.removeItem('tt_recent_tools');
+      localStorage.setItem('tt_recent_tools', JSON.stringify([]));
+    } catch {}
+  };
+
+  const [favoriteToolIds, setFavoriteToolIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('tt_favorite_tools');
+        if (saved !== null) {
+          const parsed = JSON.parse(saved);
+          return Array.isArray(parsed) ? parsed : [];
+        }
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const toggleFavoriteTool = (toolId: string) => {
+    if (!toolId) return;
+    setFavoriteToolIds((prev) => {
+      const isFav = prev.includes(toolId);
+      const updated = isFav ? prev.filter((id) => id !== toolId) : [...prev, toolId];
+      try {
+        localStorage.setItem('tt_favorite_tools', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const isFavoriteTool = (toolId: string) => favoriteToolIds.includes(toolId);
+
+  const clearFavoriteTools = () => {
+    setFavoriteToolIds([]);
+    try {
+      localStorage.setItem('tt_favorite_tools', JSON.stringify([]));
     } catch {}
   };
 
@@ -312,6 +346,10 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
         recentToolIds,
         trackAccessedTool,
         clearRecentTools,
+        favoriteToolIds,
+        toggleFavoriteTool,
+        isFavoriteTool,
+        clearFavoriteTools,
         isQueueOpen,
         setIsQueueOpen,
         isActivityOpen,
