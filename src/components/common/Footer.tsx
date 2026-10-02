@@ -382,7 +382,7 @@ export const Footer: React.FC = () => {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600 dark:bg-indigo-400"></span>
               </span>
               <span className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
-                Engineered by
+                Design and Build By
               </span>
               <span className="text-[11px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 dark:from-indigo-400 dark:via-purple-300 dark:to-pink-400 bg-clip-text text-transparent">
                 Mohammed Mahadi Hossain

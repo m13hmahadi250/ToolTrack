@@ -64,7 +64,12 @@ export const ImageSubmissionCompressor: React.FC = () => {
         quality: 0.85,
       });
 
-      const outName = `${file.name.replace(/\.[^/.]+$/, '')}-target${finalTargetKb}kb.jpg`;
+      const ext = compResult.outputFormat.includes('png')
+        ? 'png'
+        : compResult.outputFormat.includes('webp')
+          ? 'webp'
+          : 'jpg';
+      const outName = `${file.name.replace(/\.[^/.]+$/, '')}-target${finalTargetKb}kb.${ext}`;
 
       const originalSize = compResult.originalSizeBytes;
       const outputSize = compResult.outputSizeBytes;

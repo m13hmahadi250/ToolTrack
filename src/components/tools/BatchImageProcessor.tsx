@@ -13,7 +13,8 @@ import {
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { FileUploader } from '../common/FileUploader';
-import { processImage, applyWatermarkToImage, SupportedImageFormat } from '../../lib/imageUtils';
+import { applyWatermarkToImage, inspectImage, SupportedImageFormat } from '../../lib/imageUtils';
+import { compressImage, convertImage } from '../../lib/compressionEngine';
 import { useToolTrack } from '../../context/ToolTrackContext';
 
 interface BatchFileItem {
@@ -81,24 +82,29 @@ export const BatchImageProcessor: React.FC = () => {
         if (ext === 'jpeg') ext = 'jpg';
 
         if (batchAction === 'compress') {
-          const res = await processImage(item.file, {
+          const res = await compressImage(item.file, {
             quality,
-            format: item.file.type === 'image/png' ? 'image/png' : 'image/jpeg',
+            format: 'same',
           });
           outBlob = res.blob;
         } else if (batchAction === 'resize') {
-          const scale = resizePercent / 100;
-          const res = await processImage(item.file, {
-            maxWidth: Math.round(2000 * scale),
-            quality: 0.9,
+          const details = await inspectImage(item.file);
+          const targetW = Math.max(1, Math.round(details.width * (resizePercent / 100)));
+          const targetH = Math.max(1, Math.round(details.height * (resizePercent / 100)));
+
+          const res = await compressImage(item.file, {
+            maxWidth: targetW,
+            maxHeight: targetH,
+            quality: 0.92,
+            format: 'same',
           });
           outBlob = res.blob;
         } else if (batchAction === 'convert') {
           ext = targetFormat.split('/')[1];
           if (ext === 'jpeg') ext = 'jpg';
-          const res = await processImage(item.file, {
-            format: targetFormat,
-            quality: 0.9,
+          const res = await convertImage(item.file, {
+            targetFormat: targetFormat as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/bmp',
+            quality: 0.92,
           });
           outBlob = res.blob;
         } else if (batchAction === 'watermark') {
@@ -113,9 +119,9 @@ export const BatchImageProcessor: React.FC = () => {
           ext = 'png';
         } else {
           // EXIF removal
-          const res = await processImage(item.file, {
-            format: item.file.type === 'image/png' ? 'image/png' : 'image/jpeg',
-            removeExif: true,
+          const res = await compressImage(item.file, {
+            format: 'same',
+            removeMetadata: true,
             quality: 0.95,
           });
           outBlob = res.blob;

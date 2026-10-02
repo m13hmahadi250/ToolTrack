@@ -152,77 +152,22 @@ export async function processImage(
   imageFile: File | Blob,
   options: ImageProcessOptions = {}
 ): Promise<{ blob: Blob; width: number; height: number; savedBytes: number }> {
-  const img = await fileToImage(imageFile);
-  const originalWidth = img.naturalWidth;
-  const originalHeight = img.naturalHeight;
-
-  let targetWidth = options.width || originalWidth;
-  let targetHeight = options.height || originalHeight;
-
-  // Apply max bounds while preserving aspect ratio
-  if (options.maxWidth && targetWidth > options.maxWidth) {
-    const ratio = options.maxWidth / targetWidth;
-    targetWidth = Math.round(targetWidth * ratio);
-    targetHeight = Math.round(targetHeight * ratio);
-  }
-  if (options.maxHeight && targetHeight > options.maxHeight) {
-    const ratio = options.maxHeight / targetHeight;
-    targetWidth = Math.round(targetWidth * ratio);
-    targetHeight = Math.round(targetHeight * ratio);
-  }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = targetWidth;
-  canvas.height = targetHeight;
-
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Could not get canvas context');
-
-  // Fill background if converting to JPEG (which lacks transparency)
-  if (options.format === 'image/jpeg') {
-    ctx.fillStyle = options.backgroundColor || '#ffffff';
-    ctx.fillRect(0, 0, targetWidth, targetHeight);
-  }
-
-  ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-
-  const format = options.format || 'image/jpeg';
-  let quality = options.quality ?? 0.92;
-
-  let blob = await new Promise<Blob>((resolve) => {
-    canvas.toBlob((b) => resolve(b || new Blob()), format, quality);
+  const { compressImage } = await import('./compressionEngine');
+  const result = await compressImage(imageFile, {
+    format: options.format === 'image/bmp' ? 'image/jpeg' : options.format,
+    quality: options.quality,
+    maxWidth: options.maxWidth || options.width,
+    maxHeight: options.maxHeight || options.height,
+    targetSizeKb: options.targetSizeKb,
+    backgroundColor: options.backgroundColor,
+    removeMetadata: options.removeExif,
   });
 
-  // Target size optimization (binary search quality/downscale)
-  if (options.targetSizeKb && options.targetSizeKb > 0) {
-    const targetBytes = options.targetSizeKb * 1024;
-    let minQ = 0.05;
-    let maxQ = 1.0;
-    let iterations = 0;
-
-    while (iterations < 6 && Math.abs(blob.size - targetBytes) > targetBytes * 0.08) {
-      iterations++;
-      if (blob.size > targetBytes) {
-        maxQ = quality;
-        quality = (minQ + quality) / 2;
-      } else {
-        minQ = quality;
-        quality = (maxQ + quality) / 2;
-      }
-      blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((b) => resolve(b || new Blob()), format, quality);
-      });
-    }
-  }
-
-  const originalSize = imageFile.size;
-  const savedBytes = Math.max(0, originalSize - blob.size);
-
   return {
-    blob,
-    width: targetWidth,
-    height: targetHeight,
-    savedBytes,
+    blob: result.blob,
+    width: result.outputWidth,
+    height: result.outputHeight,
+    savedBytes: result.savedBytes,
   };
 }
 
