@@ -27,6 +27,9 @@ interface ToolTrackContextType {
   recentActivity: RecentActivityItem[];
   addRecentActivity: (toolId: string, toolName: string, fileName: string, status: 'completed' | 'failed') => void;
   clearRecentActivity: () => void;
+  recentToolIds: string[];
+  trackAccessedTool: (toolId: string) => void;
+  clearRecentTools: () => void;
   isQueueOpen: boolean;
   setIsQueueOpen: (open: boolean) => void;
   isActivityOpen: boolean;
@@ -58,20 +61,9 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const [lang, setLangState] = useState<SupportedLanguage>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('tt_lang') as SupportedLanguage;
-      if (saved && ['en', 'bn', 'ar'].includes(saved)) return saved;
-    }
-    return 'en';
-  });
+  const [lang, setLangState] = useState<SupportedLanguage>('en');
 
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('tt_dark') === 'true';
-    }
-    return false;
-  });
+  const [darkMode, setDarkMode] = useState<boolean>(true);
 
   const [jobs, setJobs] = useState<ProcessingJob[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>(() => {
@@ -85,6 +77,46 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
     }
     return [];
   });
+
+  const [recentToolIds, setRecentToolIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('tt_recent_tools');
+        if (saved) return JSON.parse(saved);
+        // Fallback: populate from recent activity history if available
+        const activity = localStorage.getItem('tt_recent');
+        if (activity) {
+          const parsed = JSON.parse(activity);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const ids = Array.from(new Set(parsed.map((a: any) => a.toolId))).filter(Boolean) as string[];
+            return ids.slice(0, 8);
+          }
+        }
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const trackAccessedTool = (toolId: string) => {
+    if (!toolId) return;
+    setRecentToolIds((prev) => {
+      const filtered = prev.filter((id) => id !== toolId);
+      const updated = [toolId, ...filtered].slice(0, 10);
+      try {
+        localStorage.setItem('tt_recent_tools', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const clearRecentTools = () => {
+    setRecentToolIds([]);
+    try {
+      localStorage.removeItem('tt_recent_tools');
+    } catch {}
+  };
 
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
@@ -153,6 +185,9 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
   // Sync hash routing
   const setActiveToolId = (id: string | null) => {
     setActiveToolIdState(id);
+    if (id) {
+      trackAccessedTool(id);
+    }
     if (typeof window !== 'undefined') {
       if (id) {
         window.location.hash = id;
@@ -167,6 +202,9 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
       setActiveToolIdState(hash || null);
+      if (hash) {
+        trackAccessedTool(hash);
+      }
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
@@ -271,6 +309,9 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
         recentActivity,
         addRecentActivity,
         clearRecentActivity,
+        recentToolIds,
+        trackAccessedTool,
+        clearRecentTools,
         isQueueOpen,
         setIsQueueOpen,
         isActivityOpen,

@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Moon,
-  Sun,
-  Globe,
   Clock,
   Menu,
   X,
@@ -20,16 +17,11 @@ import { HeaderCategoryDropdown } from './HeaderCategoryDropdown';
 import { ToolTrackBrand } from './ToolTrackBrand';
 import { HEADER_CATEGORIES, getToolsForHeaderCategory } from '../../data/categoryRegistry';
 import { TOOLS_LIST } from '../../data/toolsList';
-import type { SupportedLanguage } from '../../lib/i18n';
 
 export const Header: React.FC = () => {
   const {
     activeToolId,
     setActiveToolId,
-    darkMode,
-    setDarkMode,
-    lang,
-    setLang,
     jobs,
     setIsQueueOpen,
     setIsActivityOpen,
@@ -38,7 +30,6 @@ export const Header: React.FC = () => {
   } = useToolTrack();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const [activeDropdownCatId, setActiveDropdownCatId] = useState<string | null>(null);
   const [expandedMobileCat, setExpandedMobileCat] = useState<string | null>(null);
 
@@ -52,8 +43,6 @@ export const Header: React.FC = () => {
         setActiveDropdownCatId(null);
       } else if (isMobileMenuOpen) {
         setIsMobileMenuOpen(false);
-      } else if (isLangDropdownOpen) {
-        setIsLangDropdownOpen(false);
       }
     };
 
@@ -61,13 +50,7 @@ export const Header: React.FC = () => {
     return () => {
       window.removeEventListener('tooltrack:escape', handleEscapeEvent);
     };
-  }, [activeDropdownCatId, isMobileMenuOpen, isLangDropdownOpen]);
-
-  const languages: { code: SupportedLanguage; label: string }[] = [
-    { code: 'en', label: 'English' },
-    { code: 'bn', label: 'বাংলা (BN)' },
-    { code: 'ar', label: 'العربية (AR)' },
-  ];
+  }, [activeDropdownCatId, isMobileMenuOpen]);
 
   const isToolInCat = (toolId: string | null, catConfigId: string) => {
     if (!toolId) return false;
@@ -208,49 +191,6 @@ export const Header: React.FC = () => {
               aria-label="Recent Activity"
             >
               <Clock className="w-5 h-5" />
-            </button>
-
-            {/* Language Switcher */}
-            <div className="relative">
-              <button
-                onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                className="flex items-center gap-1 p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition text-xs font-semibold uppercase cursor-pointer"
-                title="Change Language"
-                aria-label="Change Language"
-              >
-                <Globe className="w-4 h-4" />
-                <span>{lang}</span>
-              </button>
-
-              {isLangDropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 w-36 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 py-1 z-50">
-                  {languages.map((l) => (
-                    <button
-                      key={l.code}
-                      onClick={() => {
-                        setLang(l.code);
-                        setIsLangDropdownOpen(false);
-                      }}
-                      className={`w-full px-3 py-1.5 text-left text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center justify-between cursor-pointer ${
-                        lang === l.code ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-slate-800 dark:text-slate-200'
-                      }`}
-                    >
-                      <span>{l.label}</span>
-                      {lang === l.code && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Dark Mode Toggle */}
-            <button
-              onClick={() => setDarkMode((d) => !d)}
-              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-              title="Toggle theme"
-              aria-label="Toggle theme"
-            >
-              {darkMode ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5" />}
             </button>
 
             {/* Mobile Menu Button */}

@@ -42,10 +42,11 @@ export const ToolTrackIcon: React.FC<ToolTrackIconProps> = ({
           <stop offset="100%" stopColor="#7dd3fc" />
         </linearGradient>
 
-        {/* Inner Dark Canvas Gradient */}
-        <linearGradient id="brandInnerBg" x1="0.2" y1="0.1" x2="0.8" y2="0.9">
-          <stop offset="0%" stopColor="#0d1b3e" />
-          <stop offset="100%" stopColor="#070c1e" />
+        {/* Inner Dark Canvas Gradient with Deep Luminous Depth */}
+        <linearGradient id="brandInnerBg" x1="0.15" y1="0.1" x2="0.85" y2="0.95">
+          <stop offset="0%" stopColor="#10255c" />
+          <stop offset="45%" stopColor="#0a173d" />
+          <stop offset="100%" stopColor="#04091c" />
         </linearGradient>
 
         {/* Drop Shadow for Fold */}
@@ -80,6 +81,7 @@ export const ToolTrackIcon: React.FC<ToolTrackIconProps> = ({
            L 76 148
            C 76 108.24 108.24 76 148 76 Z"
         fill="url(#brandInnerBg)"
+        className="transition-all duration-500 group-hover:brightness-125"
       />
 
       {/* Top-Right Fold Flap */}
@@ -177,21 +179,21 @@ export const ToolTrackBrand: React.FC<ToolTrackBrandProps> = ({
   return (
     <div className={`flex items-center gap-3 select-none ${className}`}>
       {/* Brand Icon */}
-      <div className="shrink-0 drop-shadow-xs group-hover:scale-105 transition-transform duration-200">
+      <div className="shrink-0 drop-shadow-xs group-hover:scale-105 group-hover:rotate-[-2deg] transition-all duration-300">
         <ToolTrackIcon className={iconClassName} />
       </div>
 
       {/* Brand Wordmark (Tool + Track) & Subtitle (Document Suite) */}
       <div className={`flex-col ${showTextOnMobile ? 'flex' : 'hidden sm:flex'}`}>
-        <div className="flex items-center font-extrabold text-xl tracking-tight leading-none">
-          <span className="text-slate-900 dark:text-white transition-colors">
+        <div className="flex items-center font-black text-[22px] tracking-tight leading-none group-hover:scale-[1.02] transition-transform duration-300">
+          <span className="text-slate-900 dark:text-white transition-colors duration-300">
             Tool
           </span>
-          <span className="bg-gradient-to-r from-sky-400 via-blue-500 to-purple-500 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 bg-clip-text text-transparent animate-gradient-flow bg-[length:200%_auto] ml-0.5">
             Track
           </span>
         </div>
-        <span className="text-[10px] font-bold tracking-[0.28em] text-slate-500 dark:text-slate-400 uppercase leading-none mt-1">
+        <span className="text-[9.5px] font-bold tracking-[0.28em] text-slate-500 dark:text-slate-400 uppercase leading-none mt-1 transition-all duration-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:tracking-[0.32em]">
           Document Suite
         </span>
       </div>

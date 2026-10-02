@@ -14,7 +14,9 @@ import {
   Lock,
   ShieldCheck,
   Sparkles,
-  FileText
+  FileText,
+  Clock,
+  Trash2
 } from 'lucide-react';
 import { useToolTrack } from '../../context/ToolTrackContext';
 import { TOOLS_LIST } from '../../data/toolsList';
@@ -24,12 +26,19 @@ import { GlobalToolSearch } from '../common/GlobalToolSearch';
 import { searchTools, getCategoryLabel } from '../../lib/searchEngine';
 
 export const HomePage: React.FC = () => {
-  const { setActiveToolId, t } = useToolTrack();
+  const { setActiveToolId, t, recentToolIds, clearRecentTools } = useToolTrack();
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+
+  // Derive recently accessed tools list
+  const recentTools = useMemo(() => {
+    return (recentToolIds || [])
+      .map((id) => TOOLS_LIST.find((t) => t.id === id))
+      .filter(Boolean) as typeof TOOLS_LIST;
+  }, [recentToolIds]);
 
   // Listen for category selection events (e.g. from header dropdown "View All")
   useEffect(() => {
@@ -290,6 +299,81 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* Recently Used Tools Section */}
+      {!searchQuery && recentTools.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                  <span>{t.recentlyUsed}</span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400">
+                    {recentTools.length}
+                  </span>
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+                  {t.recentlyUsedSubtitle}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={clearRecentTools}
+              className="text-xs font-semibold text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer flex items-center gap-1.5"
+              title="Clear recently used history"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>{t.clearHistory || 'Clear History'}</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+            {recentTools.map((tool) => {
+              const Icon = getIconComponent(tool.iconName);
+              return (
+                <button
+                  key={tool.id}
+                  onClick={() => setActiveToolId(tool.id)}
+                  className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-indigo-100/80 dark:border-indigo-950/60 hover:border-indigo-400 dark:hover:border-indigo-500 shadow-xs hover:shadow-md transition-all text-left group flex flex-col justify-between h-44 cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500 relative overflow-hidden"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1 bg-slate-100 dark:bg-slate-700/60 px-2 py-0.5 rounded-md">
+                        <Clock className="w-3 h-3 text-indigo-500" />
+                        <span>Recent</span>
+                      </span>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] font-medium text-slate-400 dark:text-slate-400 mb-0.5">
+                        {getCategoryLabel(tool.category)}
+                      </div>
+                      <h3 className="font-bold text-base text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
+                        {tool.name}
+                      </h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 mt-1 leading-snug">
+                        {tool.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center text-xs font-bold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1 transition-transform">
+                    <span>Resume Tool</span>
+                    <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Popular Tools Grid */}
       {!searchQuery && (

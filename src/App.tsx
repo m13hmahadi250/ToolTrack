@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ToolTrackProvider, useToolTrack } from './context/ToolTrackContext';
 import { Header } from './components/common/Header';
 import { Footer } from './components/common/Footer';
 import { ProcessingQueueModal } from './components/common/ProcessingQueueModal';
 import { RecentActivityModal } from './components/common/RecentActivityModal';
 import { HomePage } from './components/home/HomePage';
+import { ToolGuideSection } from './components/common/ToolGuideSection';
+import { NotFoundPage } from './components/common/NotFoundPage';
 
 // Specialized tool components
 import { PageSizeNormalizer } from './components/tools/PageSizeNormalizer';
@@ -41,78 +43,143 @@ function MainContent() {
   const { activeToolId, setActiveToolId } = useToolTrack();
 
   const currentTool = activeToolId
-    ? TOOLS_LIST.find((t) => t.id === activeToolId)
+    ? TOOLS_LIST.find((t) => t.id === activeToolId) ||
+      // Handle aliases
+      (activeToolId === 'remove-background' ? TOOLS_LIST.find((t) => t.id === 'image-background-remover') : null) ||
+      (activeToolId === 'convert-to-pdf' ? TOOLS_LIST.find((t) => t.id === 'images-to-pdf') : null) ||
+      (activeToolId === 'convert-from-pdf' ? TOOLS_LIST.find((t) => t.id === 'pdf-to-word') : null) ||
+      (activeToolId === 'image-tools' ? TOOLS_LIST.find((t) => t.id === 'image-compressor') : null)
     : null;
 
+  // Dynamic document title and meta tag update for SEO and browser tabs
+  useEffect(() => {
+    if (currentTool) {
+      document.title = `${currentTool.name} — Free Online ToolTrack Suite`;
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    } else {
+      document.title = 'ToolTrack — Free Online PDF, Image & Document Processing Suite';
+    }
+  }, [activeToolId, currentTool]);
+
   const renderActiveTool = () => {
+    if (!activeToolId) {
+      return <HomePage />;
+    }
+
+    let toolComponent: React.ReactNode = null;
+
     switch (activeToolId) {
       case 'normalize-pdf-page-size':
-        return <PageSizeNormalizer />;
+        toolComponent = <PageSizeNormalizer />;
+        break;
       case 'merge-pdf':
-        return <MergePdfTool />;
+        toolComponent = <MergePdfTool />;
+        break;
       case 'split-pdf':
-        return <SplitPdfTool />;
+        toolComponent = <SplitPdfTool />;
+        break;
       case 'organize-pdf':
       case 'rotate-pdf':
-        return <OrganizePdfTool />;
+        toolComponent = <OrganizePdfTool />;
+        break;
       case 'compress-pdf':
       case 'flatten-pdf':
       case 'clean-pdf':
-        return <CompressPdfTool />;
+        toolComponent = <CompressPdfTool />;
+        break;
       case 'images-to-pdf':
       case 'word-to-pdf':
       case 'excel-to-pdf':
       case 'text-to-pdf':
-        return <ConvertToPdfTool />;
+      case 'convert-to-pdf':
+        toolComponent = <ConvertToPdfTool />;
+        break;
       case 'pdf-to-word':
-        return <PdfToWordTool />;
+        toolComponent = <PdfToWordTool />;
+        break;
       case 'pdf-to-images':
       case 'pdf-to-excel':
       case 'pdf-to-text':
-        return <ConvertFromPdfTool />;
+      case 'convert-from-pdf':
+        toolComponent = <ConvertFromPdfTool />;
+        break;
       case 'image-background-remover':
-        return <BackgroundRemoverTool />;
+      case 'remove-background':
+        toolComponent = <BackgroundRemoverTool />;
+        break;
       case 'image-background-changer':
-        return <BackgroundChangerTool />;
+        toolComponent = <BackgroundChangerTool />;
+        break;
       case 'image-converter':
-        return <ImageFormatConverterTool />;
+        toolComponent = <ImageFormatConverterTool />;
+        break;
       case 'image-watermark':
-        return <ImageWatermarkTool />;
+        toolComponent = <ImageWatermarkTool />;
+        break;
       case 'image-text':
-        return <ImageTextTool />;
+        toolComponent = <ImageTextTool />;
+        break;
       case 'image-cropper':
-        return <ImageCropResizeTool />;
+        toolComponent = <ImageCropResizeTool />;
+        break;
       case 'image-color-picker':
-        return <ColorPickerTool />;
+        toolComponent = <ColorPickerTool />;
+        break;
       case 'image-info':
-        return <ImageInfoTool />;
+        toolComponent = <ImageInfoTool />;
+        break;
       case 'batch-image-processor':
-        return <BatchImageProcessor />;
+        toolComponent = <BatchImageProcessor />;
+        break;
       case 'assignment-pdf-maker':
-        return <AssignmentPdfMaker />;
+        toolComponent = <AssignmentPdfMaker />;
+        break;
       case 'notes-to-pdf':
-        return <NotesToPdfTool />;
+        toolComponent = <NotesToPdfTool />;
+        break;
       case 'pdf-submission-compressor':
-        return <PdfSubmissionCompressor />;
+        toolComponent = <PdfSubmissionCompressor />;
+        break;
       case 'image-submission-compressor':
-        return <ImageSubmissionCompressor />;
+        toolComponent = <ImageSubmissionCompressor />;
+        break;
       case 'image-compressor':
       case 'image-resizer':
       case 'image-metadata-remover':
-        return <ImageTools />;
+      case 'image-tools':
+        toolComponent = <ImageTools />;
+        break;
       case 'pdf-edit':
-        return <PdfEditTool />;
+        toolComponent = <PdfEditTool />;
+        break;
       case 'pdf-security':
-        return <PdfSecurityTool />;
+        toolComponent = <PdfSecurityTool />;
+        break;
       case 'ocr-pdf':
-        return <OcrPdfTool />;
+        toolComponent = <OcrPdfTool />;
+        break;
       case 'pdf-inspector':
-        return <PdfInspectorTool />;
+        toolComponent = <PdfInspectorTool />;
+        break;
       case 'pdf-compare':
-        return <PdfCompareTool />;
+        toolComponent = <PdfCompareTool />;
+        break;
       default:
-        return <HomePage />;
+        return <NotFoundPage />;
     }
+
+    return (
+      <div className="space-y-6">
+        {toolComponent}
+        {currentTool && (
+          <ToolGuideSection
+            toolId={currentTool.id}
+            toolName={currentTool.name}
+            category={currentTool.category}
+          />
+        )}
+      </div>
+    );
   };
 
   return (
@@ -121,18 +188,21 @@ function MainContent() {
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Breadcrumb navigation if on tool page */}
-        {activeToolId && (
+        {activeToolId && currentTool && (
           <nav className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-6 pb-3 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setActiveToolId(null)}
+                onClick={() => {
+                  setActiveToolId(null);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer"
               >
                 <Home className="w-3.5 h-3.5" />
                 <span>All Tools</span>
               </button>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-              {currentTool?.category && (
+              {currentTool.category && (
                 <>
                   <span className="text-slate-500 dark:text-slate-400 font-medium">
                     {currentTool.category.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
@@ -141,7 +211,7 @@ function MainContent() {
                 </>
               )}
               <span className="text-slate-900 dark:text-slate-100 font-bold truncate max-w-xs sm:max-w-md">
-                {currentTool?.name || 'Tool'}
+                {currentTool.name}
               </span>
             </div>
 
