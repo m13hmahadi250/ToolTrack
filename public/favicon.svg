@@ -1,51 +1,73 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
   <defs>
-    <linearGradient id="brandOuterGrad" x1="0.1" y1="0.95" x2="0.9" y2="0.05">
-      <stop offset="0%" stop-color="#7c3aed" />
-      <stop offset="22%" stop-color="#6366f1" />
-      <stop offset="50%" stop-color="#2563eb" />
-      <stop offset="78%" stop-color="#0284c7" />
-      <stop offset="100%" stop-color="#38bdf8" />
+    <linearGradient id="ttBgGrad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#090d16" />
+      <stop offset="100%" stop-color="#020617" />
     </linearGradient>
-    <linearGradient id="brandFoldGrad" x1="0.1" y1="0.9" x2="0.85" y2="0.15">
-      <stop offset="0%" stop-color="#0284c7" />
-      <stop offset="45%" stop-color="#38bdf8" />
-      <stop offset="100%" stop-color="#7dd3fc" />
+
+    <linearGradient id="ttPrimaryGrad" x1="120" y1="120" x2="390" y2="390" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="50%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#2563eb" />
     </linearGradient>
-    <linearGradient id="brandInnerBg" x1="0.15" y1="0.1" x2="0.85" y2="0.95">
-      <stop offset="0%" stop-color="#10255c" />
-      <stop offset="45%" stop-color="#0a173d" />
-      <stop offset="100%" stop-color="#04091c" />
+
+    <linearGradient id="ttAccentGrad" x1="260" y1="120" x2="400" y2="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0ea5e9" />
     </linearGradient>
-    <filter id="brandFoldShadow" x="-20%" y="-20%" width="160%" height="160%">
-      <feDropShadow dx="-4" dy="8" stdDeviation="10" flood-color="#020817" flood-opacity="0.55" />
+
+    <linearGradient id="ttRimGrad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22" />
+      <stop offset="40%" stop-color="#6366f1" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.06" />
+    </linearGradient>
+
+    <filter id="ttGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="12" flood-color="#4f46e5" flood-opacity="0.35" />
     </filter>
   </defs>
 
-  <path
-    d="M 148 48 L 326 48 L 464 186 L 464 364 C 464 419.23 419.23 464 364 464 L 148 464 C 92.77 464 48 419.23 48 364 L 48 148 C 48 92.77 92.77 48 148 48 Z"
-    fill="url(#brandOuterGrad)"
+  <rect
+    x="32"
+    y="32"
+    width="448"
+    height="448"
+    rx="112"
+    fill="url(#ttBgGrad)"
+    stroke="url(#ttRimGrad)"
+    stroke-width="3.5"
   />
-  <path
-    d="M 148 76 L 306 76 L 436 206 L 436 364 C 436 403.76 403.76 436 364 436 L 148 436 C 108.24 436 76 403.76 76 364 L 76 148 C 76 108.24 108.24 76 148 76 Z"
-    fill="url(#brandInnerBg)"
-  />
-  <path
-    d="M 326 48 C 328 130 334 186 334 186 L 464 186 C 464 150 440 90 410 72 L 326 48 Z"
-    fill="url(#brandFoldGrad)"
-    filter="url(#brandFoldShadow)"
-  />
-  <g transform="translate(242, 268) rotate(-45)">
-    <path d="M -18 30 L -14 135 C -14 148 14 148 14 135 L 18 30 Z" fill="#ffffff" />
-    <circle cx="0" cy="132" r="16" fill="#ffffff" />
-    <circle cx="0" cy="132" r="7" fill="#0d1b3e" />
-    <path d="M -38 32 C -46 -2 -24 -36 0 -42 C 24 -36 46 -2 38 32 C 30 46 16 48 0 48 C -16 48 -30 46 -38 32 Z" fill="#ffffff" />
-    <path d="M -16 -46 L -16 -12 L 16 -12 L 16 -46 L 0 -54 Z" fill="#0d1b3e" />
+
+  <g opacity="0.08" stroke="#ffffff" stroke-width="2">
+    <line x1="128" y1="32" x2="128" y2="480" />
+    <line x1="256" y1="32" x2="256" y2="480" />
+    <line x1="384" y1="32" x2="384" y2="480" />
+    <line x1="32" y1="128" x2="480" y2="128" />
+    <line x1="32" y1="256" x2="480" y2="256" />
+    <line x1="32" y1="384" x2="480" y2="384" />
   </g>
-  <g transform="translate(345, 275)">
-    <path d="M 0 -24 Q 0 0 24 0 Q 0 0 0 24 Q 0 0 -24 0 Q 0 0 0 -24 Z" fill="#ffffff" />
-  </g>
-  <g transform="translate(295, 340)">
-    <path d="M 0 -15 Q 0 0 15 0 Q 0 0 0 15 Q 0 0 -15 0 Q 0 0 0 -15 Z" fill="#ffffff" />
+
+  <g filter="url(#ttGlow)">
+    <path
+      d="M 140 148 C 140 134.745 150.745 124 164 124 L 246 124 L 246 196 L 164 196 C 150.745 196 140 185.255 140 172 Z"
+      fill="url(#ttPrimaryGrad)"
+    />
+    <path
+      d="M 266 124 L 348 124 C 361.255 124 372 134.745 372 148 L 372 172 C 372 185.255 361.255 196 348 196 L 266 196 Z"
+      fill="url(#ttAccentGrad)"
+    />
+    <path
+      d="M 220 216 L 292 216 L 292 344 C 292 357.255 281.255 368 268 368 L 244 368 C 230.745 368 220 357.255 220 344 Z"
+      fill="url(#ttPrimaryGrad)"
+    />
+    <path
+      d="M 330 252 L 358 280 L 330 308"
+      stroke="#38bdf8"
+      stroke-width="16"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <circle cx="168" cy="280" r="10" fill="#6366f1" />
   </g>
 </svg>
