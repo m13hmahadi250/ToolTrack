@@ -1,0 +1,6 @@
+{
+  "name": "ToolTrack",
+  "description": "All-in-one PDF, image, and document processing platform with real client-side utilities, page size normalizer, and batch processing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
