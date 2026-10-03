@@ -43,6 +43,9 @@ export const BatchImageProcessor: React.FC = () => {
   const [processing, setProcessing] = useState(false);
   const [zipBlob, setZipBlob] = useState<Blob | null>(null);
 
+  const processingVersionRef = React.useRef(0);
+  const hasProcessedOnceRef = React.useRef(false);
+
   const handleFiles = (files: File[]) => {
     const list: BatchFileItem[] = files.map((f, i) => ({
       id: `${Date.now()}-${i}-${f.name}`,
@@ -52,10 +55,13 @@ export const BatchImageProcessor: React.FC = () => {
     }));
     setItems(list);
     setZipBlob(null);
+    hasProcessedOnceRef.current = false;
   };
 
-  const runBatchProcessing = async () => {
+  const runBatchProcessingWithVersion = async (targetVersion: number) => {
     if (items.length === 0) return;
+    if (processingVersionRef.current !== targetVersion) return;
+
     setProcessing(true);
 
     const totalSize = items.reduce((acc, it) => acc + it.file.size, 0);
@@ -69,9 +75,12 @@ export const BatchImageProcessor: React.FC = () => {
     });
 
     const zip = new JSZip();
-    const updated = [...items];
+    const updated: BatchFileItem[] = items.map((it) => ({ ...it, status: 'waiting' }));
+    setItems([...updated]);
 
     for (let i = 0; i < updated.length; i++) {
+      if (processingVersionRef.current !== targetVersion) return;
+
       const item = updated[i];
       item.status = 'processing';
       setItems([...updated]);
@@ -84,9 +93,15 @@ export const BatchImageProcessor: React.FC = () => {
         if (batchAction === 'compress') {
           const res = await compressImage(item.file, {
             quality,
-            format: 'same',
+            format: 'auto',
+            debugMode: true,
           });
           outBlob = res.blob;
+          ext = res.outputFormat.includes('png')
+            ? 'png'
+            : res.outputFormat.includes('webp')
+              ? 'webp'
+              : 'jpg';
         } else if (batchAction === 'resize') {
           const details = await inspectImage(item.file);
           const targetW = Math.max(1, Math.round(details.width * (resizePercent / 100)));
@@ -97,6 +112,7 @@ export const BatchImageProcessor: React.FC = () => {
             maxHeight: targetH,
             quality: 0.92,
             format: 'same',
+            debugMode: true,
           });
           outBlob = res.blob;
         } else if (batchAction === 'convert') {
@@ -127,6 +143,8 @@ export const BatchImageProcessor: React.FC = () => {
           outBlob = res.blob;
         }
 
+        if (processingVersionRef.current !== targetVersion) return;
+
         const outName = `${item.file.name.replace(/\.[^/.]+$/, '')}-${batchAction}.${ext}`;
         item.status = 'completed';
         item.outputBlob = outBlob;
@@ -140,34 +158,74 @@ export const BatchImageProcessor: React.FC = () => {
         item.errorMessage = String(err);
       }
 
+      if (processingVersionRef.current !== targetVersion) return;
       setItems([...updated]);
       updateJob(jobId, { progress: (i + 1) / updated.length });
     }
 
     try {
       const z = await zip.generateAsync({ type: 'blob' });
-      setZipBlob(z);
+      if (processingVersionRef.current === targetVersion) {
+        setZipBlob(z);
 
-      updateJob(jobId, {
-        status: 'completed',
-        progress: 1.0,
-        outputBlob: z,
-        outputFileName: `batch-${batchAction}-images.zip`,
-        outputSize: z.size,
-      });
+        updateJob(jobId, {
+          status: 'completed',
+          progress: 1.0,
+          outputBlob: z,
+          outputFileName: `batch-${batchAction}-images.zip`,
+          outputSize: z.size,
+        });
 
-      addRecentActivity(
-        'batch-image-processor',
-        `Batch ${batchAction.toUpperCase()}`,
-        `${items.length} images`,
-        'completed'
-      );
+        addRecentActivity(
+          'batch-image-processor',
+          `Batch ${batchAction.toUpperCase()}`,
+          `${items.length} images`,
+          'completed'
+        );
+      }
     } catch (e) {
       console.error(e);
     } finally {
-      setProcessing(false);
+      if (processingVersionRef.current === targetVersion) {
+        setProcessing(false);
+      }
     }
   };
+
+  const runBatchProcessing = () => {
+    hasProcessedOnceRef.current = true;
+    processingVersionRef.current += 1;
+    runBatchProcessingWithVersion(processingVersionRef.current);
+  };
+
+  // AUTOMATIC REPROCESSING ON SETTINGS CHANGE (FROM ORIGINAL FILES)
+  React.useEffect(() => {
+    if (!hasProcessedOnceRef.current || items.length === 0) return;
+
+    // Immediately invalidate old result so stale metrics are never shown
+    setZipBlob(null);
+    setProcessing(true);
+    setItems((prev) =>
+      prev.map((it) => ({
+        ...it,
+        status: 'waiting',
+        outputBlob: undefined,
+        outputSize: undefined,
+        outputName: undefined,
+      }))
+    );
+
+    processingVersionRef.current += 1;
+    const currentVersion = processingVersionRef.current;
+
+    const timer = setTimeout(() => {
+      runBatchProcessingWithVersion(currentVersion);
+    }, 450);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [batchAction, quality, resizePercent, targetFormat, watermarkText]);
 
   const downloadFile = (blob: Blob, name: string) => {
     const url = URL.createObjectURL(blob);

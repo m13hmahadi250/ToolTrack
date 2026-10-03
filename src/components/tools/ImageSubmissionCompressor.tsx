@@ -30,7 +30,10 @@ export const ImageSubmissionCompressor: React.FC = () => {
     width: number;
     height: number;
     name: string;
+    targetKbUsed: number;
   } | null>(null);
+
+  const processingVersionRef = React.useRef(0);
 
   const handleFileSelect = async (files: File[]) => {
     if (files.length === 0) return;
@@ -42,8 +45,10 @@ export const ImageSubmissionCompressor: React.FC = () => {
     setDetails(info);
   };
 
-  const handleCompress = async () => {
+  const handleCompressWithVersion = async (targetVersion: number) => {
     if (!file) return;
+    if (processingVersionRef.current !== targetVersion) return;
+
     setProcessing(true);
 
     const finalTargetKb = customKb ? Number(customKb) : targetKb;
@@ -59,10 +64,13 @@ export const ImageSubmissionCompressor: React.FC = () => {
 
     try {
       const compResult = await compressImage(file, {
-        format: file.type === 'image/png' ? 'image/png' : 'image/jpeg',
+        format: 'auto',
         targetSizeKb: finalTargetKb,
         quality: 0.85,
+        debugMode: true,
       });
+
+      if (processingVersionRef.current !== targetVersion) return;
 
       const ext = compResult.outputFormat.includes('png')
         ? 'png'
@@ -83,6 +91,7 @@ export const ImageSubmissionCompressor: React.FC = () => {
         width: compResult.outputWidth,
         height: compResult.outputHeight,
         name: outName,
+        targetKbUsed: finalTargetKb,
       });
 
       updateJob(jobId, {
@@ -101,11 +110,40 @@ export const ImageSubmissionCompressor: React.FC = () => {
       );
     } catch (err: unknown) {
       console.error(err);
-      updateJob(jobId, { status: 'failed', errorMessage: String(err) });
+      if (processingVersionRef.current === targetVersion) {
+        updateJob(jobId, { status: 'failed', errorMessage: String(err) });
+      }
     } finally {
-      setProcessing(false);
+      if (processingVersionRef.current === targetVersion) {
+        setProcessing(false);
+      }
     }
   };
+
+  const handleCompress = () => {
+    processingVersionRef.current += 1;
+    handleCompressWithVersion(processingVersionRef.current);
+  };
+
+  // AUTOMATIC REPROCESS ON TARGET KB CHANGE (FROM ORIGINAL FILE)
+  React.useEffect(() => {
+    if (!file) return;
+
+    // Immediately clear previous result to prevent showing stale file size
+    setResult(null);
+    setProcessing(true);
+
+    processingVersionRef.current += 1;
+    const currentVersion = processingVersionRef.current;
+
+    const timer = setTimeout(() => {
+      handleCompressWithVersion(currentVersion);
+    }, 350);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [file, targetKb, customKb]);
 
   const downloadImage = () => {
     if (!result) return;
@@ -219,15 +257,27 @@ export const ImageSubmissionCompressor: React.FC = () => {
               <span>Compress Image to Target Size</span>
             </button>
 
+            {processing && (
+              <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center gap-3 text-indigo-700 dark:text-indigo-300 animate-in fade-in duration-200">
+                <div className="w-4 h-4 border-2 border-indigo-600 dark:border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+                <span className="font-bold text-xs">Optimizing original image to target size (debounced)...</span>
+              </div>
+            )}
+
             {/* Results */}
-            {result && (
+            {result && !processing && (
               <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 space-y-4 animate-in fade-in">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    <span className="font-extrabold text-sm text-emerald-900 dark:text-emerald-200">
-                      Successfully Compressed
-                    </span>
+                    <div>
+                      <span className="font-extrabold text-sm text-emerald-900 dark:text-emerald-200 block">
+                        Target Met Successfully
+                      </span>
+                      <span className="text-[11px] text-emerald-700 dark:text-emerald-300 font-mono">
+                        Target limit: ≤ {result.targetKbUsed} KB • {result.width}×{result.height}px
+                      </span>
+                    </div>
                   </div>
                   {result.savedPercent > 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-emerald-200 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-100 font-bold text-xs">

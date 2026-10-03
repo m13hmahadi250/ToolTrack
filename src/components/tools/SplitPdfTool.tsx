@@ -18,12 +18,16 @@ export const SplitPdfTool: React.FC = () => {
   const [results, setResults] = useState<{ name: string; bytes: Uint8Array }[]>([]);
   const [zipBlob, setZipBlob] = useState<Blob | null>(null);
 
+  const processingVersionRef = React.useRef(0);
+  const hasSplitOnceRef = React.useRef(false);
+
   const handleFilesSelected = async (files: File[]) => {
     if (files.length === 0) return;
     const f = files[0];
     setFile(f);
     setResults([]);
     setZipBlob(null);
+    hasSplitOnceRef.current = false;
 
     try {
       const buffer = await f.arrayBuffer();
@@ -39,8 +43,10 @@ export const SplitPdfTool: React.FC = () => {
     }
   };
 
-  const handleSplit = async () => {
+  const handleSplitWithVersion = async (targetVersion: number) => {
     if (!file) return;
+    if (processingVersionRef.current !== targetVersion) return;
+
     setProcessing(true);
 
     const jobId = addJob({
@@ -55,6 +61,8 @@ export const SplitPdfTool: React.FC = () => {
 
     try {
       const buffer = await file.arrayBuffer();
+      if (processingVersionRef.current !== targetVersion) return;
+
       let generated: { name: string; bytes: Uint8Array }[] = [];
 
       if (splitMode === 'every') {
@@ -62,6 +70,8 @@ export const SplitPdfTool: React.FC = () => {
       } else {
         generated = await splitPdfByRanges(buffer, rangeInput);
       }
+
+      if (processingVersionRef.current !== targetVersion) return;
 
       setResults(generated);
 
@@ -71,14 +81,16 @@ export const SplitPdfTool: React.FC = () => {
           zip.file(item.name, item.bytes);
         });
         const zBlob = await zip.generateAsync({ type: 'blob' });
-        setZipBlob(zBlob);
+        if (processingVersionRef.current === targetVersion) {
+          setZipBlob(zBlob);
 
-        updateJob(jobId, {
-          status: 'completed',
-          progress: 1.0,
-          outputBlob: zBlob,
-          outputSize: zBlob.size,
-        });
+          updateJob(jobId, {
+            status: 'completed',
+            progress: 1.0,
+            outputBlob: zBlob,
+            outputSize: zBlob.size,
+          });
+        }
       } else if (generated.length === 1) {
         const singleBlob = new Blob([new Uint8Array(generated[0].bytes)], { type: 'application/pdf' });
         updateJob(jobId, {
@@ -92,15 +104,46 @@ export const SplitPdfTool: React.FC = () => {
       addRecentActivity('split-pdf', 'Split PDF', file.name, 'completed');
     } catch (err: unknown) {
       console.error(err);
-      updateJob(jobId, {
-        status: 'failed',
-        errorMessage: 'Splitting failed: ' + String(err),
-      });
-      addRecentActivity('split-pdf', 'Split PDF', file.name, 'failed');
+      if (processingVersionRef.current === targetVersion) {
+        updateJob(jobId, {
+          status: 'failed',
+          errorMessage: 'Splitting failed: ' + String(err),
+        });
+        addRecentActivity('split-pdf', 'Split PDF', file.name, 'failed');
+      }
     } finally {
-      setProcessing(false);
+      if (processingVersionRef.current === targetVersion) {
+        setProcessing(false);
+      }
     }
   };
+
+  const handleSplit = () => {
+    hasSplitOnceRef.current = true;
+    processingVersionRef.current += 1;
+    handleSplitWithVersion(processingVersionRef.current);
+  };
+
+  // AUTOMATIC REPROCESSING ON SETTINGS CHANGE (FROM ORIGINAL PDF)
+  React.useEffect(() => {
+    if (!file || !hasSplitOnceRef.current) return;
+
+    // Invalidate stale result immediately
+    setResults([]);
+    setZipBlob(null);
+    setProcessing(true);
+
+    processingVersionRef.current += 1;
+    const currentVersion = processingVersionRef.current;
+
+    const timer = setTimeout(() => {
+      handleSplitWithVersion(currentVersion);
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [splitMode, rangeInput]);
 
   const downloadSingle = (item: { name: string; bytes: Uint8Array }) => {
     const blob = new Blob([new Uint8Array(item.bytes)], { type: 'application/pdf' });

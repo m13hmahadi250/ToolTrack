@@ -1,4 +1,5 @@
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
+import { sanitizePdfText, safeDrawText, safeWidthOfTextAtSize } from './pdfTextSanitizer';
 import type { PageSizeNormalizerOptions, Margins } from '../types';
 import { MM_TO_PT, STANDARD_SIZES_MM } from './pdfRenderer';
 
@@ -344,12 +345,14 @@ export async function addWatermark(
   const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const pages = pdfDoc.getPages();
 
+  const cleanText = sanitizePdfText(text);
+
   for (const page of pages) {
     const { width, height } = page.getSize();
-    const textWidth = font.widthOfTextAtSize(text, fontSize);
+    const textWidth = safeWidthOfTextAtSize(font, cleanText, fontSize);
     const textHeight = font.heightAtSize(fontSize);
 
-    page.drawText(text, {
+    safeDrawText(page, cleanText, {
       x: width / 2 - textWidth / 2,
       y: height / 2 - textHeight / 2,
       size: fontSize,
@@ -375,13 +378,14 @@ export async function addPageNumbers(
 
   pages.forEach((page, idx) => {
     const currentNum = idx + 1;
-    let label = `${currentNum}`;
-    if (format === 'page_x') label = `Page ${currentNum}`;
-    if (format === 'page_x_of_y') label = `Page ${currentNum} of ${total}`;
+    let rawLabel = `${currentNum}`;
+    if (format === 'page_x') rawLabel = `Page ${currentNum}`;
+    if (format === 'page_x_of_y') rawLabel = `Page ${currentNum} of ${total}`;
 
+    const label = sanitizePdfText(rawLabel);
     const { width, height } = page.getSize();
     const fontSize = 10;
-    const textWidth = font.widthOfTextAtSize(label, fontSize);
+    const textWidth = safeWidthOfTextAtSize(font, label, fontSize);
 
     let x = width / 2 - textWidth / 2;
     let y = 25;
@@ -394,7 +398,7 @@ export async function addPageNumbers(
       y = height - 30;
     }
 
-    page.drawText(label, {
+    safeDrawText(page, label, {
       x,
       y,
       size: fontSize,

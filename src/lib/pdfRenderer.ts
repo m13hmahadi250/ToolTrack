@@ -37,9 +37,32 @@ export function identifyStandardSize(widthPt: number, heightPt: number): string 
   return `Custom (${Math.round(widthPt * PT_TO_MM)} × ${Math.round(heightPt * PT_TO_MM)} mm)`;
 }
 
-export async function loadPdfDocument(data: ArrayBuffer | Uint8Array, password?: string) {
+export async function loadPdfDocument(data: ArrayBuffer | Uint8Array, password?: string): Promise<pdfjsLib.PDFDocumentProxy> {
+  // Defensively allocate a completely fresh ArrayBuffer and copy bytes so worker postMessage transferable never detaches caller's buffer
+  let safeBytes: Uint8Array;
+  try {
+    if (data instanceof Uint8Array) {
+      if (data.byteLength === 0) {
+        throw new Error('Provided PDF Uint8Array is empty or detached.');
+      }
+      safeBytes = new Uint8Array(data.byteLength);
+      safeBytes.set(data);
+    } else if (data instanceof ArrayBuffer) {
+      if (data.byteLength === 0 || (data as any).detached) {
+        throw new Error('Provided PDF ArrayBuffer is empty or detached.');
+      }
+      const view = new Uint8Array(data);
+      safeBytes = new Uint8Array(view.byteLength);
+      safeBytes.set(view);
+    } else {
+      safeBytes = new Uint8Array(data);
+    }
+  } catch (err) {
+    throw new Error('Failed to prepare PDF data buffer for worker: ' + String(err));
+  }
+
   const loadingTask = pdfjsLib.getDocument({
-    data: new Uint8Array(data),
+    data: safeBytes,
     password: password || '',
     cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/cmaps/',
     cMapPacked: true,
@@ -47,8 +70,11 @@ export async function loadPdfDocument(data: ArrayBuffer | Uint8Array, password?:
   return await loadingTask.promise;
 }
 
-export async function getPdfPagesInfo(data: ArrayBuffer | Uint8Array, password?: string): Promise<DetectedPageInfo[]> {
-  const pdf = await loadPdfDocument(data, password);
+export async function getPdfPagesInfo(
+  dataOrDoc: ArrayBuffer | Uint8Array | pdfjsLib.PDFDocumentProxy,
+  password?: string
+): Promise<DetectedPageInfo[]> {
+  const pdf = 'numPages' in dataOrDoc ? dataOrDoc : await loadPdfDocument(dataOrDoc, password);
   const numPages = pdf.numPages;
   const pagesInfo: DetectedPageInfo[] = [];
 
@@ -143,8 +169,11 @@ export function cropCanvasRegionToDataUrl(
   return cropCanvas.toDataURL('image/png');
 }
 
-export async function extractTextFromPdf(data: ArrayBuffer | Uint8Array, password?: string): Promise<{ text: string; pages: string[] }> {
-  const pdf = await loadPdfDocument(data, password);
+export async function extractTextFromPdf(
+  dataOrDoc: ArrayBuffer | Uint8Array | pdfjsLib.PDFDocumentProxy,
+  password?: string
+): Promise<{ text: string; pages: string[] }> {
+  const pdf = 'numPages' in dataOrDoc ? dataOrDoc : await loadPdfDocument(dataOrDoc, password);
   const pages: string[] = [];
 
   for (let i = 1; i <= pdf.numPages; i++) {

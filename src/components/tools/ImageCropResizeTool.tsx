@@ -41,12 +41,20 @@ export const ImageCropResizeTool: React.FC = () => {
   const [exportFormat, setExportFormat] = useState<SupportedImageFormat>('image/png');
   const [exportQuality, setExportQuality] = useState(0.92);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [outputBlob, setOutputBlob] = useState<Blob | null>(null);
+  const [outputSize, setOutputSize] = useState<number | null>(null);
+  const [actualDimensions, setActualDimensions] = useState<{ width: number; height: number } | null>(null);
   const [processing, setProcessing] = useState(false);
+
+  const processingVersionRef = useRef(0);
 
   const handleFileSelect = async (files: File[]) => {
     if (files.length === 0) return;
     const selected = files[0];
     setFile(selected);
+    setOutputBlob(null);
+    setOutputSize(null);
+    setActualDimensions(null);
 
     const info = await inspectImage(selected);
     setDetails(info);
@@ -99,14 +107,18 @@ export const ImageCropResizeTool: React.FC = () => {
     }
   };
 
-  // Live preview update
+  // Debounced auto-reprocess from ORIGINAL file
   useEffect(() => {
     if (!file || targetWidth <= 0 || targetHeight <= 0) return;
 
-    let isMounted = true;
-    const updatePreview = async () => {
+    // Invalidate immediately to prevent showing stale result
+    setProcessing(true);
+    processingVersionRef.current += 1;
+    const currentVersion = processingVersionRef.current;
+
+    const timer = setTimeout(async () => {
       try {
-        const { blob } = await cropAndTransformImage(file, {
+        const { blob, width, height } = await cropAndTransformImage(file, {
           targetWidth,
           targetHeight,
           rotation,
@@ -116,56 +128,51 @@ export const ImageCropResizeTool: React.FC = () => {
           quality: exportQuality,
         });
 
-        if (isMounted) {
+        if (processingVersionRef.current === currentVersion) {
           if (previewUrl) URL.revokeObjectURL(previewUrl);
-          setPreviewUrl(URL.createObjectURL(blob));
+          const newUrl = URL.createObjectURL(blob);
+          setPreviewUrl(newUrl);
+          setOutputBlob(blob);
+          setOutputSize(blob.size);
+          setActualDimensions({ width, height });
+          setProcessing(false);
         }
       } catch (err) {
         console.error(err);
+        if (processingVersionRef.current === currentVersion) {
+          setProcessing(false);
+        }
       }
-    };
+    }, 350);
 
-    updatePreview();
     return () => {
-      isMounted = false;
+      clearTimeout(timer);
     };
   }, [file, targetWidth, targetHeight, rotation, flipH, flipV, exportFormat, exportQuality]);
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (!file) return;
-    setProcessing(true);
+    const blobToDownload = outputBlob;
+    if (!blobToDownload) return;
 
-    try {
-      const { blob, width, height } = await cropAndTransformImage(file, {
-        targetWidth,
-        targetHeight,
-        rotation,
-        flipH,
-        flipV,
-        format: exportFormat,
-        quality: exportQuality,
-      });
+    let ext = 'png';
+    if (exportFormat === 'image/jpeg') ext = 'jpg';
+    if (exportFormat === 'image/webp') ext = 'webp';
 
-      let ext = 'png';
-      if (exportFormat === 'image/jpeg') ext = 'jpg';
-      if (exportFormat === 'image/webp') ext = 'webp';
+    const width = actualDimensions?.width || targetWidth;
+    const height = actualDimensions?.height || targetHeight;
+    const fileName = `${file.name.replace(/\.[^/.]+$/, '')}-${width}x${height}.${ext}`;
 
-      const fileName = `${file.name.replace(/\.[^/.]+$/, '')}-${width}x${height}.${ext}`;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(blobToDownload);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
-      addRecentActivity('image-cropper', 'Crop & Resize Image', file.name, 'completed');
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setProcessing(false);
-    }
+    addRecentActivity('image-cropper', 'Crop & Resize Image', file.name, 'completed');
   };
 
   return (
@@ -361,13 +368,29 @@ export const ImageCropResizeTool: React.FC = () => {
                 ))}
               </div>
 
+              {outputSize && !processing && (
+                <div className="flex items-center justify-between text-[11px] font-mono text-indigo-700 dark:text-indigo-300 bg-indigo-100/60 dark:bg-indigo-900/50 p-2 rounded-lg">
+                  <span>Size: {(outputSize / 1024).toFixed(1)} KB</span>
+                  <span>{actualDimensions?.width || targetWidth} × {actualDimensions?.height || targetHeight}px</span>
+                </div>
+              )}
+
               <button
                 onClick={handleDownload}
-                disabled={processing}
-                className="w-full py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 cursor-pointer"
+                disabled={processing || !outputBlob}
+                className="w-full py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                <Download className="w-4 h-4" />
-                <span>Download ({targetWidth} × {targetHeight}px)</span>
+                {processing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Updating Geometry...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>Download ({targetWidth} × {targetHeight}px)</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

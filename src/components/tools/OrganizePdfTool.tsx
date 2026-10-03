@@ -34,6 +34,8 @@ export const OrganizePdfTool: React.FC = () => {
   const [resultBlob, setResultBlob] = useState<Blob | null>(null);
   const [resultSize, setResultSize] = useState<number | null>(null);
 
+  const processingVersionRef = React.useRef(0);
+
   // Escape key handler to deselect or exit page organizing
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -138,8 +140,10 @@ export const OrganizePdfTool: React.FC = () => {
     );
   };
 
-  const handleExport = async () => {
+  const handleExportWithVersion = async (targetVersion: number) => {
     if (!file || pages.length === 0) return;
+    if (processingVersionRef.current !== targetVersion) return;
+
     setProcessing(true);
 
     const outName = `${file.name.replace(/\.[^/.]+$/, '')}-organized.pdf`;
@@ -155,6 +159,8 @@ export const OrganizePdfTool: React.FC = () => {
 
     try {
       const buffer = await file.arrayBuffer();
+      if (processingVersionRef.current !== targetVersion) return;
+
       const pageOrder = pages.map((p) => p.originalIndex);
       const rotations: Record<number, number> = {};
 
@@ -168,6 +174,8 @@ export const OrganizePdfTool: React.FC = () => {
         pageOrder,
         rotations,
       });
+
+      if (processingVersionRef.current !== targetVersion) return;
 
       const blob = new Blob([new Uint8Array(modifiedBytes)], { type: 'application/pdf' });
       setResultBlob(blob);
@@ -183,15 +191,45 @@ export const OrganizePdfTool: React.FC = () => {
       addRecentActivity('organize-pdf', 'Organize PDF', file.name, 'completed');
     } catch (err: unknown) {
       console.error(err);
-      updateJob(jobId, {
-        status: 'failed',
-        errorMessage: 'Organizing failed: ' + String(err),
-      });
-      addRecentActivity('organize-pdf', 'Organize PDF', file.name, 'failed');
+      if (processingVersionRef.current === targetVersion) {
+        updateJob(jobId, {
+          status: 'failed',
+          errorMessage: 'Organizing failed: ' + String(err),
+        });
+        addRecentActivity('organize-pdf', 'Organize PDF', file.name, 'failed');
+      }
     } finally {
-      setProcessing(false);
+      if (processingVersionRef.current === targetVersion) {
+        setProcessing(false);
+      }
     }
   };
+
+  const handleExport = () => {
+    processingVersionRef.current += 1;
+    handleExportWithVersion(processingVersionRef.current);
+  };
+
+  // AUTOMATIC REPROCESS ON PAGE ORDER / ROTATION / DELETE CHANGE (FROM ORIGINAL PDF)
+  useEffect(() => {
+    if (!file || pages.length === 0) return;
+
+    // Invalidate stale result immediately
+    setResultBlob(null);
+    setResultSize(null);
+    setProcessing(true);
+
+    processingVersionRef.current += 1;
+    const currentVersion = processingVersionRef.current;
+
+    const timer = setTimeout(() => {
+      handleExportWithVersion(currentVersion);
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [file, pages]);
 
   const handleDownload = () => {
     if (!resultBlob) return;

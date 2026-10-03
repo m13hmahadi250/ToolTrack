@@ -44,11 +44,14 @@ export const ImageWatermarkTool: React.FC = () => {
   const [zipBlob, setZipBlob] = useState<Blob | null>(null);
 
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const processingVersionRef = useRef(0);
+  const hasProcessedOnceRef = useRef(false);
 
   const handleFilesSelected = (newFiles: File[]) => {
     setFiles(newFiles);
     setResults([]);
     setZipBlob(null);
+    hasProcessedOnceRef.current = false;
   };
 
   // Generate live preview on primary image
@@ -102,8 +105,10 @@ export const ImageWatermarkTool: React.FC = () => {
     logoScale,
   ]);
 
-  const handleProcessBatch = async () => {
+  const handleProcessBatchWithVersion = async (targetVersion: number) => {
     if (files.length === 0) return;
+    if (processingVersionRef.current !== targetVersion) return;
+
     setProcessing(true);
 
     const totalSize = files.reduce((acc, f) => acc + f.size, 0);
@@ -121,6 +126,8 @@ export const ImageWatermarkTool: React.FC = () => {
       const zip = new JSZip();
 
       for (let i = 0; i < files.length; i++) {
+        if (processingVersionRef.current !== targetVersion) return;
+
         const file = files[i];
         const outName = `${file.name.replace(/\.[^/.]+$/, '')}-watermarked.png`;
 
@@ -140,23 +147,29 @@ export const ImageWatermarkTool: React.FC = () => {
           quality: 0.95,
         });
 
+        if (processingVersionRef.current !== targetVersion) return;
+
         outputList.push({ name: outName, blob });
         zip.file(outName, blob);
         updateJob(jobId, { progress: (i + 1) / files.length });
       }
 
+      if (processingVersionRef.current !== targetVersion) return;
+
       setResults(outputList);
 
       if (outputList.length > 1) {
         const z = await zip.generateAsync({ type: 'blob' });
-        setZipBlob(z);
-        updateJob(jobId, {
-          status: 'completed',
-          progress: 1.0,
-          outputBlob: z,
-          outputFileName: 'watermarked-images.zip',
-          outputSize: z.size,
-        });
+        if (processingVersionRef.current === targetVersion) {
+          setZipBlob(z);
+          updateJob(jobId, {
+            status: 'completed',
+            progress: 1.0,
+            outputBlob: z,
+            outputFileName: 'watermarked-images.zip',
+            outputSize: z.size,
+          });
+        }
       } else {
         updateJob(jobId, {
           status: 'completed',
@@ -170,11 +183,54 @@ export const ImageWatermarkTool: React.FC = () => {
       addRecentActivity('image-watermark', 'Watermark Images', `${files.length} images`, 'completed');
     } catch (err: unknown) {
       console.error(err);
-      updateJob(jobId, { status: 'failed', errorMessage: String(err) });
+      if (processingVersionRef.current === targetVersion) {
+        updateJob(jobId, { status: 'failed', errorMessage: String(err) });
+      }
     } finally {
-      setProcessing(false);
+      if (processingVersionRef.current === targetVersion) {
+        setProcessing(false);
+      }
     }
   };
+
+  const handleProcessBatch = () => {
+    hasProcessedOnceRef.current = true;
+    processingVersionRef.current += 1;
+    handleProcessBatchWithVersion(processingVersionRef.current);
+  };
+
+  // AUTOMATIC REPROCESSING ON SETTINGS CHANGE (FROM ORIGINAL FILES)
+  useEffect(() => {
+    if (!hasProcessedOnceRef.current || files.length === 0) return;
+
+    // Immediately clear stale output
+    setResults([]);
+    setZipBlob(null);
+    setProcessing(true);
+
+    processingVersionRef.current += 1;
+    const currentVersion = processingVersionRef.current;
+
+    const timer = setTimeout(() => {
+      handleProcessBatchWithVersion(currentVersion);
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [
+    watermarkType,
+    watermarkText,
+    fontFamily,
+    fontSize,
+    textColor,
+    opacity,
+    rotation,
+    position,
+    margin,
+    logoImageEl,
+    logoScale,
+  ]);
 
   const downloadFile = (blob: Blob, name: string) => {
     const url = URL.createObjectURL(blob);

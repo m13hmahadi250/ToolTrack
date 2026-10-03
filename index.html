@@ -3,24 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ToolTrack — Free Online PDF, Image & Document Processing Suite</title>
-    <meta name="description" content="Free, 100% private PDF and image processing in your browser. Normalize page sizes, merge, split, compress, convert PDF to Word, remove backgrounds, run OCR, and organize documents." />
-    <meta name="keywords" content="PDF tools, image compressor, background remover, PDF to Word, normalize PDF page size, PDF merge, PDF split, OCR online, student document tools" />
+    <title>ToolTrack – Free Online PDF, Image & Document Tools</title>
+    <meta name="description" content="All Your File Tools in One Place. Free, private online PDF, image, and document processing suite. Merge, split, compress, convert, edit, and normalize files instantly." />
+    <meta name="keywords" content="PDF tools, image compressor, background remover, PDF to Word, Word to PDF, normalize PDF page size, PDF merge, PDF split, OCR online, student document tools" />
     <meta name="author" content="ToolTrack" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://tooltracker.vercel.app/" id="canonical-url" />
+
+    <!-- Google Search Console Verification -->
+    <meta name="google-site-verification" content="google36e95f88e47922e7" />
+    <meta name="google-site-verification" content="36e95f88e47922e7" />
     
     <!-- OpenGraph Social Sharing -->
     <meta property="og:site_name" content="ToolTrack" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="ToolTrack — Free Online PDF, Image & Document Suite" />
-    <meta property="og:description" content="Free, 100% private PDF and image processing in your browser. Normalize page sizes, merge, split, compress, convert PDF to Word, remove backgrounds, run OCR, and organize documents." />
-    <meta property="og:image" content="/icon-512.png" />
+    <meta property="og:title" content="ToolTrack – Free Online PDF, Image & Document Tools" />
+    <meta property="og:description" content="All Your File Tools in One Place. Free, private online PDF, image, and document processing suite. Merge, split, compress, convert, edit, and normalize files instantly." />
+    <meta property="og:url" content="https://tooltracker.vercel.app/" />
+    <meta property="og:image" content="https://tooltracker.vercel.app/icon-512.png" />
     
     <!-- Twitter Social Cards -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="ToolTrack — Free Online PDF, Image & Document Suite" />
-    <meta name="twitter:description" content="Free, 100% private PDF and image processing in your browser. Normalize page sizes, merge, split, compress, convert PDF to Word, remove backgrounds, run OCR, and organize documents." />
-    <meta name="twitter:image" content="/icon-512.png" />
+    <meta name="twitter:title" content="ToolTrack – Free Online PDF, Image & Document Tools" />
+    <meta name="twitter:description" content="All Your File Tools in One Place. Free, private online PDF, image, and document processing suite." />
+    <meta name="twitter:image" content="https://tooltracker.vercel.app/icon-512.png" />
     
     <meta name="theme-color" content="#4f46e5" />
     <meta name="color-scheme" content="light dark" />
@@ -29,30 +35,63 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="ToolTrack" />
 
-    <!-- Schema.org WebApplication Structured Data -->
-    <script type="application/ld+json">
+    <!-- Schema.org WebApplication & Organization Structured Data -->
+    <script type="application/ld+json" id="root-schema-jsonld">
     {
       "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "ToolTrack",
-      "url": "https://tooltrack.app",
-      "applicationCategory": "ProductivityApplication",
-      "operatingSystem": "All",
-      "browserRequirements": "Requires JavaScript. Requires HTML5.",
-      "description": "High-fidelity PDF, image, and document processing platform with client-side utilities, PDF page size normalizer, and batch processing.",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "featureList": [
-        "Normalize PDF Page Size",
-        "Merge & Split PDF",
-        "Compress PDF & Images",
-        "PDF to Word DOCX Conversion",
-        "Background Remover with Alpha Transparency",
-        "Multilingual OCR Text Recognition",
-        "Organize & Reorder PDF Pages"
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://tooltracker.vercel.app/#website",
+          "url": "https://tooltracker.vercel.app/",
+          "name": "ToolTrack",
+          "description": "All Your File Tools in One Place - Free Online PDF, Image & Document Tools",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://tooltracker.vercel.app/?q={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://tooltracker.vercel.app/#organization",
+          "name": "ToolTrack",
+          "url": "https://tooltracker.vercel.app/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://tooltracker.vercel.app/icon-512.png",
+            "width": 512,
+            "height": 512
+          }
+        },
+        {
+          "@type": "WebApplication",
+          "@id": "https://tooltracker.vercel.app/#application",
+          "name": "ToolTrack",
+          "url": "https://tooltracker.vercel.app/",
+          "applicationCategory": "UtilitiesApplication",
+          "operatingSystem": "All",
+          "browserRequirements": "Requires JavaScript. Requires HTML5.",
+          "description": "High-fidelity PDF, image, and document processing platform with client-side utilities, PDF page size normalizer, and batch processing.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "featureList": [
+            "Normalize PDF Page Size",
+            "Merge & Split PDF",
+            "Compress PDF & Images",
+            "PDF to Word DOCX Conversion",
+            "Word to PDF Document Engine",
+            "Background Remover with Alpha Transparency",
+            "Multilingual OCR Text Recognition",
+            "Organize & Reorder PDF Pages"
+          ]
+        }
       ]
     }
     </script>

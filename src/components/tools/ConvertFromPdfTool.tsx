@@ -38,14 +38,20 @@ export const ConvertFromPdfTool: React.FC = () => {
   const [resultFileName, setResultFileName] = useState('');
   const [isZip, setIsZip] = useState(false);
 
+  const processingVersionRef = React.useRef(0);
+  const hasConvertedOnceRef = React.useRef(false);
+
   const handleFilesSelected = (files: File[]) => {
     if (files.length === 0) return;
     setFile(files[0]);
     setResultBlob(null);
+    hasConvertedOnceRef.current = false;
   };
 
-  const handleConvert = async () => {
+  const handleConvertWithVersion = async (targetVersion: number) => {
     if (!file) return;
+    if (processingVersionRef.current !== targetVersion) return;
+
     setProcessing(true);
     setProgress(0.1);
 
@@ -61,13 +67,18 @@ export const ConvertFromPdfTool: React.FC = () => {
 
     try {
       const buffer = await file.arrayBuffer();
+      if (processingVersionRef.current !== targetVersion) return;
 
       if (activeTab === 'images') {
         const pdf = await loadPdfDocument(buffer);
+        if (processingVersionRef.current !== targetVersion) return;
+
         const count = pdf.numPages;
         const zip = new JSZip();
 
         for (let p = 1; p <= count; p++) {
+          if (processingVersionRef.current !== targetVersion) return;
+
           setProgress(0.1 + (p / count) * 0.8);
           updateJob(jobId, { progress: 0.1 + (p / count) * 0.8 });
 
@@ -79,6 +90,8 @@ export const ConvertFromPdfTool: React.FC = () => {
           const blob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), mime, 0.9));
           zip.file(`page-${p}.${ext}`, blob);
         }
+
+        if (processingVersionRef.current !== targetVersion) return;
 
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         const outName = `${baseName}-images.zip`;
@@ -101,6 +114,8 @@ export const ConvertFromPdfTool: React.FC = () => {
           preserveFonts: true,
           reconstructTables: true,
         });
+        if (processingVersionRef.current !== targetVersion) return;
+
         const outName = `${baseName}.docx`;
         setResultBlob(docxBlob);
         setResultFileName(outName);
@@ -116,6 +131,8 @@ export const ConvertFromPdfTool: React.FC = () => {
       } else if (activeTab === 'excel') {
         setProgress(0.5);
         const excelBlob = await pdfToExcel(buffer);
+        if (processingVersionRef.current !== targetVersion) return;
+
         const outName = `${baseName}.xlsx`;
         setResultBlob(excelBlob);
         setResultFileName(outName);
@@ -132,6 +149,8 @@ export const ConvertFromPdfTool: React.FC = () => {
         // text
         setProgress(0.5);
         const { text } = await extractTextFromPdf(buffer);
+        if (processingVersionRef.current !== targetVersion) return;
+
         const txtBlob = new Blob([text], { type: 'text/plain;charset=utf-8' });
         const outName = `${baseName}.txt`;
         setResultBlob(txtBlob);
@@ -150,15 +169,45 @@ export const ConvertFromPdfTool: React.FC = () => {
       addRecentActivity('convert-from-pdf', `PDF to ${activeTab.toUpperCase()}`, file.name, 'completed');
     } catch (err: unknown) {
       console.error(err);
-      updateJob(jobId, {
-        status: 'failed',
-        errorMessage: 'Conversion failed: ' + String(err),
-      });
-      addRecentActivity('convert-from-pdf', `PDF to ${activeTab.toUpperCase()}`, file.name, 'failed');
+      if (processingVersionRef.current === targetVersion) {
+        updateJob(jobId, {
+          status: 'failed',
+          errorMessage: 'Conversion failed: ' + String(err),
+        });
+        addRecentActivity('convert-from-pdf', `PDF to ${activeTab.toUpperCase()}`, file.name, 'failed');
+      }
     } finally {
-      setProcessing(false);
+      if (processingVersionRef.current === targetVersion) {
+        setProcessing(false);
+      }
     }
   };
+
+  const handleConvert = () => {
+    hasConvertedOnceRef.current = true;
+    processingVersionRef.current += 1;
+    handleConvertWithVersion(processingVersionRef.current);
+  };
+
+  // AUTOMATIC REPROCESSING ON SETTINGS CHANGE (FROM ORIGINAL PDF)
+  React.useEffect(() => {
+    if (!file || !hasConvertedOnceRef.current) return;
+
+    // Invalidate stale result immediately
+    setResultBlob(null);
+    setProcessing(true);
+
+    processingVersionRef.current += 1;
+    const currentVersion = processingVersionRef.current;
+
+    const timer = setTimeout(() => {
+      handleConvertWithVersion(currentVersion);
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [file, activeTab, imgFormat, renderScale]);
 
   const handleDownload = () => {
     if (!resultBlob) return;

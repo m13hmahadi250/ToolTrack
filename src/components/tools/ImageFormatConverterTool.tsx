@@ -31,6 +31,8 @@ export const ImageFormatConverterTool: React.FC = () => {
   >([]);
   const [zipBlob, setZipBlob] = useState<Blob | null>(null);
 
+  const processingVersionRef = React.useRef(0);
+
   const handleFilesSelected = async (newFiles: File[]) => {
     setFiles(newFiles);
     setResults([]);
@@ -52,8 +54,10 @@ export const ImageFormatConverterTool: React.FC = () => {
   const hasAnyTransparency = fileDetails.some((d) => d.hasTransparency);
   const isConvertingToJpg = targetFormat === 'image/jpeg';
 
-  const handleConvert = async () => {
+  const handleConvertWithVersion = async (targetVersion: number) => {
     if (files.length === 0) return;
+    if (processingVersionRef.current !== targetVersion) return;
+
     setProcessing(true);
 
     const totalSize = files.reduce((acc, f) => acc + f.size, 0);
@@ -71,6 +75,8 @@ export const ImageFormatConverterTool: React.FC = () => {
       const zip = new JSZip();
 
       for (let i = 0; i < files.length; i++) {
+        if (processingVersionRef.current !== targetVersion) return;
+
         const file = files[i];
         const baseName = file.name.replace(/\.[^/.]+$/, '');
         let ext = 'png';
@@ -86,6 +92,8 @@ export const ImageFormatConverterTool: React.FC = () => {
           backgroundColor: jpgBgColor,
         });
 
+        if (processingVersionRef.current !== targetVersion) return;
+
         converted.push({
           name: outName,
           blob: res.blob,
@@ -99,36 +107,70 @@ export const ImageFormatConverterTool: React.FC = () => {
         updateJob(jobId, { progress: (i + 1) / files.length });
       }
 
-      setResults(converted);
+      if (processingVersionRef.current === targetVersion) {
+        setResults(converted);
 
-      if (converted.length > 1) {
-        const z = await zip.generateAsync({ type: 'blob' });
-        setZipBlob(z);
-        updateJob(jobId, {
-          status: 'completed',
-          progress: 1.0,
-          outputBlob: z,
-          outputFileName: 'converted-images.zip',
-          outputSize: z.size,
-        });
-      } else {
-        updateJob(jobId, {
-          status: 'completed',
-          progress: 1.0,
-          outputBlob: converted[0].blob,
-          outputFileName: converted[0].name,
-          outputSize: converted[0].blob.size,
-        });
+        if (converted.length > 1) {
+          const z = await zip.generateAsync({ type: 'blob' });
+          if (processingVersionRef.current === targetVersion) {
+            setZipBlob(z);
+            updateJob(jobId, {
+              status: 'completed',
+              progress: 1.0,
+              outputBlob: z,
+              outputFileName: 'converted-images.zip',
+              outputSize: z.size,
+            });
+          }
+        } else if (converted.length === 1) {
+          updateJob(jobId, {
+            status: 'completed',
+            progress: 1.0,
+            outputBlob: converted[0].blob,
+            outputFileName: converted[0].name,
+            outputSize: converted[0].blob.size,
+          });
+        }
+
+        addRecentActivity('image-converter', 'Format Converter', `${files.length} images`, 'completed');
       }
-
-      addRecentActivity('image-converter', 'Format Converter', `${files.length} images`, 'completed');
     } catch (err: unknown) {
       console.error(err);
-      updateJob(jobId, { status: 'failed', errorMessage: String(err) });
+      if (processingVersionRef.current === targetVersion) {
+        updateJob(jobId, { status: 'failed', errorMessage: String(err) });
+      }
     } finally {
-      setProcessing(false);
+      if (processingVersionRef.current === targetVersion) {
+        setProcessing(false);
+      }
     }
   };
+
+  const handleConvert = () => {
+    processingVersionRef.current += 1;
+    handleConvertWithVersion(processingVersionRef.current);
+  };
+
+  // AUTOMATIC REPROCESS ON FORMAT OR QUALITY CHANGE (FROM ORIGINAL FILES)
+  React.useEffect(() => {
+    if (files.length === 0) return;
+
+    // Immediately clear stale results
+    setResults([]);
+    setZipBlob(null);
+    setProcessing(true);
+
+    processingVersionRef.current += 1;
+    const currentVersion = processingVersionRef.current;
+
+    const timer = setTimeout(() => {
+      handleConvertWithVersion(currentVersion);
+    }, 350);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [files, targetFormat, qualityPreset, jpgBgColor]);
 
   const downloadItem = (blob: Blob, name: string) => {
     const url = URL.createObjectURL(blob);
@@ -297,6 +339,13 @@ export const ImageFormatConverterTool: React.FC = () => {
                 )}
               </div>
 
+              {processing && (
+                <div className="p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center gap-2.5 text-xs text-indigo-700 dark:text-indigo-300 animate-in fade-in duration-200">
+                  <div className="w-4 h-4 border-2 border-indigo-600 dark:border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Converting original files to {targetFormat.split('/')[1]?.toUpperCase()} (debounced)...</span>
+                </div>
+              )}
+
               <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                 {files.map((file, idx) => {
                   const details = fileDetails[idx];
@@ -321,7 +370,7 @@ export const ImageFormatConverterTool: React.FC = () => {
                         </div>
                       </div>
 
-                      {res ? (
+                      {res && !processing ? (
                         <div className="flex items-center gap-3 shrink-0">
                           <div className="text-right">
                             <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 block">
@@ -339,6 +388,10 @@ export const ImageFormatConverterTool: React.FC = () => {
                             <Download className="w-4 h-4" />
                           </button>
                         </div>
+                      ) : processing ? (
+                        <span className="text-indigo-600 dark:text-indigo-400 font-bold text-[11px] animate-pulse shrink-0">
+                          Converting...
+                        </span>
                       ) : (
                         <span className="text-slate-400 text-[11px] shrink-0">Ready</span>
                       )}

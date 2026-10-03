@@ -17,6 +17,8 @@ export const CompressPdfTool: React.FC = () => {
   const [resultFileName, setResultFileName] = useState('');
   const [outputSize, setOutputSize] = useState<number | null>(null);
 
+  const processingVersionRef = React.useRef(0);
+
   const handleFilesSelected = (files: File[]) => {
     if (files.length === 0) return;
     setFile(files[0]);
@@ -26,8 +28,10 @@ export const CompressPdfTool: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const [isAlreadyOptimized, setIsAlreadyOptimized] = useState(false);
 
-  const handleCompress = async () => {
+  const handleCompressWithVersion = async (targetVersion: number) => {
     if (!file) return;
+    if (processingVersionRef.current !== targetVersion) return;
+
     setProcessing(true);
     setIsAlreadyOptimized(false);
 
@@ -46,6 +50,7 @@ export const CompressPdfTool: React.FC = () => {
 
     try {
       const buffer = await file.arrayBuffer();
+      if (processingVersionRef.current !== targetVersion) return;
       updateJob(jobId, { progress: 0.5 });
 
       const result = await compressPdfEngine(buffer, {
@@ -53,6 +58,8 @@ export const CompressPdfTool: React.FC = () => {
         flattenForms: alsoFlatten,
         removeMetadata: true,
       });
+
+      if (processingVersionRef.current !== targetVersion) return;
 
       const blob = new Blob([result.pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
 
@@ -71,15 +78,45 @@ export const CompressPdfTool: React.FC = () => {
       addRecentActivity('compress-pdf', 'Compress PDF', file.name, 'completed');
     } catch (err: unknown) {
       console.error(err);
-      updateJob(jobId, {
-        status: 'failed',
-        errorMessage: 'Compression failed: ' + String(err),
-      });
-      addRecentActivity('compress-pdf', 'Compress PDF', file.name, 'failed');
+      if (processingVersionRef.current === targetVersion) {
+        updateJob(jobId, {
+          status: 'failed',
+          errorMessage: 'Compression failed: ' + String(err),
+        });
+        addRecentActivity('compress-pdf', 'Compress PDF', file.name, 'failed');
+      }
     } finally {
-      setProcessing(false);
+      if (processingVersionRef.current === targetVersion) {
+        setProcessing(false);
+      }
     }
   };
+
+  const handleCompress = () => {
+    processingVersionRef.current += 1;
+    handleCompressWithVersion(processingVersionRef.current);
+  };
+
+  // AUTOMATIC REPROCESS ON SETTINGS CHANGE (FROM ORIGINAL PDF)
+  React.useEffect(() => {
+    if (!file) return;
+
+    // Invalidate old result immediately so stale results are cleared
+    setResultBlob(null);
+    setOutputSize(null);
+    setProcessing(true);
+
+    processingVersionRef.current += 1;
+    const currentVersion = processingVersionRef.current;
+
+    const timer = setTimeout(() => {
+      handleCompressWithVersion(currentVersion);
+    }, 350);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [file, level, alsoFlatten]);
 
   const handleDownload = () => {
     if (!resultBlob) return;
@@ -218,16 +255,16 @@ export const CompressPdfTool: React.FC = () => {
           )}
 
           {/* Results Card */}
-          {resultBlob && (
+          {resultBlob && !processing && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <ToolTrackFileFlow
                 mode="success"
                 stage="ready"
-                stageLabel={`Optimization complete! Reduced size from ${formatBytes(file.size)} to ${formatBytes(outputSize || 0)}`}
+                stageLabel={`Optimization complete (${level.toUpperCase()})! Reduced size from ${formatBytes(file.size)} to ${formatBytes(outputSize || 0)}`}
                 fileName={resultFileName}
                 fileSize={formatBytes(outputSize || 0)}
                 fileType="Optimized PDF"
-                details={calculateSavedPercent() > 0 ? `Saved ${calculateSavedPercent()}% file size` : 'Stream-optimized'}
+                details={calculateSavedPercent() > 0 ? `Saved ${calculateSavedPercent()}% file size • Level: ${level}` : `Stream-optimized • Level: ${level}`}
                 onDownload={handleDownload}
                 onReset={() => {
                   setFile(null);

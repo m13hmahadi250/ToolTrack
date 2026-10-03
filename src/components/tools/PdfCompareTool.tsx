@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { GitCompare, FileText, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
 import { FileUploader } from '../common/FileUploader';
-import { getPdfPagesInfo, extractTextFromPdf } from '../../lib/pdfRenderer';
+import { getPdfPagesInfo, extractTextFromPdf, loadPdfDocument } from '../../lib/pdfRenderer';
 import type { DetectedPageInfo } from '../../types';
 
 export const PdfCompareTool: React.FC = () => {
@@ -14,29 +14,37 @@ export const PdfCompareTool: React.FC = () => {
   const [text1, setText1] = useState<string>('');
   const [text2, setText2] = useState<string>('');
   const [compared, setCompared] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleCompare = async () => {
     if (!file1 || !file2) return;
     setAnalyzing(true);
+    setErrorMessage(null);
 
     try {
+      // Read each file buffer fresh
       const b1 = await file1.arrayBuffer();
       const b2 = await file2.arrayBuffer();
 
-      const [p1, p2, t1, t2] = await Promise.all([
-        getPdfPagesInfo(b1),
-        getPdfPagesInfo(b2),
-        extractTextFromPdf(b1),
-        extractTextFromPdf(b2),
-      ]);
+      // Load documents safely
+      const doc1 = await loadPdfDocument(b1);
+      const doc2 = await loadPdfDocument(b2);
+
+      // Extract page metadata and text sequentially per document to avoid worker race conditions
+      const p1 = await getPdfPagesInfo(doc1);
+      const t1 = await extractTextFromPdf(doc1);
+
+      const p2 = await getPdfPagesInfo(doc2);
+      const t2 = await extractTextFromPdf(doc2);
 
       setPages1(p1);
       setPages2(p2);
       setText1(t1.text);
       setText2(t2.text);
       setCompared(true);
-    } catch (e) {
-      console.error(e);
+    } catch (e: unknown) {
+      console.error('[PdfCompareTool] Comparison error:', e);
+      setErrorMessage(e instanceof Error ? e.message : 'Failed to compare the PDF documents. Please check that both files are valid PDFs.');
     } finally {
       setAnalyzing(false);
     }
@@ -118,6 +126,16 @@ export const PdfCompareTool: React.FC = () => {
           )}
         </div>
       </div>
+
+      {errorMessage && (
+        <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 flex items-start gap-3 text-red-700 dark:text-red-300 text-xs">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span className="font-semibold block mb-0.5">Comparison Error</span>
+            <span>{errorMessage}</span>
+          </div>
+        </div>
+      )}
 
       {file1 && file2 && !compared && (
         <div className="text-center">

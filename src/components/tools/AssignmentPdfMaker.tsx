@@ -15,6 +15,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { safeDrawText, safeWidthOfTextAtSize } from '../../lib/pdfTextSanitizer';
 import { FileUploader } from '../common/FileUploader';
 import { fileToImage } from '../../lib/imageUtils';
 import { MM_TO_PT } from '../../lib/pdfRenderer';
@@ -150,7 +151,7 @@ export const AssignmentPdfMaker: React.FC = () => {
           });
 
           // Course and Assignment title
-          page.drawText(courseName || 'Assignment Submission', {
+          safeDrawText(page, courseName || 'Assignment Submission', {
             x: marginPt + 15,
             y: pageH - marginPt - 24,
             size: 13,
@@ -158,7 +159,7 @@ export const AssignmentPdfMaker: React.FC = () => {
             color: rgb(0.1, 0.15, 0.3),
           });
 
-          page.drawText(assignmentTitle || 'Assignment', {
+          safeDrawText(page, assignmentTitle || 'Assignment', {
             x: marginPt + 15,
             y: pageH - marginPt - 42,
             size: 11,
@@ -169,7 +170,7 @@ export const AssignmentPdfMaker: React.FC = () => {
           // Student Details on right
           const rightX = pageW - marginPt - 180;
           if (studentName) {
-            page.drawText(`Name: ${studentName}`, {
+            safeDrawText(page, `Name: ${studentName}`, {
               x: rightX,
               y: pageH - marginPt - 24,
               size: 10,
@@ -178,7 +179,7 @@ export const AssignmentPdfMaker: React.FC = () => {
             });
           }
           if (studentId) {
-            page.drawText(`ID: ${studentId}`, {
+            safeDrawText(page, `ID: ${studentId}`, {
               x: rightX,
               y: pageH - marginPt - 42,
               size: 10,
@@ -186,7 +187,7 @@ export const AssignmentPdfMaker: React.FC = () => {
               color: rgb(0.2, 0.25, 0.35),
             });
           }
-          page.drawText(`Date: ${submissionDate}`, {
+          safeDrawText(page, `Date: ${submissionDate}`, {
             x: rightX,
             y: pageH - marginPt - 60,
             size: 9,
@@ -241,8 +242,8 @@ export const AssignmentPdfMaker: React.FC = () => {
         // Page Number at bottom center
         if (includePageNumbers) {
           const pageNumStr = `Page ${i + 1} of ${totalPages}`;
-          const numW = font.widthOfTextAtSize(pageNumStr, 9);
-          page.drawText(pageNumStr, {
+          const numW = safeWidthOfTextAtSize(font, pageNumStr, 9);
+          safeDrawText(page, pageNumStr, {
             x: (pageW - numW) / 2,
             y: marginPt > 0 ? marginPt / 2 : 12,
             size: 9,

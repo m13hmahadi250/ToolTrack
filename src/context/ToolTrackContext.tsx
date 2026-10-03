@@ -4,6 +4,15 @@ import { TRANSLATIONS } from '../lib/i18n';
 import type { ProcessingJob, RecentActivityItem } from '../types';
 import type { InfoModalType } from '../components/common/InfoModal';
 import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
+import {
+  SITE_CONFIG,
+  TOOLS_SEO,
+  CATEGORIES_SEO,
+  resolveSeoRoute,
+  updateDocumentSeo,
+  generateToolJsonLd,
+  generateCategoryJsonLd,
+} from '../data/seoRegistry';
 
 export interface ToastMessage {
   id: string;
@@ -15,6 +24,8 @@ export interface ToastMessage {
 interface ToolTrackContextType {
   activeToolId: string | null;
   setActiveToolId: (id: string | null) => void;
+  activeCategoryKey: string | null;
+  setActiveCategoryKey: (key: string | null) => void;
   lang: SupportedLanguage;
   setLang: (lang: SupportedLanguage) => void;
   t: typeof TRANSLATIONS.en;
@@ -52,15 +63,48 @@ interface ToolTrackContextType {
 const ToolTrackContext = createContext<ToolTrackContextType | undefined>(undefined);
 
 export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
-  // Always start with home page (null)
   const [activeToolId, setActiveToolIdState] = useState<string | null>(null);
+  const [activeCategoryKey, setActiveCategoryKeyState] = useState<string | null>(null);
 
-  // Clear any stale normalize-pdf-page-size hash on startup to ensure home page loads first
+  // Initialize clean route from current URL path or hash on startup
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      if (window.location.hash === '#normalize-pdf-page-size' || window.location.hash === '#/' || window.location.hash === '#') {
-        history.replaceState('', document.title, window.location.pathname + window.location.search);
+      const routeInfo = resolveSeoRoute(window.location.pathname, window.location.hash);
+      if (routeInfo.type === 'tool' && routeInfo.tool) {
+        setActiveToolIdState(routeInfo.tool.toolId);
+        setActiveCategoryKeyState(null);
+        if (window.location.hash || window.location.pathname !== routeInfo.tool.route) {
+          history.replaceState('', document.title, routeInfo.tool.route);
+        }
+        updateDocumentSeo({
+          title: routeInfo.tool.seoTitle,
+          description: routeInfo.tool.seoDescription,
+          canonicalUrl: routeInfo.canonicalUrl,
+          jsonLd: generateToolJsonLd(routeInfo.tool),
+        });
+      } else if (routeInfo.type === 'category' && routeInfo.category) {
+        setActiveCategoryKeyState(routeInfo.category.key);
         setActiveToolIdState(null);
+        if (window.location.hash || window.location.pathname !== routeInfo.category.route) {
+          history.replaceState('', document.title, routeInfo.category.route);
+        }
+        updateDocumentSeo({
+          title: routeInfo.category.seoTitle,
+          description: routeInfo.category.seoDescription,
+          canonicalUrl: routeInfo.canonicalUrl,
+          jsonLd: generateCategoryJsonLd(routeInfo.category),
+        });
+      } else {
+        setActiveToolIdState(null);
+        setActiveCategoryKeyState(null);
+        if (window.location.hash === '#normalize-pdf-page-size' || window.location.hash === '#/' || window.location.hash === '#') {
+          history.replaceState('', document.title, '/');
+        }
+        updateDocumentSeo({
+          title: SITE_CONFIG.defaultTitle,
+          description: SITE_CONFIG.defaultDescription,
+          canonicalUrl: `${SITE_CONFIG.url}/`,
+        });
       }
     }
   }, []);
@@ -216,32 +260,95 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
   }, [activeInfoModal, isQueueOpen, isActivityOpen, isMegaMenuOpen]);
 
-  // Sync hash routing
+  // Sync hash and SEO routing
   const setActiveToolId = (id: string | null) => {
     setActiveToolIdState(id);
     if (id) {
       trackAccessedTool(id);
-    }
-    if (typeof window !== 'undefined') {
-      if (id) {
-        window.location.hash = id;
-      } else {
-        history.pushState('', document.title, window.location.pathname + window.location.search);
+      setActiveCategoryKeyState(null);
+      const toolDef = TOOLS_SEO[id];
+      if (typeof window !== 'undefined') {
+        const route = toolDef ? toolDef.route : `#${id}`;
+        history.pushState('', document.title, route);
+        if (toolDef) {
+          updateDocumentSeo({
+            title: toolDef.seoTitle,
+            description: toolDef.seoDescription,
+            canonicalUrl: `${SITE_CONFIG.url}${toolDef.route}`,
+            jsonLd: generateToolJsonLd(toolDef),
+          });
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      if (typeof window !== 'undefined') {
+        history.pushState('', document.title, '/');
+        updateDocumentSeo({
+          title: SITE_CONFIG.defaultTitle,
+          description: SITE_CONFIG.defaultDescription,
+          canonicalUrl: `${SITE_CONFIG.url}/`,
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  };
+
+  const setActiveCategoryKey = (key: string | null) => {
+    setActiveCategoryKeyState(key);
+    if (key) {
+      setActiveToolIdState(null);
+      const catDef = CATEGORIES_SEO[key];
+      if (typeof window !== 'undefined') {
+        const route = catDef ? catDef.route : '/';
+        history.pushState('', document.title, route);
+        if (catDef) {
+          updateDocumentSeo({
+            title: catDef.seoTitle,
+            description: catDef.seoDescription,
+            canonicalUrl: `${SITE_CONFIG.url}${catDef.route}`,
+            jsonLd: generateCategoryJsonLd(catDef),
+          });
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } else {
+      if (typeof window !== 'undefined') {
+        history.pushState('', document.title, '/');
+        updateDocumentSeo({
+          title: SITE_CONFIG.defaultTitle,
+          description: SITE_CONFIG.defaultDescription,
+          canonicalUrl: `${SITE_CONFIG.url}/`,
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     }
   };
 
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '');
-      setActiveToolIdState(hash || null);
-      if (hash) {
-        trackAccessedTool(hash);
+    const handleNavigation = () => {
+      const routeInfo = resolveSeoRoute(window.location.pathname, window.location.hash);
+      if (routeInfo.type === 'tool' && routeInfo.tool) {
+        setActiveToolIdState(routeInfo.tool.toolId);
+        setActiveCategoryKeyState(null);
+        trackAccessedTool(routeInfo.tool.toolId);
+      } else if (routeInfo.type === 'category' && routeInfo.category) {
+        setActiveCategoryKeyState(routeInfo.category.key);
+        setActiveToolIdState(null);
+      } else {
+        const hash = window.location.hash.replace('#', '');
+        setActiveToolIdState(hash || null);
+        setActiveCategoryKeyState(null);
+        if (hash) {
+          trackAccessedTool(hash);
+        }
       }
     };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('hashchange', handleNavigation);
+    window.addEventListener('popstate', handleNavigation);
+    return () => {
+      window.removeEventListener('hashchange', handleNavigation);
+      window.removeEventListener('popstate', handleNavigation);
+    };
   }, []);
 
   // Sync dark mode class
@@ -331,6 +438,8 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
       value={{
         activeToolId,
         setActiveToolId,
+        activeCategoryKey,
+        setActiveCategoryKey,
         lang,
         setLang,
         t,

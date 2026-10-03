@@ -376,15 +376,9 @@ export const Footer: React.FC = () => {
           {/* Actions & Designer Credit */}
           <div className="flex flex-wrap items-center gap-4">
             {/* Developer Credit */}
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 shadow-2xs hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors cursor-default select-none">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600 dark:bg-indigo-400"></span>
-              </span>
-              <span className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
-                Design and Build By
-              </span>
-              <span className="text-[11px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 dark:from-indigo-400 dark:via-purple-300 dark:to-pink-400 bg-clip-text text-transparent">
+            <div className="inline-flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 font-normal select-none">
+              <span>Design and Build By</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                 Mohammed Mahadi Hossain
               </span>
             </div>

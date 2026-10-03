@@ -12,11 +12,18 @@ import {
   Sparkles,
   Info,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Terminal,
+  Bug,
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { FileUploader } from '../common/FileUploader';
-import { compressImage, convertImage, ImageCompressionPreset } from '../../lib/compressionEngine';
+import {
+  compressImage,
+  convertImage,
+  ImageCompressionPreset,
+  ImageCompressionDebugInfo,
+} from '../../lib/compressionEngine';
 import { inspectImage } from '../../lib/imageUtils';
 import { useToolTrack } from '../../context/ToolTrackContext';
 
@@ -33,8 +40,11 @@ interface ProcessedResultItem {
   outputHeight?: number;
   statusMessage?: string;
   appliedQuality?: number;
+  appliedPreset?: string;
+  appliedFormat?: string;
   previewUrl?: string;
   originalPreviewUrl?: string;
+  debugInfo?: ImageCompressionDebugInfo;
 }
 
 export const ImageTools: React.FC = () => {
@@ -56,7 +66,8 @@ export const ImageTools: React.FC = () => {
   const [quality, setQuality] = useState<number>(0.75); // User's direct quality (0.05 to 1.0)
   const [targetSizeKb, setTargetSizeKb] = useState<number | ''>('');
   const [dimensionConstraint, setDimensionConstraint] = useState<'auto' | 'original' | '1080p' | '2k' | '4k'>('auto');
-  const [compressionFormat, setCompressionFormat] = useState<'same' | 'image/webp' | 'image/jpeg' | 'image/png'>('same');
+  const [compressionFormat, setCompressionFormat] = useState<'auto' | 'same' | 'image/webp' | 'image/jpeg' | 'image/png'>('auto');
+  const [debugMode, setDebugMode] = useState<boolean>(true); // Debug Mode toggle
 
   // Resize Settings
   const [resizePercent, setResizePercent] = useState<number>(100);
@@ -68,8 +79,9 @@ export const ImageTools: React.FC = () => {
   const [processedResults, setProcessedResults] = useState<ProcessedResultItem[]>([]);
   const [zipBlob, setZipBlob] = useState<Blob | null>(null);
 
-  // Preview Modal
+  // Preview & Diagnostics Modals
   const [previewItem, setPreviewItem] = useState<ProcessedResultItem | null>(null);
+  const [selectedDiagnostics, setSelectedDiagnostics] = useState<ProcessedResultItem | null>(null);
 
   const handleFilesSelected = (newFiles: File[]) => {
     // Revoke previous URLs to prevent memory leaks
@@ -90,9 +102,9 @@ export const ImageTools: React.FC = () => {
     } else if (preset === 'balanced') {
       setQuality(0.75);
     } else if (preset === 'strong') {
-      setQuality(0.55);
+      setQuality(0.50);
     } else if (preset === 'maximum') {
-      setQuality(0.25);
+      setQuality(0.18);
     }
   };
 
@@ -109,8 +121,12 @@ export const ImageTools: React.FC = () => {
     }
   };
 
-  const handleProcess = async () => {
+  const processingVersionRef = React.useRef(0);
+
+  const handleProcessWithVersion = async (targetVersion: number) => {
     if (files.length === 0) return;
+    if (processingVersionRef.current !== targetVersion) return;
+
     setProcessing(true);
 
     const totalInputSize = files.reduce((acc, f) => acc + f.size, 0);
@@ -128,6 +144,9 @@ export const ImageTools: React.FC = () => {
       const zip = new JSZip();
 
       for (let i = 0; i < files.length; i++) {
+        // Abort immediately if a newer setting change came in
+        if (processingVersionRef.current !== targetVersion) return;
+
         const file = files[i];
         const baseName = file.name.replace(/\.[^/.]+$/, '');
         let targetFmt = outputFormat;
@@ -137,6 +156,8 @@ export const ImageTools: React.FC = () => {
         if (activeTab === 'compress') {
           if (compressionFormat === 'same') {
             ext = file.type.includes('png') ? 'png' : file.type.includes('webp') ? 'webp' : 'jpg';
+          } else if (compressionFormat === 'auto') {
+            ext = file.type.includes('png') ? 'webp' : file.type.includes('webp') ? 'webp' : 'jpg';
           } else {
             ext = compressionFormat.split('/')[1] === 'jpeg' ? 'jpg' : compressionFormat.split('/')[1];
           }
@@ -156,6 +177,8 @@ export const ImageTools: React.FC = () => {
         let outputHeight = 0;
         let statusMessage = '';
         let appliedQuality = quality;
+        let appliedPreset: string = compressionPreset;
+        let appliedFormat: string = compressionFormat;
 
         if (activeTab === 'compress') {
           let maxDimVal: number | undefined = undefined;
@@ -173,7 +196,8 @@ export const ImageTools: React.FC = () => {
             format: compressionFormat,
             maxDimension: maxDimVal,
             preserveDimensions: dimensionConstraint === 'original',
-            allowWebpConversion: compressionFormat === 'image/webp',
+            allowWebpConversion: compressionFormat !== 'image/png',
+            debugMode,
           });
 
           blob = compResult.blob;
@@ -185,6 +209,8 @@ export const ImageTools: React.FC = () => {
           outputHeight = compResult.outputHeight;
           statusMessage = compResult.statusMessage;
           appliedQuality = compResult.appliedQuality;
+          appliedFormat = compResult.outputFormat;
+          var compDebugInfo = compResult.debugInfo;
         } else if (activeTab === 'convert') {
           const convResult = await convertImage(file, {
             targetFormat: outputFormat,
@@ -198,6 +224,7 @@ export const ImageTools: React.FC = () => {
           outputWidth = convResult.outputWidth;
           outputHeight = convResult.outputHeight;
           statusMessage = convResult.statusMessage;
+          appliedFormat = convResult.outputFormat;
         } else if (activeTab === 'resize') {
           const info = await inspectImage(file);
           const targetW = Math.round(info.width * (resizePercent / 100));
@@ -235,11 +262,24 @@ export const ImageTools: React.FC = () => {
           statusMessage = 'Stripped camera EXIF, GPS location, and device metadata.';
         }
 
+        // Check if race condition occurred during compression pass
+        if (processingVersionRef.current !== targetVersion) return;
+
         const previewUrl = URL.createObjectURL(blob);
         const originalPreviewUrl = URL.createObjectURL(file);
 
+        let finalItemName = outFileName;
+        if (activeTab === 'compress' && compDebugInfo) {
+          const compExt = compDebugInfo.outputFormat.includes('png')
+            ? 'png'
+            : compDebugInfo.outputFormat.includes('webp')
+              ? 'webp'
+              : 'jpg';
+          finalItemName = `${baseName}-compressed.${compExt}`;
+        }
+
         results.push({
-          name: outFileName,
+          name: finalItemName,
           blob,
           originalSize: file.size,
           outputSize: blob.size,
@@ -251,48 +291,96 @@ export const ImageTools: React.FC = () => {
           outputHeight,
           statusMessage,
           appliedQuality,
+          appliedPreset,
+          appliedFormat,
           previewUrl,
           originalPreviewUrl,
+          debugInfo: typeof compDebugInfo !== 'undefined' ? compDebugInfo : undefined,
         });
 
-        zip.file(outFileName, blob);
+        zip.file(finalItemName, blob);
         updateJob(jobId, { progress: (i + 1) / files.length });
       }
 
-      setProcessedResults(results);
+      if (processingVersionRef.current === targetVersion) {
+        setProcessedResults(results);
 
-      if (results.length > 1) {
-        const z = await zip.generateAsync({ type: 'blob' });
-        setZipBlob(z);
-        updateJob(jobId, {
-          status: 'completed',
-          progress: 1.0,
-          outputBlob: z,
-          outputFileName: `processed-images.zip`,
-          outputSize: z.size,
-        });
-      } else {
-        updateJob(jobId, {
-          status: 'completed',
-          progress: 1.0,
-          outputBlob: results[0].blob,
-          outputFileName: results[0].name,
-          outputSize: results[0].blob.size,
-        });
+        if (results.length > 1) {
+          const z = await zip.generateAsync({ type: 'blob' });
+          if (processingVersionRef.current === targetVersion) {
+            setZipBlob(z);
+            updateJob(jobId, {
+              status: 'completed',
+              progress: 1.0,
+              outputBlob: z,
+              outputFileName: `processed-images.zip`,
+              outputSize: z.size,
+            });
+          }
+        } else if (results.length === 1) {
+          updateJob(jobId, {
+            status: 'completed',
+            progress: 1.0,
+            outputBlob: results[0].blob,
+            outputFileName: results[0].name,
+            outputSize: results[0].outputSize,
+          });
+        }
+
+        addRecentActivity('image-tools', `Image ${activeTab.toUpperCase()}`, `${files.length} images`, 'completed');
       }
-
-      addRecentActivity('image-tools', `Image ${activeTab.toUpperCase()}`, `${files.length} images`, 'completed');
     } catch (err: unknown) {
       console.error(err);
-      updateJob(jobId, {
-        status: 'failed',
-        errorMessage: 'Image processing failed: ' + String(err),
-      });
-      addRecentActivity('image-tools', `Image ${activeTab.toUpperCase()}`, `${files.length} images`, 'failed');
+      if (processingVersionRef.current === targetVersion) {
+        updateJob(jobId, {
+          status: 'failed',
+          errorMessage: 'Image processing failed: ' + String(err),
+        });
+        addRecentActivity('image-tools', `Image ${activeTab.toUpperCase()}`, `${files.length} images`, 'failed');
+      }
     } finally {
-      setProcessing(false);
+      if (processingVersionRef.current === targetVersion) {
+        setProcessing(false);
+      }
     }
   };
+
+  const handleProcess = () => {
+    processingVersionRef.current += 1;
+    handleProcessWithVersion(processingVersionRef.current);
+  };
+
+  // AUTOMATIC REPROCESSING ON SETTINGS CHANGE (DEBOUNCED & RACE-CONDITION PROTECTED)
+  React.useEffect(() => {
+    if (files.length === 0) return;
+
+    // Immediately invalidate old result so stale metrics are never shown
+    setProcessing(true);
+    setProcessedResults([]);
+    setZipBlob(null);
+
+    processingVersionRef.current += 1;
+    const currentVersion = processingVersionRef.current;
+
+    const timer = setTimeout(() => {
+      handleProcessWithVersion(currentVersion);
+    }, 350);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [
+    files,
+    activeTab,
+    compressionPreset,
+    quality,
+    targetSizeKb,
+    dimensionConstraint,
+    compressionFormat,
+    resizePercent,
+    outputFormat,
+    debugMode,
+  ]);
 
   const downloadSingle = (item: ProcessedResultItem) => {
     const a = document.createElement('a');
@@ -538,11 +626,12 @@ export const ImageTools: React.FC = () => {
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Output Format
                   </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                     {[
-                      { id: 'same', label: 'Original Format', hint: 'Preserves JPEG/PNG' },
-                      { id: 'image/webp', label: 'WebP (Recommended)', hint: '70-85% smaller + alpha' },
-                      { id: 'image/jpeg', label: 'JPEG (.jpg)', hint: 'Universal compatibility' },
+                      { id: 'auto', label: 'Auto-Optimize', hint: 'Best size (WebP/JPG)' },
+                      { id: 'same', label: 'Same Format', hint: 'Original extension' },
+                      { id: 'image/webp', label: 'WebP', hint: 'Max savings + alpha' },
+                      { id: 'image/jpeg', label: 'JPEG (.jpg)', hint: 'Universal support' },
                       { id: 'image/png', label: 'PNG (.png)', hint: 'Lossless graphic' },
                     ].map((fmt) => (
                       <button
@@ -559,6 +648,39 @@ export const ImageTools: React.FC = () => {
                         <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{fmt.hint}</div>
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Debug Mode Toggle */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-indigo-600 text-white">
+                        <Terminal className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>Debug Mode</span>
+                          {debugMode && (
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 font-bold">
+                              CONSOLE LOGGING ON
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Logs detailed metadata (original vs. output file size, dimensions, chosen compression level, and calculated percentage of reduction) to the browser developer console.
+                        </p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-3">
+                      <input
+                        type="checkbox"
+                        checked={debugMode}
+                        onChange={(e) => setDebugMode(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -632,6 +754,26 @@ export const ImageTools: React.FC = () => {
             )}
           </div>
 
+          {/* UPDATING / PROCESSING LIVE FEEDBACK */}
+          {processing && (
+            <div className="p-5 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 flex items-center justify-between gap-4 text-indigo-900 dark:text-indigo-200 animate-in fade-in duration-200">
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 border-2 border-indigo-600 dark:border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+                <div>
+                  <div className="font-bold text-xs sm:text-sm">
+                    {processedResults.length > 0 ? 'Updating result...' : 'Processing from original file...'}
+                  </div>
+                  <div className="text-[11px] text-indigo-600 dark:text-indigo-400">
+                    Applying new settings directly to the original upload (debounced).
+                  </div>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-200/60 dark:bg-indigo-900/60 font-bold">
+                AUTO-REPROCESS ACTIVE
+              </span>
+            </div>
+          )}
+
           {/* RESULTS CARD */}
           {processedResults.length > 0 && (
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
@@ -693,6 +835,21 @@ export const ImageTools: React.FC = () => {
                             <strong className="text-slate-700 dark:text-slate-300">Dimensions:</strong> {item.originalWidth}×{item.originalHeight} → {item.outputWidth}×{item.outputHeight}
                           </span>
                         )}
+                        {item.appliedQuality && (
+                          <span className="font-mono text-indigo-600 dark:text-indigo-400">
+                            Quality: {Math.round(item.appliedQuality * 100)}%
+                          </span>
+                        )}
+                        {item.appliedPreset && (
+                          <span className="font-mono uppercase text-indigo-600 dark:text-indigo-400">
+                            Mode: {item.appliedPreset}
+                          </span>
+                        )}
+                        {item.appliedFormat && (
+                          <span className="font-mono uppercase text-slate-600 dark:text-slate-400">
+                            Format: {item.appliedFormat.split('/')[1] || item.appliedFormat}
+                          </span>
+                        )}
                       </div>
 
                       {item.statusMessage && (
@@ -703,6 +860,17 @@ export const ImageTools: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2 self-end sm:self-center">
+                      {item.debugInfo && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDiagnostics(item)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-xs font-semibold transition cursor-pointer"
+                          title="View detailed compression pipeline metadata and verify settings"
+                        >
+                          <Terminal className="w-3.5 h-3.5" />
+                          <span>Diagnostics</span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setPreviewItem(item)}
@@ -836,6 +1004,135 @@ export const ImageTools: React.FC = () => {
                 className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition cursor-pointer"
               >
                 Download Compressed File
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* COMPRESSION DIAGNOSTICS MODAL (Debug Mode Inspector) */}
+      {selectedDiagnostics && selectedDiagnostics.debugInfo && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-600 text-white">
+                  <Terminal className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Compression Pipeline Diagnostics</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 font-bold">
+                      VERIFIED SETTINGS
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Real-time metadata confirming user settings reached the encoder
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedDiagnostics(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Diagnostic Metrics Table */}
+            <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Target File Name</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                  {selectedDiagnostics.debugInfo.fileName}
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Original File Size</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                  {selectedDiagnostics.debugInfo.originalSizeFormatted} (
+                  {selectedDiagnostics.debugInfo.originalSizeBytes.toLocaleString()} bytes)
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Output File Size</span>
+                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                  {selectedDiagnostics.debugInfo.outputSizeFormatted} (
+                  {selectedDiagnostics.debugInfo.outputSizeBytes.toLocaleString()} bytes)
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Calculated Reduction</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
+                  -{selectedDiagnostics.debugInfo.savedPercent}% ({selectedDiagnostics.debugInfo.savedBytesFormatted} saved)
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Dimensions (Input → Output)</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                  {selectedDiagnostics.debugInfo.originalDimensions} → {selectedDiagnostics.debugInfo.outputDimensions}
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Chosen Compression Mode</span>
+                <span className="font-mono font-bold uppercase text-indigo-600 dark:text-indigo-400">
+                  {selectedDiagnostics.debugInfo.chosenCompressionPreset}
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">User Slider Quality</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                  {typeof selectedDiagnostics.debugInfo.userSelectedQuality === 'number'
+                    ? `${Math.round(selectedDiagnostics.debugInfo.userSelectedQuality * 100)}% (${selectedDiagnostics.debugInfo.userSelectedQuality})`
+                    : selectedDiagnostics.debugInfo.userSelectedQuality}
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Actual Encoder Quality</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  {selectedDiagnostics.debugInfo.actualEncoderQuality} (Directly passed to canvas encoder)
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Format Handling</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                  {selectedDiagnostics.debugInfo.originalFormat} → {selectedDiagnostics.debugInfo.outputFormat}
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Anti-Bloat Protection</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                  {selectedDiagnostics.debugInfo.antiBloatTriggered
+                    ? 'Triggered (Original file preserved)'
+                    : 'Passed (Output strictly smaller)'}
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Processing Time</span>
+                <span className="font-mono text-slate-700 dark:text-slate-300">
+                  {selectedDiagnostics.debugInfo.executionTimeMs} ms
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  console.log('[Manual Telemetry Inspection]:', selectedDiagnostics.debugInfo);
+                  console.table?.(selectedDiagnostics.debugInfo);
+                }}
+                className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer flex items-center gap-1.5"
+              >
+                <Terminal className="w-3.5 h-3.5" />
+                <span>Re-log to Developer Console</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedDiagnostics(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+              >
+                Close Diagnostics
               </button>
             </div>
           </div>

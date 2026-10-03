@@ -48,11 +48,16 @@ export const PageSizeNormalizer: React.FC = () => {
   const [resultFileName, setResultFileName] = useState('');
   const [outputSize, setOutputSize] = useState<number | null>(null);
 
+  const processingVersionRef = useRef(0);
+  const hasNormalizedOnceRef = useRef(false);
+
   const handleFilesSelected = async (files: File[]) => {
     if (files.length === 0) return;
     const selected = files[0];
     setFile(selected);
     setResultBlob(null);
+    setOutputSize(null);
+    hasNormalizedOnceRef.current = false;
     setAnalyzing(true);
 
     try {
@@ -112,8 +117,9 @@ export const PageSizeNormalizer: React.FC = () => {
     };
   }, [file, previewPageNumber, pagesInfo]);
 
-  const handleNormalize = async () => {
+  const handleNormalizeWithVersion = async (targetVersion: number) => {
     if (!file) return;
+    if (processingVersionRef.current !== targetVersion) return;
 
     setProcessing(true);
     setProgress(0.15);
@@ -134,6 +140,7 @@ export const PageSizeNormalizer: React.FC = () => {
 
     try {
       const buffer = await file.arrayBuffer();
+      if (processingVersionRef.current !== targetVersion) return;
       setProgress(0.45);
       updateJob(jobId, { progress: 0.45 });
 
@@ -149,6 +156,8 @@ export const PageSizeNormalizer: React.FC = () => {
       };
 
       const normalizedBytes = await normalizePdfPageSizes(buffer, options);
+      if (processingVersionRef.current !== targetVersion) return;
+
       setProgress(0.9);
       updateJob(jobId, { progress: 0.9 });
 
@@ -167,15 +176,56 @@ export const PageSizeNormalizer: React.FC = () => {
       addRecentActivity('normalize-pdf-page-size', 'Normalize PDF Page Size', file.name, 'completed');
     } catch (err: unknown) {
       console.error(err);
-      updateJob(jobId, {
-        status: 'failed',
-        errorMessage: 'Normalization failed: ' + String(err),
-      });
-      addRecentActivity('normalize-pdf-page-size', 'Normalize PDF Page Size', file.name, 'failed');
+      if (processingVersionRef.current === targetVersion) {
+        updateJob(jobId, {
+          status: 'failed',
+          errorMessage: 'Normalization failed: ' + String(err),
+        });
+        addRecentActivity('normalize-pdf-page-size', 'Normalize PDF Page Size', file.name, 'failed');
+      }
     } finally {
-      setProcessing(false);
+      if (processingVersionRef.current === targetVersion) {
+        setProcessing(false);
+      }
     }
   };
+
+  const handleNormalize = () => {
+    hasNormalizedOnceRef.current = true;
+    processingVersionRef.current += 1;
+    handleNormalizeWithVersion(processingVersionRef.current);
+  };
+
+  // AUTOMATIC REPROCESSING ON SETTINGS CHANGE (FROM ORIGINAL PDF)
+  useEffect(() => {
+    if (!file || !hasNormalizedOnceRef.current) return;
+
+    // Invalidate stale result immediately
+    setResultBlob(null);
+    setOutputSize(null);
+    setProcessing(true);
+
+    processingVersionRef.current += 1;
+    const currentVersion = processingVersionRef.current;
+
+    const timer = setTimeout(() => {
+      handleNormalizeWithVersion(currentVersion);
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [
+    file,
+    targetSize,
+    customWidthMm,
+    customHeightMm,
+    orientation,
+    scaleMode,
+    alignment,
+    margins,
+    allowDistortion,
+  ]);
 
   const handleDownload = () => {
     if (!resultBlob) return;

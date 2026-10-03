@@ -5,6 +5,8 @@ import JSZip from 'jszip';
 import { extractTextFromPdf } from './pdfRenderer';
 import { analyzePdfLayout, type DocumentLayoutAnalysis } from './pdfLayoutAnalyzer';
 import { buildHighFidelityDocx, type DocxBuildOptions } from './docxLayoutBuilder';
+import { sanitizePdfText, safeDrawText, safeWidthOfTextAtSize } from './pdfTextSanitizer';
+import { convertWordToPdf } from './wordToPdf';
 
 export async function textToPdf(textContent: string, title = 'Document'): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
@@ -18,13 +20,17 @@ export async function textToPdf(textContent: string, title = 'Document'): Promis
   const fontSize = 11;
   const lineHeight = 16;
 
-  const lines = textContent.split(/\r?\n/);
+  // Clean and sanitize text to prevent WinAnsi cannot encode errors (e.g. 0x1f4de 📞)
+  const cleanContent = sanitizePdfText(textContent);
+  const cleanTitle = sanitizePdfText(title);
+
+  const lines = cleanContent.split(/\r?\n/);
   let currentPage = pdfDoc.addPage([pageWidth, pageHeight]);
   let currentY = pageHeight - margin;
 
   // Title
-  if (title) {
-    currentPage.drawText(title, {
+  if (cleanTitle) {
+    safeDrawText(currentPage, cleanTitle, {
       x: margin,
       y: currentY - 14,
       size: 16,
@@ -41,14 +47,14 @@ export async function textToPdf(textContent: string, title = 'Document'): Promis
 
     for (let i = 0; i < words.length; i++) {
       const testLine = currentLine ? `${currentLine} ${words[i]}` : words[i];
-      const textWidth = font.widthOfTextAtSize(testLine, fontSize);
+      const textWidth = safeWidthOfTextAtSize(font, testLine, fontSize);
 
       if (textWidth > usableWidth && currentLine) {
         if (currentY - lineHeight < margin) {
           currentPage = pdfDoc.addPage([pageWidth, pageHeight]);
           currentY = pageHeight - margin;
         }
-        currentPage.drawText(currentLine, {
+        safeDrawText(currentPage, currentLine, {
           x: margin,
           y: currentY,
           size: fontSize,
@@ -67,7 +73,7 @@ export async function textToPdf(textContent: string, title = 'Document'): Promis
         currentPage = pdfDoc.addPage([pageWidth, pageHeight]);
         currentY = pageHeight - margin;
       }
-      currentPage.drawText(currentLine, {
+      safeDrawText(currentPage, currentLine, {
         x: margin,
         y: currentY,
         size: fontSize,
@@ -103,7 +109,7 @@ export async function excelToPdf(fileBuffer: ArrayBuffer): Promise<Uint8Array> {
   let currentY = pageHeight - margin;
 
   // Title
-  currentPage.drawText(`Sheet: ${firstSheetName}`, {
+  safeDrawText(currentPage, `Sheet: ${sanitizePdfText(firstSheetName)}`, {
     x: margin,
     y: currentY - 12,
     size: 14,
@@ -113,7 +119,7 @@ export async function excelToPdf(fileBuffer: ArrayBuffer): Promise<Uint8Array> {
   currentY -= 30;
 
   if (data.length === 0) {
-    currentPage.drawText('Empty worksheet', { x: margin, y: currentY, size: 10, font });
+    safeDrawText(currentPage, 'Empty worksheet', { x: margin, y: currentY, size: 10, font });
     return await pdfDoc.save();
   }
 
@@ -141,11 +147,12 @@ export async function excelToPdf(fileBuffer: ArrayBuffer): Promise<Uint8Array> {
     }
 
     for (let c = 0; c < maxCols; c++) {
-      const cellVal = row[c] !== undefined && row[c] !== null ? String(row[c]) : '';
+      const rawCellVal = row[c] !== undefined && row[c] !== null ? String(row[c]) : '';
+      const cellVal = sanitizePdfText(rawCellVal);
       const cellX = margin + c * colWidth;
       const truncated = cellVal.length > 25 ? cellVal.substring(0, 22) + '...' : cellVal;
 
-      currentPage.drawText(truncated, {
+      safeDrawText(currentPage, truncated, {
         x: cellX + 4,
         y: currentY - 12,
         size: fontSize,
@@ -168,10 +175,13 @@ export async function excelToPdf(fileBuffer: ArrayBuffer): Promise<Uint8Array> {
   return await pdfDoc.save();
 }
 
-export async function docxToPdf(fileBuffer: ArrayBuffer): Promise<Uint8Array> {
-  const result = await mammoth.extractRawText({ arrayBuffer: fileBuffer });
-  const rawText = result.value || 'Empty document';
-  return await textToPdf(rawText, 'Word Document');
+export async function docxToPdf(
+  fileBuffer: ArrayBuffer,
+  fileName = 'document.docx',
+  onProgress?: (progress: number, stage: string) => void
+): Promise<Uint8Array> {
+  const result = await convertWordToPdf(fileBuffer, { fileName, onProgress });
+  return result.pdfBytes;
 }
 
 /**
