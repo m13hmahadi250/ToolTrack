@@ -2160,8 +2160,6 @@ export function generateSitemapXml(): string {
       (u) => `  <url>
     <loc>${escapeXml(u.loc)}</loc>
     <lastmod>${u.lastmod}</lastmod>
-    <changefreq>${u.changefreq}</changefreq>
-    <priority>${u.priority}</priority>
   </url>`
     )
     .join('\n');
