@@ -7,6 +7,8 @@ import { RecentActivityModal } from './components/common/RecentActivityModal';
 import { HomePage } from './components/home/HomePage';
 import { ToolGuideSection } from './components/common/ToolGuideSection';
 import { NotFoundPage } from './components/common/NotFoundPage';
+import { CategoryLandingPage } from './components/category/CategoryLandingPage';
+import { CATEGORIES_SEO } from './data/seoRegistry';
 
 // Specialized tool components
 import { PageSizeNormalizer } from './components/tools/PageSizeNormalizer';
@@ -40,7 +42,14 @@ import { ChevronRight, Home, Star } from 'lucide-react';
 import { TOOLS_LIST } from './data/toolsList';
 
 function MainContent() {
-  const { activeToolId, setActiveToolId, toggleFavoriteTool, isFavoriteTool } = useToolTrack();
+  const {
+    activeToolId,
+    setActiveToolId,
+    activeCategoryKey,
+    setActiveCategoryKey,
+    toggleFavoriteTool,
+    isFavoriteTool,
+  } = useToolTrack();
 
   const currentTool = activeToolId
     ? TOOLS_LIST.find((t) => t.id === activeToolId) ||
@@ -56,13 +65,19 @@ function MainContent() {
     if (currentTool) {
       document.title = `${currentTool.name} — Free Online ToolTrack Suite`;
       window.scrollTo({ top: 0, behavior: 'instant' });
+    } else if (activeCategoryKey && CATEGORIES_SEO[activeCategoryKey]) {
+      document.title = CATEGORIES_SEO[activeCategoryKey].seoTitle;
+      window.scrollTo({ top: 0, behavior: 'instant' });
     } else {
       document.title = 'ToolTrack — Free Online PDF, Image & Document Processing Suite';
     }
-  }, [activeToolId, currentTool]);
+  }, [activeToolId, currentTool, activeCategoryKey]);
 
   const renderActiveTool = () => {
     if (!activeToolId) {
+      if (activeCategoryKey) {
+        return <CategoryLandingPage categoryKey={activeCategoryKey} />;
+      }
       return <HomePage />;
     }
 
@@ -187,6 +202,26 @@ function MainContent() {
       <Header />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {/* Breadcrumb navigation for category page */}
+        {!activeToolId && activeCategoryKey && (
+          <nav className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-6 pb-3 border-b border-slate-200 dark:border-slate-800">
+            <button
+              onClick={() => {
+                setActiveCategoryKey(null);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span>All Tools</span>
+            </button>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+            <span className="text-slate-900 dark:text-slate-100 font-bold">
+              {CATEGORIES_SEO[activeCategoryKey]?.name || activeCategoryKey}
+            </span>
+          </nav>
+        )}
+
         {/* Breadcrumb navigation if on tool page */}
         {activeToolId && currentTool && (
           <nav className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-6 pb-3 border-b border-slate-200 dark:border-slate-800">

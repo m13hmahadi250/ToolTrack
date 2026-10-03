@@ -8,6 +8,7 @@ import os from 'os';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { PDFDocument } from 'pdf-lib';
+import { generateSitemapXml, runSeoAudit } from './src/data/seoRegistry';
 
 const execFileAsync = promisify(execFile);
 
@@ -694,26 +695,34 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   res.status(200).send(`User-agent: *\nAllow: /\n\nSitemap: https://tooltracker.vercel.app/sitemap.xml\n`);
 });
 
-// sitemap.xml endpoint
+// sitemap.xml endpoint (Dynamic from full live Tool Registry)
 app.get('/sitemap.xml', (_req: Request, res: Response) => {
-  const sitemapPath = path.join(process.cwd(), 'public/sitemap.xml');
-  if (fs.existsSync(sitemapPath)) {
+  try {
+    const xml = generateSitemapXml();
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
-    return res.sendFile(sitemapPath);
+    return res.send(xml);
+  } catch (err) {
+    const sitemapPath = path.join(process.cwd(), 'public/sitemap.xml');
+    if (fs.existsSync(sitemapPath)) {
+      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.sendFile(sitemapPath);
+    }
+    return res.status(500).send('Sitemap generation error: ' + String(err));
   }
-  return res.status(404).send('Sitemap not found');
 });
 
-// Development SEO Health Audit endpoint (Section 36)
+// Development SEO Health Audit endpoint (Section 36 & 41)
 app.get('/api/seo-audit', async (_req: Request, res: Response) => {
   try {
     const sitemapExists = fs.existsSync(path.join(process.cwd(), 'public/sitemap.xml'));
     const robotsExists = fs.existsSync(path.join(process.cwd(), 'public/robots.txt'));
     const gscFileExists = fs.existsSync(path.join(process.cwd(), 'public/google36e95f88e47922e7.html'));
+    const audit = runSeoAudit();
 
     return res.json({
-      status: 'ok',
+      status: audit.status === 'passed' ? 'ok' : 'warning',
       siteUrl: 'https://tooltracker.vercel.app',
       checklist: {
         googleSearchConsoleVerificationFile: gscFileExists,
@@ -726,6 +735,7 @@ app.get('/api/seo-audit', async (_req: Request, res: Response) => {
         twitterCardsConfigured: true,
         cleanUrlsWithoutHash: true,
       },
+      audit,
     });
   } catch (err: unknown) {
     return res.status(500).json({ error: String(err) });

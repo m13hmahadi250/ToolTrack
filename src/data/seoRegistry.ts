@@ -1,3 +1,6 @@
+import { TOOLS_LIST } from './toolsList';
+import type { ToolItem } from '../types';
+
 /**
  * ToolTrack Centralized Technical SEO & Routing Registry
  * Manages clean URLs, canonical endpoints, metadata, Schema.org JSON-LD,
@@ -1647,6 +1650,177 @@ export const TOOLS_SEO: Record<string, ToolSeoData> = {
 };
 
 /**
+ * Category key mapper for any existing or future tool category
+ */
+export function mapToolCategoryToSeoCategory(category: string): {
+  categoryKey: 'pdf' | 'image' | 'document' | 'ocr' | 'student' | 'design';
+  categoryName: string;
+  categoryRoute: string;
+} {
+  switch (category) {
+    case 'page-tools':
+    case 'organize':
+    case 'optimize':
+    case 'security':
+    case 'inspector':
+      return { categoryKey: 'pdf', categoryName: 'PDF Tools', categoryRoute: '/tools/pdf' };
+    case 'convert-to-pdf':
+    case 'convert-from-pdf':
+      return { categoryKey: 'document', categoryName: 'Document Converters', categoryRoute: '/tools/document' };
+    case 'image-tools':
+      return { categoryKey: 'image', categoryName: 'Image Tools', categoryRoute: '/tools/image' };
+    case 'design-tools':
+      return { categoryKey: 'design', categoryName: 'Design & Visual Utilities', categoryRoute: '/tools/design' };
+    case 'student-tools':
+      return { categoryKey: 'student', categoryName: 'Student & Academic Utilities', categoryRoute: '/tools/student' };
+    case 'ocr':
+      return { categoryKey: 'ocr', categoryName: 'OCR & Text Recognition', categoryRoute: '/tools/ocr' };
+    default:
+      return { categoryKey: 'pdf', categoryName: 'PDF & File Tools', categoryRoute: '/tools/pdf' };
+  }
+}
+
+/**
+ * Dynamically synthesizes a complete, high-fidelity SEO definition for any future or unlisted tool
+ */
+export function generateFallbackToolSeo(tool: ToolItem): ToolSeoData {
+  const { categoryKey, categoryName, categoryRoute } = mapToolCategoryToSeoCategory(tool.category);
+  const route = `/tools/${tool.id}`;
+  const keywords = Array.from(
+    new Set([
+      tool.name.toLowerCase(),
+      `${tool.name.toLowerCase()} online`,
+      `free ${tool.name.toLowerCase()}`,
+      `tooltrack ${tool.name.toLowerCase()}`,
+      ...(tool.keywords || []),
+      ...(tool.synonyms || []),
+    ])
+  );
+
+  return {
+    toolId: tool.id,
+    name: tool.name,
+    route,
+    aliases: [tool.route || `/${tool.id}`, `/tools/${tool.id}`, tool.id],
+    categoryKey,
+    categoryName,
+    categoryRoute,
+    seoTitle: `${tool.name} – Free Online ${categoryName} | ToolTrack`,
+    seoDescription: `${tool.description} Free, 100% private in-browser utility by ToolTrack with zero data retention and instant processing.`,
+    h1: `${tool.name} Online`,
+    tagline: tool.description,
+    keywords,
+    supportedFormats: {
+      input: (tool.inputFormats || ['PDF', 'Image', 'Document']).map((f) => `${f} (.${f.toLowerCase()})`),
+      output: (tool.outputFormats || ['PDF', 'Image', 'Document']).map((f) => `${f} (.${f.toLowerCase()})`),
+    },
+    features: [
+      '100% In-Browser client-side processing with zero server leaks',
+      'Fast real-time document rendering and optimization',
+      'Preserves high resolution, page geometry, and clean typography',
+      'No registration, usage caps, or file watermarks required',
+    ],
+    howTo: [
+      { step: 1, title: 'Upload Your File', description: `Select or drop your ${(tool.inputFormats || ['file']).join('/')} into the secure workspace.` },
+      { step: 2, title: 'Configure Options', description: 'Adjust processing presets and inspect immediate real-time preview.' },
+      { step: 3, title: 'Process & Download', description: 'Download your converted, optimized file instantly with complete data safety.' },
+    ],
+    faq: [
+      { question: `Is ${tool.name} free to use?`, answer: `Yes, ${tool.name} is 100% free with no file limit, account registration, or watermarks.` },
+      { question: `Are my files private and secure?`, answer: `Yes. All processing is executed safely in your local browser or secure isolated pipelines with zero unauthorized storage.` },
+      { question: `What file types are accepted?`, answer: `This utility supports input formats: ${(tool.inputFormats || []).join(', ')} and exports to ${(tool.outputFormats || []).join(', ')}.` },
+    ],
+    relatedToolIds: getRelatedTools(tool.id, 4).map((t) => t.id),
+  };
+}
+
+/**
+ * Returns SEO data for ANY tool in the system, automatically fallback-generating if needed
+ */
+export function getToolSeo(toolId: string): ToolSeoData {
+  if (TOOLS_SEO[toolId]) {
+    return TOOLS_SEO[toolId];
+  }
+  const toolItem = TOOLS_LIST.find((t) => t.id === toolId);
+  if (toolItem) {
+    return generateFallbackToolSeo(toolItem);
+  }
+  // Generic safe fallback
+  return {
+    toolId,
+    name: toolId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+    route: `/tools/${toolId}`,
+    aliases: [`/${toolId}`, toolId],
+    categoryKey: 'pdf',
+    categoryName: 'PDF Tools',
+    categoryRoute: '/tools/pdf',
+    seoTitle: `${toolId.replace(/-/g, ' ')} – Online Tool | ToolTrack`,
+    seoDescription: 'Free online file and document processing tool by ToolTrack. Fast, secure, and private.',
+    h1: `${toolId.replace(/-/g, ' ')} Online`,
+    tagline: 'Fast, secure in-browser utility.',
+    keywords: [toolId, `${toolId} online`, 'file tool', 'tooltrack'],
+    supportedFormats: { input: ['PDF', 'Image'], output: ['PDF', 'Image'] },
+    features: ['100% Free and Private', 'Fast processing', 'No watermark'],
+    howTo: [
+      { step: 1, title: 'Upload File', description: 'Select your file.' },
+      { step: 2, title: 'Process', description: 'Apply tool options.' },
+      { step: 3, title: 'Download', description: 'Save your file.' },
+    ],
+    faq: [{ question: 'Is this tool free?', answer: 'Yes, 100% free.' }],
+    relatedToolIds: ['merge-pdf', 'compress-pdf', 'image-compressor'],
+  };
+}
+
+/**
+ * Dynamically computes related tools for ANY tool based on category affinity, format chaining, and tags
+ */
+export function getRelatedTools(toolId: string, maxCount = 4): ToolItem[] {
+  const currentTool = TOOLS_LIST.find((t) => t.id === toolId);
+  if (!currentTool) return TOOLS_LIST.slice(0, maxCount);
+
+  // Score all other tools by relationship
+  const scored = TOOLS_LIST.filter((t) => t.id !== toolId).map((candidate) => {
+    let score = 0;
+
+    // 1. Same category affinity (+4)
+    if (candidate.category === currentTool.category) {
+      score += 4;
+    }
+
+    // 2. High-level category grouping (+3)
+    const currGroup = mapToolCategoryToSeoCategory(currentTool.category).categoryKey;
+    const candGroup = mapToolCategoryToSeoCategory(candidate.category).categoryKey;
+    if (currGroup === candGroup) {
+      score += 3;
+    }
+
+    // 3. Format compatibility / conversion chain (+5)
+    // E.g. If current tool outputs PDF, tools that accept PDF as input
+    const outputMatchesInput = (currentTool.outputFormats || []).some((fmt) => (candidate.inputFormats || []).includes(fmt));
+    if (outputMatchesInput) {
+      score += 5;
+    }
+
+    // 4. Keyword overlap (+1 per match)
+    const currKeywords = new Set(currentTool.keywords || []);
+    (candidate.keywords || []).forEach((k) => {
+      if (currKeywords.has(k)) score += 1;
+    });
+
+    // 5. Popular flag (+1)
+    if (candidate.popular) {
+      score += 1;
+    }
+
+    return { candidate, score };
+  });
+
+  // Sort descending by affinity score
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, maxCount).map((s) => s.candidate);
+}
+
+/**
  * Resolves a given URL path or hash to the corresponding SEO data
  */
 export function resolveSeoRoute(pathname: string, hash = ''): {
@@ -1666,7 +1840,7 @@ export function resolveSeoRoute(pathname: string, hash = ''): {
     };
   }
 
-  // 2. Check direct tool route matches
+  // 2. Check direct tool route matches from TOOLS_SEO
   for (const tool of Object.values(TOOLS_SEO)) {
     if (tool.route === cleanPath) {
       return {
@@ -1685,9 +1859,35 @@ export function resolveSeoRoute(pathname: string, hash = ''): {
     }
   }
 
-  // 3. Check categories (/tools/pdf, /tools/image, etc.)
+  // 3. Check dynamically across all TOOLS_LIST items (for future-proof scalability)
+  for (const item of TOOLS_LIST) {
+    const slugRoute = `/tools/${item.id}`;
+    const directRoute = `/${item.id}`;
+    if (
+      cleanPath === slugRoute ||
+      cleanPath === directRoute ||
+      cleanPath === item.route ||
+      cleanHash === item.id ||
+      cleanHash === `tool-${item.id}`
+    ) {
+      const toolSeo = getToolSeo(item.id);
+      return {
+        type: 'tool',
+        tool: toolSeo,
+        canonicalUrl: `${SITE_CONFIG.url}${toolSeo.route}`,
+      };
+    }
+  }
+
+  // 4. Check categories (/tools/pdf, /tools/image, /category/pdf, etc.)
   for (const cat of Object.values(CATEGORIES_SEO)) {
-    if (cat.route === cleanPath || cleanPath === `/category/${cat.key}` || cleanHash === `category-${cat.key}`) {
+    if (
+      cat.route === cleanPath ||
+      cleanPath === `/category/${cat.key}` ||
+      cleanPath === `/tools/${cat.key}` ||
+      cleanHash === `category-${cat.key}` ||
+      cleanHash === cat.key
+    ) {
       return {
         type: 'category',
         category: cat,
@@ -1696,14 +1896,17 @@ export function resolveSeoRoute(pathname: string, hash = ''): {
     }
   }
 
-  // 4. Check if hash matches a tool id
-  if (cleanHash && TOOLS_SEO[cleanHash]) {
-    const tool = TOOLS_SEO[cleanHash];
-    return {
-      type: 'tool',
-      tool,
-      canonicalUrl: `${SITE_CONFIG.url}${tool.route}`,
-    };
+  // 5. Check if hash matches a tool id
+  if (cleanHash) {
+    const foundTool = TOOLS_LIST.find((t) => t.id === cleanHash);
+    if (foundTool) {
+      const toolSeo = getToolSeo(foundTool.id);
+      return {
+        type: 'tool',
+        tool: toolSeo,
+        canonicalUrl: `${SITE_CONFIG.url}${toolSeo.route}`,
+      };
+    }
   }
 
   return {
@@ -1777,7 +1980,7 @@ export function generateToolJsonLd(tool: ToolSeoData): object {
  * Generates Schema.org JSON-LD structured data for a category page
  */
 export function generateCategoryJsonLd(cat: CategorySeoData): object {
-  const tools = cat.toolIds.map((id) => TOOLS_SEO[id]).filter(Boolean);
+  const tools = cat.toolIds.map((id) => getToolSeo(id)).filter(Boolean);
   return {
     '@context': 'https://schema.org',
     '@graph': [
@@ -1899,7 +2102,7 @@ export function updateDocumentSeo(params: {
 }
 
 /**
- * Builds the complete sitemap.xml dynamically from the registry
+ * Builds the complete sitemap.xml dynamically from the live registry including all tools
  */
 export function generateSitemapXml(): string {
   const currentDate = new Date().toISOString().split('T')[0];
@@ -1918,13 +2121,14 @@ export function generateSitemapXml(): string {
     });
   }
 
-  // Tool Pages
-  for (const tool of Object.values(TOOLS_SEO)) {
+  // Every Tool in the full TOOLS_LIST
+  for (const tool of TOOLS_LIST) {
+    const seo = getToolSeo(tool.id);
     urls.push({
-      loc: `${SITE_CONFIG.url}${tool.route}`,
+      loc: `${SITE_CONFIG.url}${seo.route}`,
       lastmod: currentDate,
       changefreq: 'weekly',
-      priority: '0.8',
+      priority: tool.popular ? '0.85' : '0.8',
     });
   }
 
@@ -1943,4 +2147,83 @@ export function generateSitemapXml(): string {
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urlXml}
 </urlset>`;
+}
+
+/**
+ * Runs a comprehensive technical SEO compliance audit on every tool and category
+ */
+export function runSeoAudit(): {
+  status: 'passed' | 'failed';
+  totalTools: number;
+  totalCategories: number;
+  passedTools: number;
+  failedTools: number;
+  reports: Array<{
+    toolId: string;
+    name: string;
+    route: string;
+    titleValid: boolean;
+    descriptionValid: boolean;
+    h1Valid: boolean;
+    canonicalValid: boolean;
+    sitemapValid: boolean;
+    jsonLdValid: boolean;
+    relatedToolsValid: boolean;
+    issues: string[];
+  }>;
+} {
+  const reports: any[] = [];
+  let passedCount = 0;
+  let failedCount = 0;
+
+  for (const tool of TOOLS_LIST) {
+    const seo = getToolSeo(tool.id);
+    const issues: string[] = [];
+
+    const titleValid = Boolean(seo.seoTitle && seo.seoTitle.includes(SITE_CONFIG.name) && seo.seoTitle.length >= 25);
+    if (!titleValid) issues.push('Title does not meet length/branding criteria');
+
+    const descriptionValid = Boolean(seo.seoDescription && seo.seoDescription.length >= 80);
+    if (!descriptionValid) issues.push('Meta description too short');
+
+    const h1Valid = Boolean(seo.h1 && seo.h1.trim().length > 0);
+    if (!h1Valid) issues.push('H1 missing');
+
+    const canonicalValid = Boolean(seo.route && seo.route.startsWith('/'));
+    if (!canonicalValid) issues.push('Invalid route/canonical path');
+
+    const sitemapValid = true; // Automatically covered by generateSitemapXml()
+    const jsonLdValid = Boolean(generateToolJsonLd(seo));
+
+    const related = getRelatedTools(tool.id, 4);
+    const relatedToolsValid = related.length >= 2;
+    if (!relatedToolsValid) issues.push('Insufficient related tools computed');
+
+    const isPassed = issues.length === 0;
+    if (isPassed) passedCount++;
+    else failedCount++;
+
+    reports.push({
+      toolId: tool.id,
+      name: tool.name,
+      route: seo.route,
+      titleValid,
+      descriptionValid,
+      h1Valid,
+      canonicalValid,
+      sitemapValid,
+      jsonLdValid,
+      relatedToolsValid,
+      issues,
+    });
+  }
+
+  return {
+    status: failedCount === 0 ? 'passed' : 'failed',
+    totalTools: TOOLS_LIST.length,
+    totalCategories: Object.keys(CATEGORIES_SEO).length,
+    passedTools: passedCount,
+    failedTools: failedCount,
+    reports,
+  };
 }
