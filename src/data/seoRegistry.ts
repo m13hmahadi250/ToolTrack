@@ -2102,18 +2102,30 @@ export function updateDocumentSeo(params: {
 }
 
 /**
+ * Escapes XML-sensitive characters for strict sitemap compliance
+ */
+export function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
  * Builds the complete sitemap.xml dynamically from the live registry including all tools
  */
 export function generateSitemapXml(): string {
   const currentDate = new Date().toISOString().split('T')[0];
 
-  const urls: { loc: string; lastmod: string; changefreq: string; priority: string }[] = [
+  const rawUrls: { loc: string; lastmod: string; changefreq: string; priority: string }[] = [
     { loc: `${SITE_CONFIG.url}/`, lastmod: currentDate, changefreq: 'daily', priority: '1.0' },
   ];
 
   // Category Pages
   for (const cat of Object.values(CATEGORIES_SEO)) {
-    urls.push({
+    rawUrls.push({
       loc: `${SITE_CONFIG.url}${cat.route}`,
       lastmod: currentDate,
       changefreq: 'weekly',
@@ -2124,7 +2136,7 @@ export function generateSitemapXml(): string {
   // Every Tool in the full TOOLS_LIST
   for (const tool of TOOLS_LIST) {
     const seo = getToolSeo(tool.id);
-    urls.push({
+    rawUrls.push({
       loc: `${SITE_CONFIG.url}${seo.route}`,
       lastmod: currentDate,
       changefreq: 'weekly',
@@ -2132,10 +2144,21 @@ export function generateSitemapXml(): string {
     });
   }
 
-  const urlXml = urls
+  // Strict deduplication by canonical loc
+  const seenLocs = new Set<string>();
+  const uniqueUrls: { loc: string; lastmod: string; changefreq: string; priority: string }[] = [];
+
+  for (const u of rawUrls) {
+    if (!seenLocs.has(u.loc)) {
+      seenLocs.add(u.loc);
+      uniqueUrls.push(u);
+    }
+  }
+
+  const urlXml = uniqueUrls
     .map(
       (u) => `  <url>
-    <loc>${u.loc}</loc>
+    <loc>${escapeXml(u.loc)}</loc>
     <lastmod>${u.lastmod}</lastmod>
     <changefreq>${u.changefreq}</changefreq>
     <priority>${u.priority}</priority>

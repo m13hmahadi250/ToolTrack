@@ -1,4 +1,20 @@
+# ToolTrack Robots Configuration
+# https://tooltracker.vercel.app/robots.txt
+
 User-agent: *
+Allow: /
+Allow: /tools/
+Allow: /category/
+Allow: /assets/
+
+User-agent: Googlebot
+Allow: /
+Allow: /tools/
+Allow: /category/
+Allow: /assets/
+
+User-agent: Googlebot-Image
+Allow: /assets/
 Allow: /
 
 Sitemap: https://tooltracker.vercel.app/sitemap.xml

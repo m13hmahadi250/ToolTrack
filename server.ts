@@ -692,7 +692,11 @@ app.get('/google36e95f88e47922e7.html', (_req: Request, res: Response) => {
 app.get('/robots.txt', (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=86400');
-  res.status(200).send(`User-agent: *\nAllow: /\n\nSitemap: https://tooltracker.vercel.app/sitemap.xml\n`);
+  const robotsPath = path.join(process.cwd(), 'public/robots.txt');
+  if (fs.existsSync(robotsPath)) {
+    return res.sendFile(robotsPath);
+  }
+  return res.status(200).send(`User-agent: *\nAllow: /\nAllow: /tools/\nAllow: /category/\nAllow: /assets/\n\nUser-agent: Googlebot\nAllow: /\nAllow: /tools/\nAllow: /category/\nAllow: /assets/\n\nSitemap: https://tooltracker.vercel.app/sitemap.xml\n`);
 });
 
 // sitemap.xml endpoint (Dynamic from full live Tool Registry)
