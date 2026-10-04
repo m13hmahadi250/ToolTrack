@@ -281,6 +281,7 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } else {
+      setActiveCategoryKeyState(null);
       if (typeof window !== 'undefined') {
         history.pushState('', document.title, '/');
         updateDocumentSeo({

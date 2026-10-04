@@ -1,0 +1,1074 @@
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import {
+  WhiteboardBoard,
+  WhiteboardElement,
+  WhiteboardTool,
+  Point,
+  LaserPoint,
+  MeasureLine,
+  ResizeHandle,
+  SelectionBounds,
+  StrokeStyle,
+} from '../../types/whiteboard';
+import { WhiteboardRenderer } from '../../lib/whiteboardRenderer';
+import { WhiteboardStroke } from '../../lib/whiteboardStroke';
+
+interface WhiteboardCanvasProps {
+  board: WhiteboardBoard;
+  activeTool: WhiteboardTool;
+  onToolUsed?: () => void;
+  selectedElementIds: string[];
+  onSelectElements: (ids: string[]) => void;
+  onUpdateElement: (id: string, updates: Partial<WhiteboardElement>) => void;
+  onAddElement: (element: WhiteboardElement) => void;
+  onDeleteElements: (ids: string[]) => void;
+  onViewportChange: (viewport: { x: number; y: number; zoom: number }) => void;
+  // Current creation properties
+  currentStrokeColor: string;
+  currentFillColor: string;
+  currentStrokeWidth: number;
+  currentStrokeStyle: StrokeStyle;
+  currentOpacity: number;
+  smoothingMode?: 'smooth' | 'natural';
+  // Context Menu
+  onOpenContextMenu: (coords: { x: number; y: number; worldX: number; worldY: number }) => void;
+  // Double-click text editing
+  editingElementId: string | null;
+  onStartEditing: (id: string) => void;
+  onFinishEditing: (id: string, newText: string) => void;
+}
+
+export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
+  board,
+  activeTool,
+  onToolUsed,
+  selectedElementIds,
+  onSelectElements,
+  onUpdateElement,
+  onAddElement,
+  onDeleteElements,
+  onViewportChange,
+  currentStrokeColor,
+  currentFillColor,
+  currentStrokeWidth,
+  currentStrokeStyle,
+  currentOpacity,
+  smoothingMode = 'smooth',
+  onOpenContextMenu,
+  editingElementId,
+  onStartEditing,
+  onFinishEditing,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Synchronized Viewport Refs for high-speed event handlers (60-120fps wheel/pinch)
+  const viewportRef = useRef(board.viewport);
+  useEffect(() => {
+    viewportRef.current = board.viewport;
+  }, [board.viewport]);
+
+  const onViewportChangeRef = useRef(onViewportChange);
+  useEffect(() => {
+    onViewportChangeRef.current = onViewportChange;
+  }, [onViewportChange]);
+
+  // Interaction State
+  const [isPointerDown, setIsPointerDown] = useState(false);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  // Keep active drawing element in a ref to avoid re-rendering entire React tree on pointermove!
+  const activeDrawingElementRef = useRef<WhiteboardElement | null>(null);
+  const [marqueeBox, setMarqueeBox] = useState<{ start: Point; current: Point } | null>(null);
+  const [laserPoints, setLaserPoints] = useState<LaserPoint[]>([]);
+  const [measureLine, setMeasureLine] = useState<MeasureLine | null>(null);
+
+  // Dragging / Resizing / Rotating selected elements
+  const interactionModeRef = useRef<'none' | 'pan' | 'draw' | 'move' | 'resize' | 'rotate' | 'marquee' | 'laser' | 'measure' | 'erase' | 'pinch'>('none');
+  const activeHandleRef = useRef<ResizeHandle | null>(null);
+  const startPointerRef = useRef<Point>({ x: 0, y: 0 }); // World coords
+  const startScreenRef = useRef<Point>({ x: 0, y: 0 }); // Screen coords
+  const initialElementsSnapshotRef = useRef<{ id: string; x: number; y: number; width: number; height: number; rotation?: number }[]>([]);
+  const initialBoundsRef = useRef<SelectionBounds | null>(null);
+
+  // Multi-Touch Pinch Zoom tracking
+  const activePointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchStartDistRef = useRef<number | null>(null);
+  const pinchStartZoomRef = useRef<number>(1);
+  const pinchCenterWorldRef = useRef<Point | null>(null);
+
+  // Eraser Interaction State
+  const pendingErasedIdsRef = useRef<Set<string>>(new Set());
+  const [transientErasedIds, setTransientErasedIds] = useState<Set<string>>(new Set());
+  const lastEraserPointRef = useRef<Point | null>(null);
+  const [eraserCursorPos, setEraserCursorPos] = useState<Point | null>(null);
+
+  // Inline Text Editor State
+  const [editingText, setEditingText] = useState('');
+  const editingElement = board.elements.find((el) => el.id === editingElementId) || null;
+
+  useEffect(() => {
+    if (editingElement) {
+      setEditingText(editingElement.text || '');
+    }
+  }, [editingElement]);
+
+  // When activeTool changes, cleanly finish any active inline text editing
+  useEffect(() => {
+    if (editingElementId) {
+      onFinishEditing(editingElementId, editingText);
+    }
+  }, [activeTool]);
+
+  // Convert screen coordinates (clientX, clientY) to world canvas coordinates
+  const screenToWorld = useCallback(
+    (screenX: number, screenY: number): Point => {
+      const canvas = canvasRef.current;
+      if (!canvas) return { x: 0, y: 0 };
+      const rect = canvas.getBoundingClientRect();
+      const x = (screenX - rect.left - board.viewport.x) / board.viewport.zoom;
+      const y = (screenY - rect.top - board.viewport.y) / board.viewport.zoom;
+      return { x, y };
+    },
+    [board.viewport]
+  );
+
+  // Convert world coordinates to screen pixel coordinates
+  const worldToScreen = useCallback(
+    (worldX: number, worldY: number): Point => {
+      const canvas = canvasRef.current;
+      if (!canvas) return { x: 0, y: 0 };
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: rect.left + board.viewport.x + worldX * board.viewport.zoom,
+        y: rect.top + board.viewport.y + worldY * board.viewport.zoom,
+      };
+    },
+    [board.viewport]
+  );
+
+  // Selected elements objects
+  const selectedElements = board.elements.filter((el) => selectedElementIds.includes(el.id));
+
+  // Snap to grid helper
+  const snap = useCallback(
+    (val: number, step = 28): number => {
+      if (!board.gridSnap) return val;
+      return Math.round(val / step) * step;
+    },
+    [board.gridSnap]
+  );
+
+  // Re-render canvas loop
+  const requestRef = useRef<number | null>(null);
+  const renderCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const rect = canvas.getBoundingClientRect();
+    const visibleElements = board.elements.filter((el) => !transientErasedIds.has(el.id));
+    const boardToRender = transientErasedIds.size > 0 ? { ...board, elements: visibleElements } : board;
+
+    WhiteboardRenderer.render(
+      ctx,
+      boardToRender,
+      rect.width,
+      rect.height,
+      selectedElements,
+      activeDrawingElementRef.current,
+      laserPoints,
+      measureLine,
+      marqueeBox,
+      true,
+      () => {
+        // Triggered when async images load
+        if (requestRef.current === null) {
+          requestRef.current = requestAnimationFrame(renderCanvas);
+        }
+      },
+      smoothingMode
+    );
+
+    // Interactive circular eraser target ring while Eraser tool is active
+    if (activeTool === 'eraser' && eraserCursorPos) {
+      ctx.save();
+      ctx.translate(board.viewport.x, board.viewport.y);
+      ctx.scale(board.viewport.zoom, board.viewport.zoom);
+      ctx.beginPath();
+      ctx.arc(eraserCursorPos.x, eraserCursorPos.y, 16, 0, Math.PI * 2);
+      ctx.strokeStyle = isPointerDown ? '#f43f5e' : 'rgba(244, 63, 94, 0.75)';
+      ctx.lineWidth = 1.5 / board.viewport.zoom;
+      ctx.fillStyle = isPointerDown ? 'rgba(244, 63, 94, 0.22)' : 'rgba(244, 63, 94, 0.08)';
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    requestRef.current = null;
+  }, [board, selectedElements, laserPoints, measureLine, marqueeBox, transientErasedIds, activeTool, eraserCursorPos, isPointerDown, smoothingMode]);
+
+  // Native non-passive wheel listener attached to container
+  // Guarantees e.preventDefault() prevents browser page zoom during Ctrl/Cmd + Wheel
+  // and implements professional cursor-anchored smooth zooming & smooth canvas panning!
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheelNative = (e: WheelEvent) => {
+      const isZoomGesture = e.ctrlKey || e.metaKey;
+
+      if (isZoomGesture) {
+        e.preventDefault();
+
+        const rect = container.getBoundingClientRect();
+        const cursorScreenX = e.clientX - rect.left;
+        const cursorScreenY = e.clientY - rect.top;
+
+        const currentViewport = viewportRef.current;
+        const currentZoom = currentViewport.zoom;
+
+        // Delta normalization: 1 = lines, 2 = pages, 0 = pixels
+        const delta = e.deltaMode === 1 ? e.deltaY * 20 : e.deltaMode === 2 ? e.deltaY * 300 : e.deltaY;
+        const zoomMultiplier = Math.exp(-delta * 0.0025);
+        const newZoom = Math.min(10.0, Math.max(0.05, currentZoom * zoomMultiplier));
+
+        if (Math.abs(newZoom - currentZoom) < 0.0001) return;
+
+        // Mathematical transform: preserve the world point under mouse cursor!
+        const cursorWorldX = (cursorScreenX - currentViewport.x) / currentZoom;
+        const cursorWorldY = (cursorScreenY - currentViewport.y) / currentZoom;
+        const newViewportX = cursorScreenX - cursorWorldX * newZoom;
+        const newViewportY = cursorScreenY - cursorWorldY * newZoom;
+
+        onViewportChangeRef.current({
+          x: Math.round(newViewportX * 100) / 100,
+          y: Math.round(newViewportY * 100) / 100,
+          zoom: Math.round(newZoom * 1000) / 1000,
+        });
+      } else {
+        // Normal canvas pan on wheel / trackpad scroll
+        e.preventDefault();
+        const currentViewport = viewportRef.current;
+        const dx = e.shiftKey ? e.deltaY : e.deltaX;
+        const dy = e.shiftKey ? 0 : e.deltaY;
+
+        onViewportChangeRef.current({
+          ...currentViewport,
+          x: Math.round((currentViewport.x - dx) * 100) / 100,
+          y: Math.round((currentViewport.y - dy) * 100) / 100,
+        });
+      }
+    };
+
+    container.addEventListener('wheel', onWheelNative, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onWheelNative);
+    };
+  }, []);
+
+  // Resize canvas according to devicePixelRatio
+  useEffect(() => {
+    const handleResize = () => {
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      if (!canvas || !container) return;
+
+      const rect = container.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+
+      renderCanvas();
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [renderCanvas]);
+
+  useEffect(() => {
+    renderCanvas();
+  }, [renderCanvas]);
+
+  // Laser Pointer timer cleanup
+  useEffect(() => {
+    if (laserPoints.length === 0) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const filtered = laserPoints.filter((p) => now - p.timestamp <= 1200);
+      setLaserPoints(filtered);
+      renderCanvas();
+    }, 40);
+    return () => clearInterval(timer);
+  }, [laserPoints, renderCanvas]);
+
+  // Spacebar tracking for Pan mode
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        setIsSpacePressed(true);
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
+
+  // -------------------------------------------------------------
+  // Pointer Event Handlers (Mouse & Touch)
+  // -------------------------------------------------------------
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (editingElementId) {
+      onFinishEditing(editingElementId, editingText);
+    }
+
+    if (e.button === 2) {
+      // Right-click handled by onContextMenu
+      return;
+    }
+
+    const worldPt = screenToWorld(e.clientX, e.clientY);
+    startPointerRef.current = worldPt;
+    startScreenRef.current = { x: e.clientX, y: e.clientY };
+    setIsPointerDown(true);
+
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    // Multi-touch 2-finger pinch gesture
+    if (activePointersRef.current.size === 2) {
+      activeDrawingElementRef.current = null;
+      interactionModeRef.current = 'pinch';
+      const pts = Array.from(activePointersRef.current.values());
+      pinchStartDistRef.current = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      pinchStartZoomRef.current = board.viewport.zoom;
+      const midX = (pts[0].x + pts[1].x) / 2;
+      const midY = (pts[0].y + pts[1].y) / 2;
+      pinchCenterWorldRef.current = screenToWorld(midX, midY);
+      return;
+    }
+
+    // 1. Pan / Hand Mode
+    if (activeTool === 'hand' || isSpacePressed || e.button === 1) {
+      interactionModeRef.current = 'pan';
+      return;
+    }
+
+    // 2. Laser Mode
+    if (activeTool === 'laser') {
+      interactionModeRef.current = 'laser';
+      setLaserPoints((prev) => [...prev, { x: worldPt.x, y: worldPt.y, timestamp: Date.now() }]);
+      return;
+    }
+
+    // 3. Measure Mode
+    if (activeTool === 'measure') {
+      interactionModeRef.current = 'measure';
+      setMeasureLine({ start: worldPt, end: worldPt });
+      return;
+    }
+
+    // 4. Eraser Mode
+    if (activeTool === 'eraser') {
+      interactionModeRef.current = 'erase';
+      pendingErasedIdsRef.current = new Set();
+      lastEraserPointRef.current = worldPt;
+      setEraserCursorPos(worldPt);
+      eraseAtPoint(worldPt);
+      return;
+    }
+
+    // 5. Select Tool: Check Handle click -> Move -> Marquee
+    if (activeTool === 'select') {
+      // Check if clicked on a selection handle
+      if (selectedElements.length > 0) {
+        const bounds = WhiteboardRenderer.getSelectionBounds(selectedElements);
+        if (bounds) {
+          const hitHandle = WhiteboardRenderer.getHandleAtPoint(bounds, worldPt, board.viewport.zoom);
+          if (hitHandle) {
+            activeHandleRef.current = hitHandle;
+            initialBoundsRef.current = bounds;
+            initialElementsSnapshotRef.current = selectedElements.map((el) => ({
+              id: el.id,
+              x: el.x,
+              y: el.y,
+              width: el.width,
+              height: el.height,
+              rotation: el.rotation || 0,
+            }));
+            interactionModeRef.current = hitHandle === 'rot' ? 'rotate' : 'resize';
+            return;
+          }
+        }
+      }
+
+      // Check if clicked on an element
+      const hitElement = [...board.elements]
+        .reverse()
+        .find((el) => WhiteboardRenderer.isPointInElement(worldPt, el));
+
+      if (hitElement) {
+        if (e.shiftKey) {
+          // Toggle multi-select
+          if (selectedElementIds.includes(hitElement.id)) {
+            onSelectElements(selectedElementIds.filter((id) => id !== hitElement.id));
+          } else {
+            onSelectElements([...selectedElementIds, hitElement.id]);
+          }
+        } else {
+          if (!selectedElementIds.includes(hitElement.id)) {
+            onSelectElements([hitElement.id]);
+          }
+        }
+
+        interactionModeRef.current = 'move';
+        initialElementsSnapshotRef.current = (
+          selectedElementIds.includes(hitElement.id) ? selectedElements : [hitElement]
+        ).map((el) => ({
+          id: el.id,
+          x: el.x,
+          y: el.y,
+          width: el.width,
+          height: el.height,
+        }));
+        return;
+      }
+
+      // Clicked empty canvas -> Clear selection & Start Marquee drag
+      if (!e.shiftKey) {
+        onSelectElements([]);
+      }
+      interactionModeRef.current = 'marquee';
+      setMarqueeBox({ start: worldPt, current: worldPt });
+      return;
+    }
+
+    // 6. Freehand Drawing Tools (Pencil, Pen, Highlighter)
+    if (['pencil', 'pen', 'highlighter'].includes(activeTool)) {
+      interactionModeRef.current = 'draw';
+      const actualWidth =
+        activeTool === 'highlighter'
+          ? Math.max(currentStrokeWidth * 3.5, 18)
+          : currentStrokeWidth;
+
+      const newEl: WhiteboardElement = {
+        id: `el_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        type: activeTool as any,
+        x: worldPt.x,
+        y: worldPt.y,
+        width: 0,
+        height: 0,
+        strokeColor: currentStrokeColor,
+        strokeWidth: actualWidth,
+        opacity: activeTool === 'highlighter' ? Math.min(currentOpacity, 0.45) : currentOpacity,
+        zIndex: board.elements.length,
+        points: [{ x: worldPt.x, y: worldPt.y, pressure: e.pressure && e.pressure > 0 ? e.pressure : 0.5 }],
+      };
+      activeDrawingElementRef.current = newEl;
+      renderCanvas();
+      return;
+    }
+
+    // 7. Text Tool: Click to create & edit text without blue selection box
+    if (activeTool === 'text') {
+      // Check if user clicked an existing text element to edit it
+      const hitElement = [...board.elements]
+        .reverse()
+        .find((el) => el.type === 'text' && WhiteboardRenderer.isPointInElement(worldPt, el));
+      if (hitElement) {
+        onStartEditing(hitElement.id);
+        return;
+      }
+
+      // Create new text element directly at click point
+      const newTextEl: WhiteboardElement = {
+        id: `el_txt_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        type: 'text',
+        x: snap(worldPt.x),
+        y: snap(worldPt.y),
+        width: 180,
+        height: 36,
+        strokeColor: currentStrokeColor,
+        strokeWidth: 1,
+        opacity: currentOpacity,
+        fontSize: 18,
+        zIndex: board.elements.length,
+        text: '',
+      };
+      onAddElement(newTextEl);
+      onSelectElements([]); // Remains unselected!
+      onStartEditing(newTextEl.id);
+      setEditingText('');
+      return;
+    }
+
+    // 8. Sticky Note Tool: Click to place sticky note without selection box
+    if (activeTool === 'sticky') {
+      const newStickyEl: WhiteboardElement = {
+        id: `el_sticky_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        type: 'sticky',
+        x: snap(worldPt.x) - 100,
+        y: snap(worldPt.y) - 90,
+        width: 200,
+        height: 180,
+        strokeColor: '#ca8a04',
+        strokeWidth: 1,
+        opacity: currentOpacity,
+        stickyColor: '#fef08a',
+        text: 'Idea note...',
+        zIndex: board.elements.length,
+      };
+      onAddElement(newStickyEl);
+      onSelectElements([]); // Remains unselected!
+      return;
+    }
+
+    // 9. Shape Tools (Rectangle, Circle, Line, Arrow, Frame, etc.)
+    interactionModeRef.current = 'draw';
+    const newEl: WhiteboardElement = {
+      id: `el_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      type: activeTool as any,
+      x: snap(worldPt.x),
+      y: snap(worldPt.y),
+      width: 1,
+      height: 1,
+      strokeColor: currentStrokeColor,
+      strokeWidth: currentStrokeWidth,
+      strokeStyle: currentStrokeStyle,
+      fillColor: currentFillColor,
+      opacity: currentOpacity,
+      zIndex: board.elements.length,
+      ...(activeTool === 'frame' ? { frameTitle: `Frame ${board.frames?.length ? board.frames.length + 1 : 1}` } : {}),
+    };
+    activeDrawingElementRef.current = newEl;
+    renderCanvas();
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const worldPt = screenToWorld(e.clientX, e.clientY);
+
+    // Multi-touch 2-finger pinch zoom
+    if (interactionModeRef.current === 'pinch' && activePointersRef.current.size >= 2) {
+      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const pts = Array.from(activePointersRef.current.values());
+      const curDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      if (pinchStartDistRef.current && curDist > 10 && pinchCenterWorldRef.current) {
+        const scale = curDist / pinchStartDistRef.current;
+        const newZoom = Math.min(10.0, Math.max(0.05, pinchStartZoomRef.current * scale));
+        const midX = (pts[0].x + pts[1].x) / 2;
+        const midY = (pts[0].y + pts[1].y) / 2;
+        const container = containerRef.current;
+        const rect = container ? container.getBoundingClientRect() : { left: 0, top: 0 };
+        const cursorScreenX = midX - rect.left;
+        const cursorScreenY = midY - rect.top;
+
+        const newVx = cursorScreenX - pinchCenterWorldRef.current.x * newZoom;
+        const newVy = cursorScreenY - pinchCenterWorldRef.current.y * newZoom;
+
+        onViewportChangeRef.current({
+          x: Math.round(newVx * 100) / 100,
+          y: Math.round(newVy * 100) / 100,
+          zoom: Math.round(newZoom * 1000) / 1000,
+        });
+      }
+      return;
+    }
+
+    // Pan Mode
+    if (interactionModeRef.current === 'pan') {
+      const dx = e.clientX - startScreenRef.current.x;
+      const dy = e.clientY - startScreenRef.current.y;
+      onViewportChangeRef.current({
+        ...board.viewport,
+        x: board.viewport.x + dx,
+        y: board.viewport.y + dy,
+      });
+      startScreenRef.current = { x: e.clientX, y: e.clientY };
+      return;
+    }
+
+    if (!isPointerDown) return;
+
+    // Laser Mode
+    if (interactionModeRef.current === 'laser') {
+      setLaserPoints((prev) => [...prev, { x: worldPt.x, y: worldPt.y, timestamp: Date.now() }]);
+      return;
+    }
+
+    // Measure Mode
+    if (interactionModeRef.current === 'measure') {
+      setMeasureLine({
+        start: startPointerRef.current,
+        end: worldPt,
+      });
+      return;
+    }
+
+    // Update eraser cursor position for hover / drag circle
+    if (activeTool === 'eraser') {
+      setEraserCursorPos(worldPt);
+    }
+
+    // Eraser Mode
+    if (interactionModeRef.current === 'erase') {
+      const prev = lastEraserPointRef.current || worldPt;
+      const dist = Math.hypot(worldPt.x - prev.x, worldPt.y - prev.y);
+      const steps = Math.max(1, Math.ceil(dist / 6));
+      for (let s = 1; s <= steps; s++) {
+        const interpPt = {
+          x: prev.x + (worldPt.x - prev.x) * (s / steps),
+          y: prev.y + (worldPt.y - prev.y) * (s / steps),
+        };
+        eraseAtPoint(interpPt);
+      }
+      lastEraserPointRef.current = worldPt;
+      return;
+    }
+
+    // Marquee Mode
+    if (interactionModeRef.current === 'marquee') {
+      setMarqueeBox({
+        start: startPointerRef.current,
+        current: worldPt,
+      });
+      return;
+    }
+
+    // High-frequency Freehand Drawing & Shape Mode
+    // Updates active drawing element in ref and renders on next vsync via RAF
+    // Completely eliminates component re-renders during active drawing!
+    if (interactionModeRef.current === 'draw' && activeDrawingElementRef.current) {
+      const el = activeDrawingElementRef.current;
+      if (['pencil', 'pen', 'highlighter'].includes(el.type)) {
+        const coalesced =
+          typeof (e.nativeEvent as any).getCoalescedEvents === 'function'
+            ? ((e.nativeEvent as any).getCoalescedEvents() as PointerEvent[])
+            : [e.nativeEvent];
+
+        const pts = el.points || [];
+        let lastPt = pts[pts.length - 1];
+        let hasNew = false;
+
+        for (const ce of coalesced) {
+          const cpt = screenToWorld(ce.clientX, ce.clientY);
+          // Distance filter: discard micro-jitter (< 1.0 px)
+          if (!lastPt || Math.hypot(cpt.x - lastPt.x, cpt.y - lastPt.y) >= 1.0) {
+            const pressure = ce.pressure !== undefined && ce.pressure > 0 ? ce.pressure : 0.5;
+            pts.push({ x: cpt.x, y: cpt.y, pressure });
+            lastPt = cpt;
+            hasNew = true;
+          }
+        }
+
+        if (hasNew) {
+          el.points = pts;
+          if (requestRef.current === null) {
+            requestRef.current = requestAnimationFrame(renderCanvas);
+          }
+        }
+      } else {
+        // Shapes / Lines / Boxes
+        const startX = startPointerRef.current.x;
+        const startY = startPointerRef.current.y;
+        let w = snap(worldPt.x) - startX;
+        let h = snap(worldPt.y) - startY;
+
+        // Holding Shift constrains 1:1 aspect ratio
+        if (e.shiftKey && !['line', 'arrow', 'double_arrow', 'connector'].includes(el.type)) {
+          const side = Math.max(Math.abs(w), Math.abs(h));
+          w = w >= 0 ? side : -side;
+          h = h >= 0 ? side : -side;
+        }
+
+        el.x = w < 0 ? startX + w : startX;
+        el.y = h < 0 ? startY + h : startY;
+        el.width = Math.abs(w);
+        el.height = Math.abs(h);
+
+        if (requestRef.current === null) {
+          requestRef.current = requestAnimationFrame(renderCanvas);
+        }
+      }
+      return;
+    }
+
+    // Move Elements Mode
+    if (interactionModeRef.current === 'move') {
+      const dx = worldPt.x - startPointerRef.current.x;
+      const dy = worldPt.y - startPointerRef.current.y;
+
+      for (const snapEl of initialElementsSnapshotRef.current) {
+        onUpdateElement(snapEl.id, {
+          x: snap(snapEl.x + dx),
+          y: snap(snapEl.y + dy),
+        });
+      }
+      return;
+    }
+
+    // Resize Mode
+    if (interactionModeRef.current === 'resize' && initialBoundsRef.current) {
+      const initB = initialBoundsRef.current;
+      const handle = activeHandleRef.current;
+      const dx = worldPt.x - startPointerRef.current.x;
+      const dy = worldPt.y - startPointerRef.current.y;
+
+      let newW = initB.width;
+      let newH = initB.height;
+      let newX = initB.x;
+      let newY = initB.y;
+
+      if (handle?.includes('r')) newW = Math.max(20, initB.width + dx);
+      if (handle?.includes('b')) newH = Math.max(20, initB.height + dy);
+      if (handle?.includes('l')) {
+        newW = Math.max(20, initB.width - dx);
+        newX = initB.x + (initB.width - newW);
+      }
+      if (handle?.includes('t')) {
+        newH = Math.max(20, initB.height - dy);
+        newY = initB.y + (initB.height - newH);
+      }
+
+      // Scale factors
+      const scaleX = newW / initB.width;
+      const scaleY = newH / initB.height;
+
+      for (const snapEl of initialElementsSnapshotRef.current) {
+        const relX = (snapEl.x - initB.x) * scaleX;
+        const relY = (snapEl.y - initB.y) * scaleY;
+        onUpdateElement(snapEl.id, {
+          x: newX + relX,
+          y: newY + relY,
+          width: Math.max(10, snapEl.width * scaleX),
+          height: Math.max(10, snapEl.height * scaleY),
+        });
+      }
+      return;
+    }
+
+    // Rotate Mode
+    if (interactionModeRef.current === 'rotate' && initialBoundsRef.current) {
+      const cx = initialBoundsRef.current.x + initialBoundsRef.current.width / 2;
+      const cy = initialBoundsRef.current.y + initialBoundsRef.current.height / 2;
+      const angleRad = Math.atan2(worldPt.y - cy, worldPt.x - cx);
+      let angleDeg = Math.round((angleRad * 180) / Math.PI + 90);
+      if (angleDeg < 0) angleDeg += 360;
+
+      // Shift key snaps to 15 degrees increments
+      if (e.shiftKey) {
+        angleDeg = Math.round(angleDeg / 15) * 15;
+      }
+
+      for (const snapEl of initialElementsSnapshotRef.current) {
+        onUpdateElement(snapEl.id, {
+          rotation: angleDeg,
+        });
+      }
+    }
+  };
+
+  const handlePointerUp = (e?: React.PointerEvent<HTMLCanvasElement>) => {
+    setIsPointerDown(false);
+
+    if (e) {
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+      activePointersRef.current.delete(e.pointerId);
+    } else {
+      activePointersRef.current.clear();
+    }
+
+    // Finalize drawing element
+    if (interactionModeRef.current === 'draw' && activeDrawingElementRef.current) {
+      const activeEl = activeDrawingElementRef.current;
+      activeDrawingElementRef.current = null;
+
+      if (['pencil', 'pen', 'highlighter'].includes(activeEl.type)) {
+        if (activeEl.points && activeEl.points.length > 0) {
+          const bounds = WhiteboardStroke.getStrokeBounds(activeEl);
+          activeEl.x = bounds.x;
+          activeEl.y = bounds.y;
+          activeEl.width = bounds.width;
+          activeEl.height = bounds.height;
+          onAddElement(activeEl);
+        }
+      } else {
+        // Shapes / Lines / Arrows / Connectors / Frames
+        const minSize = 4;
+        if (Math.abs(activeEl.width) >= minSize || Math.abs(activeEl.height) >= minSize) {
+          onAddElement(activeEl);
+        }
+      }
+      renderCanvas();
+      // NOTE: NEVER auto-select created drawings or shapes!
+      // They remain unselected by default as expected in a professional whiteboard.
+      if (onToolUsed) onToolUsed();
+    }
+
+    // Finalize Marquee Selection
+    if (interactionModeRef.current === 'marquee' && marqueeBox) {
+      const minX = Math.min(marqueeBox.start.x, marqueeBox.current.x);
+      const maxX = Math.max(marqueeBox.start.x, marqueeBox.current.x);
+      const minY = Math.min(marqueeBox.start.y, marqueeBox.current.y);
+      const maxY = Math.max(marqueeBox.start.y, marqueeBox.current.y);
+
+      const captured = board.elements.filter((el) => {
+        const b = WhiteboardRenderer.getSelectionBounds([el]);
+        if (!b) return false;
+        return b.x >= minX && b.x + b.width <= maxX && b.y >= minY && b.y + b.height <= maxY;
+      });
+
+      onSelectElements(captured.map((e) => e.id));
+      setMarqueeBox(null);
+    }
+
+    // Finalize Eraser Mode
+    if (interactionModeRef.current === 'erase') {
+      if (pendingErasedIdsRef.current.size > 0) {
+        onDeleteElements(Array.from(pendingErasedIdsRef.current));
+        pendingErasedIdsRef.current.clear();
+      }
+      setTransientErasedIds(new Set());
+      lastEraserPointRef.current = null;
+      interactionModeRef.current = 'none';
+      if (onToolUsed) onToolUsed();
+      return;
+    }
+
+    interactionModeRef.current = 'none';
+    activeHandleRef.current = null;
+  };
+
+  const eraseAtPoint = useCallback(
+    (point: Point) => {
+      let newlyHit = false;
+      for (const el of board.elements) {
+        if (pendingErasedIdsRef.current.has(el.id)) continue;
+        if (WhiteboardRenderer.isPointInElement(point, el)) {
+          pendingErasedIdsRef.current.add(el.id);
+          newlyHit = true;
+        }
+      }
+      if (newlyHit) {
+        setTransientErasedIds(new Set(pendingErasedIdsRef.current));
+      }
+    },
+    [board.elements]
+  );
+
+  const handlePointerLeave = () => {
+    setEraserCursorPos(null);
+    if (interactionModeRef.current === 'erase') {
+      if (pendingErasedIdsRef.current.size > 0) {
+        onDeleteElements(Array.from(pendingErasedIdsRef.current));
+        pendingErasedIdsRef.current.clear();
+      }
+      setTransientErasedIds(new Set());
+      lastEraserPointRef.current = null;
+      interactionModeRef.current = 'none';
+    }
+  };
+
+  // -------------------------------------------------------------
+  // Double Click: Edit Text or Sticky
+  // -------------------------------------------------------------
+  const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const worldPt = screenToWorld(e.clientX, e.clientY);
+    const hitElement = [...board.elements]
+      .reverse()
+      .find((el) => WhiteboardRenderer.isPointInElement(worldPt, el));
+
+    if (hitElement && (hitElement.type === 'text' || hitElement.type === 'sticky')) {
+      onStartEditing(hitElement.id);
+    } else if (!hitElement) {
+      // Create new text element on double click
+      const newEl: WhiteboardElement = {
+        id: `el_txt_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        type: 'text',
+        x: snap(worldPt.x),
+        y: snap(worldPt.y),
+        width: 180,
+        height: 36,
+        strokeColor: currentStrokeColor,
+        strokeWidth: 1,
+        opacity: 1,
+        zIndex: board.elements.length,
+        text: '',
+      };
+      onAddElement(newEl);
+      onSelectElements([]); // Remains unselected!
+      onStartEditing(newEl.id);
+      setEditingText('');
+    }
+  };
+
+  // -------------------------------------------------------------
+  // Context Menu Trigger
+  // -------------------------------------------------------------
+  const handleContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const worldPt = screenToWorld(e.clientX, e.clientY);
+    const hitElement = [...board.elements]
+      .reverse()
+      .find((el) => WhiteboardRenderer.isPointInElement(worldPt, el));
+
+    if (hitElement && !selectedElementIds.includes(hitElement.id)) {
+      onSelectElements([hitElement.id]);
+    }
+
+    onOpenContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      worldX: worldPt.x,
+      worldY: worldPt.y,
+    });
+  };
+
+  // -------------------------------------------------------------
+  // Drag & Drop Image directly onto Canvas
+  // -------------------------------------------------------------
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+
+    const worldPt = screenToWorld(e.clientX, e.clientY);
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const reader = new FileReader();
+      reader.onload = (loadEvent) => {
+        const dataUrl = loadEvent.target?.result as string;
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 500;
+          let w = img.naturalWidth;
+          let h = img.naturalHeight;
+          if (w > maxDim || h > maxDim) {
+            const ratio = Math.min(maxDim / w, maxDim / h);
+            w = Math.round(w * ratio);
+            h = Math.round(h * ratio);
+          }
+
+          const newEl: WhiteboardElement = {
+            id: `el_img_${Date.now()}_${i}`,
+            type: 'image',
+            x: worldPt.x + i * 20,
+            y: worldPt.y + i * 20,
+            width: w,
+            height: h,
+            strokeColor: '#6366f1',
+            strokeWidth: 0,
+            opacity: 1,
+            zIndex: board.elements.length + i,
+            imageUrl: dataUrl,
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight,
+          };
+          onAddElement(newEl);
+          // Dropped images remain unselected unless explicitly clicked with Select tool
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Calculate inline text editor position in screen space
+  let editorStyle: React.CSSProperties | null = null;
+  if (editingElement) {
+    const screenPt = worldToScreen(editingElement.x, editingElement.y);
+    editorStyle = {
+      position: 'absolute',
+      left: `${screenPt.x}px`,
+      top: `${screenPt.y}px`,
+      width: `${Math.max(editingElement.width * board.viewport.zoom, 180)}px`,
+      minHeight: `${Math.max(editingElement.height * board.viewport.zoom, 40)}px`,
+      transformOrigin: 'top left',
+      zIndex: 60,
+    };
+  }
+
+  // Cursor style based on active tool
+  let cursorClass = 'cursor-default';
+  if (activeTool === 'hand' || isSpacePressed) {
+    cursorClass = isPointerDown ? 'cursor-grabbing' : 'cursor-grab';
+  } else if (['pencil', 'pen', 'highlighter'].includes(activeTool)) {
+    cursorClass = 'cursor-crosshair';
+  } else if (activeTool === 'eraser') {
+    cursorClass = 'cursor-crosshair';
+  } else if (activeTool === 'text') {
+    cursorClass = 'cursor-text';
+  } else if (['rectangle', 'circle', 'line', 'arrow', 'diamond', 'triangle', 'star', 'frame'].includes(activeTool)) {
+    cursorClass = 'cursor-crosshair';
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full h-full overflow-hidden select-none touch-none bg-slate-900"
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      <canvas
+        ref={canvasRef}
+        className={`w-full h-full block ${cursorClass}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
+        onDoubleClick={handleDoubleClick}
+        onContextMenu={handleContextMenu}
+      />
+
+      {/* Floating Inline Text Editor */}
+      {editingElement && editorStyle && (
+        <div style={editorStyle}>
+          <textarea
+            value={editingText}
+            onChange={(e) => setEditingText(e.target.value)}
+            onBlur={() => onFinishEditing(editingElement.id, editingText)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                onFinishEditing(editingElement.id, editingText);
+              }
+            }}
+            placeholder="Type text..."
+            autoFocus
+            className={`w-full h-full p-2 rounded-lg resize-none outline-none font-medium shadow-xl ${
+              editingElement.type === 'sticky'
+                ? 'bg-amber-100 text-slate-900 border-2 border-amber-400'
+                : 'bg-slate-900/90 text-white border border-indigo-500/80 focus:ring-1 focus:ring-indigo-400'
+            }`}
+            style={{
+              fontSize: `${Math.max(14, (editingElement.fontSize || 18) * board.viewport.zoom)}px`,
+              lineHeight: 1.35,
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+};

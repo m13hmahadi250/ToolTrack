@@ -38,6 +38,7 @@ import { PdfSecurityTool } from './components/tools/PdfSecurityTool';
 import { OcrPdfTool } from './components/tools/OcrPdfTool';
 import { PdfInspectorTool } from './components/tools/PdfInspectorTool';
 import { PdfCompareTool } from './components/tools/PdfCompareTool';
+import { WhiteboardView } from './components/whiteboard/WhiteboardView';
 import { ChevronRight, Home, Star } from 'lucide-react';
 import { TOOLS_LIST } from './data/toolsList';
 
@@ -179,6 +180,9 @@ function MainContent() {
       case 'pdf-compare':
         toolComponent = <PdfCompareTool />;
         break;
+      case 'whiteboard':
+        toolComponent = <WhiteboardView />;
+        break;
       default:
         return <NotFoundPage />;
     }
@@ -196,6 +200,15 @@ function MainContent() {
       </div>
     );
   };
+
+  // Whiteboard requires full-viewport immersive canvas experience (no site header or outer margins)
+  if (activeToolId === 'whiteboard') {
+    return (
+      <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-slate-900 text-slate-100 z-50">
+        <WhiteboardView />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors">

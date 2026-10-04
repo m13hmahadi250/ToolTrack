@@ -9,6 +9,7 @@ import {
   Layers,
   ArrowRight,
   FileText,
+  Sparkles,
 } from 'lucide-react';
 import { useToolTrack } from '../../context/ToolTrackContext';
 import { MegaMenu, getIconComponent } from './MegaMenu';
@@ -151,6 +152,22 @@ export const Header: React.FC = () => {
                   </div>
                 );
               })}
+
+              {/* Whiteboard Nav Button */}
+              <button
+                onClick={() => {
+                  setActiveToolId('whiteboard');
+                  setActiveDropdownCatId(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  activeToolId === 'whiteboard'
+                    ? 'bg-indigo-600 text-white font-bold shadow-sm'
+                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+                title="Interactive Online Whiteboard"
+              >
+                Whiteboard
+              </button>
             </nav>
           </div>
 
@@ -242,6 +259,21 @@ export const Header: React.FC = () => {
                   className="p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/70 dark:bg-indigo-950/40 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 cursor-pointer"
                 >
                   All Tools Directory
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveToolId('whiteboard');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="p-2.5 rounded-xl border border-indigo-500/50 bg-indigo-600 text-left text-xs font-bold text-white flex items-center justify-between shadow-sm cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-indigo-200" />
+                    <span>Whiteboard Studio</span>
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full">
+                    Open
+                  </span>
                 </button>
               </div>
 
