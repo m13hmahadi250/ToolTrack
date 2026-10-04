@@ -14,7 +14,7 @@ export const HEADER_CATEGORIES: CategoryHeaderConfig[] = [
   {
     id: 'all-tools',
     name: 'All Tools',
-    shortName: 'All Tools',
+    shortName: 'All',
     description: 'Complete directory of document, image, PDF, and academic utilities.',
     homepageCategoryId: 'all',
     categories: [
@@ -34,7 +34,7 @@ export const HEADER_CATEGORIES: CategoryHeaderConfig[] = [
   {
     id: 'image-tools',
     name: 'Image Tools',
-    shortName: 'Image Tools',
+    shortName: 'Image',
     description: 'Compress, convert, resize, crop, watermark, and extract backgrounds.',
     homepageCategoryId: 'image-tools',
     categories: ['image-tools'],
@@ -42,7 +42,7 @@ export const HEADER_CATEGORIES: CategoryHeaderConfig[] = [
   {
     id: 'student-tools',
     name: 'Student Tools',
-    shortName: 'Student Tools',
+    shortName: 'Student',
     description: 'Academic utilities for assignments, scan cleanup, and strict upload limits.',
     homepageCategoryId: 'student-tools',
     categories: ['student-tools'],
@@ -50,7 +50,7 @@ export const HEADER_CATEGORIES: CategoryHeaderConfig[] = [
   {
     id: 'design-tools',
     name: 'Design Utilities',
-    shortName: 'Design Utilities',
+    shortName: 'Design',
     description: 'Studio tools for watermarking, backdrops, typography, and color sampling.',
     homepageCategoryId: 'design-tools',
     categories: ['design-tools'],
@@ -58,7 +58,7 @@ export const HEADER_CATEGORIES: CategoryHeaderConfig[] = [
   {
     id: 'pdf-tools',
     name: 'PDF Tools',
-    shortName: 'PDF Tools',
+    shortName: 'PDF',
     description: 'Normalize, merge, split, compress, edit, convert, protect, and OCR PDF files.',
     homepageCategoryId: 'page-tools',
     categories: [

@@ -64,17 +64,20 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Keyboard shortcut listener: Ctrl+K / Cmd+K
+  // Keyboard shortcut listener: Ctrl+K / Cmd+K (Unified: Only header variant handles global trigger)
   useEffect(() => {
+    if (variant !== 'header') return;
+
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        // Only target desktop/matching variant
-        if (variant !== 'mobile') {
-          e.preventDefault();
-          inputRef.current?.focus();
-          inputRef.current?.select();
-          setIsOpen(true);
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) {
+          // If already inside an input (other than our search), still prioritize global search unless it's a code editor
         }
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+        setIsOpen(true);
       }
     };
 
@@ -197,10 +200,10 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
           className={
             inputClassName ||
             (isHome
-              ? 'w-full pl-12 pr-11 py-3.5 rounded-2xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 border border-slate-300 dark:border-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm sm:text-base transition'
+              ? 'w-full pl-12 pr-11 py-3.5 rounded-2xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-300 dark:border-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm sm:text-base transition font-medium'
               : isHeader
-              ? 'w-full pl-9 pr-8 py-1.5 text-sm rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-slate-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-900 transition'
-              : 'w-full pl-9 pr-8 py-2 text-sm rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500')
+              ? 'w-full pl-8 sm:pl-9 pr-14 py-1.5 text-xs sm:text-sm rounded-xl bg-slate-100/90 hover:bg-slate-100 dark:bg-slate-800/90 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200/90 dark:border-slate-700/80 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white dark:focus:bg-slate-900 transition-all font-medium h-9'
+              : 'w-full pl-9 pr-8 py-2 text-sm rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium')
           }
         />
 
@@ -210,7 +213,7 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
             type="button"
             onClick={handleClear}
             className={`absolute ${
-              isHome ? 'right-3.5' : 'right-2.5'
+              isHome ? 'right-3.5' : 'right-2'
             } p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer transition`}
             aria-label="Clear search query"
             title="Clear search"
@@ -218,9 +221,9 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
             <X className={isHome ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
           </button>
         ) : isHeader ? (
-          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-200/80 dark:bg-slate-700 text-slate-500 dark:text-slate-400 pointer-events-none">
-            Ctrl+K
-          </span>
+          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500 bg-slate-200/60 dark:bg-slate-700/60 border border-slate-300/60 dark:border-slate-600/60 pointer-events-none select-none">
+            ⌘K
+          </kbd>
         ) : isHome ? (
           <span className="absolute right-3.5 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-slate-700/80 text-slate-400 dark:text-slate-400 pointer-events-none border border-slate-200/80 dark:border-slate-700">
             <kbd className="font-sans font-medium">Ctrl+K</kbd>
