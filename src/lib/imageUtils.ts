@@ -184,6 +184,46 @@ export interface CropResizeOptions {
   format?: SupportedImageFormat;
   quality?: number;
   backgroundColor?: string;
+  sharpen?: 'none' | 'mild' | 'medium' | 'strong';
+  dpi?: number;
+}
+
+/**
+ * Applies a 3x3 convolution sharpening filter to canvas context
+ */
+function applySharpening(ctx: CanvasRenderingContext2D, width: number, height: number, level: 'mild' | 'medium' | 'strong') {
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const data = imgData.data;
+  const copy = new Uint8ClampedArray(data);
+
+  let kernel: number[];
+  if (level === 'mild') {
+    kernel = [0, -0.25, 0, -0.25, 2.0, -0.25, 0, -0.25, 0];
+  } else if (level === 'strong') {
+    kernel = [-1, -1, -1, -1, 9, -1, -1, -1, -1];
+  } else {
+    // medium
+    kernel = [0, -0.6, 0, -0.6, 3.4, -0.6, 0, -0.6, 0];
+  }
+
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = (y * width + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        let val = 0;
+        let kIdx = 0;
+        for (let ky = -1; ky <= 1; ky++) {
+          for (let kx = -1; kx <= 1; kx++) {
+            const pIdx = ((y + ky) * width + (x + kx)) * 4 + c;
+            val += copy[pIdx] * kernel[kIdx++];
+          }
+        }
+        data[idx + c] = Math.min(255, Math.max(0, val));
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
 }
 
 export async function cropAndTransformImage(
@@ -205,9 +245,10 @@ export async function cropAndTransformImage(
   canvas.width = isRotated90or270 ? outH : outW;
   canvas.height = isRotated90or270 ? outW : outH;
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) throw new Error('Could not get canvas 2D context');
 
+  // Fill background for non-transparent formats
   if (options.format === 'image/jpeg') {
     ctx.fillStyle = options.backgroundColor || '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -217,6 +258,10 @@ export async function cropAndTransformImage(
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.rotate((rot * Math.PI) / 180);
   ctx.scale(options.flipH ? -1 : 1, options.flipV ? -1 : 1);
+
+  // High quality interpolation
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   ctx.drawImage(
     img,
@@ -230,6 +275,11 @@ export async function cropAndTransformImage(
     outH
   );
   ctx.restore();
+
+  // Apply optional sharpening
+  if (options.sharpen && options.sharpen !== 'none') {
+    applySharpening(ctx, canvas.width, canvas.height, options.sharpen);
+  }
 
   const format = options.format || 'image/png';
   const quality = options.quality ?? 0.92;

@@ -3,11 +3,18 @@ import { sanitizePdfText, safeDrawText, safeWidthOfTextAtSize } from './pdfTextS
 import type { PageSizeNormalizerOptions, Margins } from '../types';
 import { MM_TO_PT, STANDARD_SIZES_MM } from './pdfRenderer';
 
+export interface PagePlanItem {
+  originalIndex: number;
+  rotation?: number; // 0, 90, 180, 270
+  isBlank?: boolean;
+}
+
 export interface PageModificationOptions {
-  pageOrder: number[]; // 0-indexed page numbers in desired sequence
+  pageOrder?: number[]; // 0-indexed page numbers in desired sequence
   rotations?: Record<number, number>; // page index -> rotation in degrees (0, 90, 180, 270)
   deletedPages?: number[];
   blankPagesAfter?: number[];
+  pagePlan?: PagePlanItem[];
 }
 
 export async function mergePdfs(pdfBuffers: (ArrayBuffer | Uint8Array)[]): Promise<Uint8Array> {
@@ -96,21 +103,43 @@ export async function organizeAndModifyPdf(
   const sourcePdf = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
   const newDoc = await PDFDocument.create();
 
-  for (const pageIdx of options.pageOrder) {
-    if (options.deletedPages?.includes(pageIdx)) continue;
+  if (options.pagePlan && options.pagePlan.length > 0) {
+    for (const item of options.pagePlan) {
+      if (item.isBlank) {
+        const pages = newDoc.getPages();
+        if (pages.length > 0) {
+          const lastSize = pages[pages.length - 1].getSize();
+          newDoc.addPage([lastSize.width, lastSize.height]);
+        } else {
+          newDoc.addPage([595.28, 841.89]);
+        }
+        continue;
+      }
 
-    const [copiedPage] = await newDoc.copyPages(sourcePdf, [pageIdx]);
-
-    if (options.rotations && options.rotations[pageIdx] !== undefined) {
-      const currentRot = copiedPage.getRotation().angle;
-      copiedPage.setRotation(degrees((currentRot + options.rotations[pageIdx]) % 360));
+      const [copiedPage] = await newDoc.copyPages(sourcePdf, [item.originalIndex]);
+      if (item.rotation !== undefined && item.rotation !== 0) {
+        const currentRot = copiedPage.getRotation().angle;
+        copiedPage.setRotation(degrees((currentRot + item.rotation) % 360));
+      }
+      newDoc.addPage(copiedPage);
     }
+  } else if (options.pageOrder) {
+    for (const pageIdx of options.pageOrder) {
+      if (options.deletedPages?.includes(pageIdx)) continue;
 
-    newDoc.addPage(copiedPage);
+      const [copiedPage] = await newDoc.copyPages(sourcePdf, [pageIdx]);
 
-    if (options.blankPagesAfter?.includes(pageIdx)) {
-      const { width, height } = copiedPage.getSize();
-      newDoc.addPage([width, height]);
+      if (options.rotations && options.rotations[pageIdx] !== undefined) {
+        const currentRot = copiedPage.getRotation().angle;
+        copiedPage.setRotation(degrees((currentRot + options.rotations[pageIdx]) % 360));
+      }
+
+      newDoc.addPage(copiedPage);
+
+      if (options.blankPagesAfter?.includes(pageIdx)) {
+        const { width, height } = copiedPage.getSize();
+        newDoc.addPage([width, height]);
+      }
     }
   }
 

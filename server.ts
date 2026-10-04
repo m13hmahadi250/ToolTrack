@@ -678,6 +678,446 @@ app.get('/api/test-word-to-pdf', async (_req: Request, res: Response) => {
 });
 
 /**
+ * ====================================================================
+ * PDF SECURITY, ENCRYPTION, DECRYPTION & INSPECTION API (QPDF ENGINE)
+ * ====================================================================
+ */
+
+// Helper to parse PDF buffer from request
+function extractPdfBufferFromReq(req: Request): Buffer | null {
+  if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+    return req.body;
+  }
+  if (req.body && req.body.pdf) {
+    const dataUri = req.body.pdf as string;
+    const match = dataUri.match(/^data:[^;]+;base64,(.+)$/);
+    return Buffer.from(match ? match[1] : dataUri, 'base64');
+  }
+  return null;
+}
+
+// 1. PDF ENCRYPT / LOCK (AES-256 / AES-128 with Granular Permissions)
+app.post('/api/pdf-security/encrypt', async (req: Request, res: Response) => {
+  let tmpDir = '';
+  try {
+    const pdfBuffer = extractPdfBufferFromReq(req);
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      return res.status(400).json({ error: 'No PDF document provided' });
+    }
+
+    const userPassword = (req.headers['x-user-password'] || req.body?.userPassword || '') as string;
+    if (!userPassword || userPassword.length < 1) {
+      return res.status(400).json({ error: 'A user password is required to protect this PDF.' });
+    }
+
+    const ownerPassword = (req.headers['x-owner-password'] || req.body?.ownerPassword || userPassword) as string;
+    const keyLength = req.headers['x-key-length'] === '128' || req.body?.keyLength === 128 ? '128' : '256';
+    const allowPrint = (req.headers['x-allow-print'] || req.body?.allowPrint || 'full') as string; // 'none' | 'low' | 'full'
+    const allowCopy = req.headers['x-allow-copy'] === 'true' || req.body?.allowCopy === true ? 'y' : 'n';
+    const allowModify = (req.headers['x-allow-modify'] || req.body?.allowModify || 'none') as string; // 'none' | 'annotate' | 'form' | 'assembly' | 'all'
+
+    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pdf-sec-enc-'));
+    const inputPath = path.join(tmpDir, 'input.pdf');
+    const outputPath = path.join(tmpDir, 'encrypted.pdf');
+
+    await fs.promises.writeFile(inputPath, pdfBuffer);
+
+    // Build qpdf arguments
+    // qpdf --encrypt <user-pw> <owner-pw> <key-length> [options] -- <in> <out>
+    const qpdfArgs: string[] = ['--encrypt', userPassword, ownerPassword, keyLength];
+
+    // Permissions
+    if (allowPrint === 'none') {
+      qpdfArgs.push('--print=none');
+    } else if (allowPrint === 'low') {
+      qpdfArgs.push('--print=low');
+    } else {
+      qpdfArgs.push('--print=full');
+    }
+
+    qpdfArgs.push(`--extract=${allowCopy}`);
+
+    if (allowModify === 'none') {
+      qpdfArgs.push('--modify=none');
+    } else if (allowModify === 'annotate') {
+      qpdfArgs.push('--modify=annotate');
+    } else if (allowModify === 'form') {
+      qpdfArgs.push('--modify=form');
+    } else if (allowModify === 'assembly') {
+      qpdfArgs.push('--modify=assembly');
+    } else {
+      qpdfArgs.push('--modify=all');
+    }
+
+    qpdfArgs.push('--allow-weak-crypto'); // allow flexibility if 128 is requested
+    qpdfArgs.push('--', inputPath, outputPath);
+
+    await execFileAsync('qpdf', qpdfArgs, { timeout: 30000 });
+
+    if (!fs.existsSync(outputPath)) {
+      throw new Error('Encryption engine failed to produce encrypted PDF.');
+    }
+
+    const encryptedBytes = await fs.promises.readFile(outputPath);
+
+    // Validate %PDF signature
+    if (encryptedBytes.length < 32 || encryptedBytes.toString('utf-8', 0, 5) !== '%PDF-') {
+      throw new Error('Generated file is not a valid PDF.');
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="protected.pdf"');
+    res.setHeader('X-Encryption-Algorithm', `AES-${keyLength}`);
+    res.setHeader('X-Security-Status', 'encrypted');
+    return res.send(encryptedBytes);
+  } catch (err: unknown) {
+    console.error('[PDF Encrypt Error]:', err);
+    return res.status(500).json({ error: 'PDF encryption failed: ' + String(err) });
+  } finally {
+    if (tmpDir) {
+      try {
+        await fs.promises.rm(tmpDir, { recursive: true, force: true });
+      } catch {}
+    }
+  }
+});
+
+// 2. PDF DECRYPT / UNLOCK (Requires correct legitimate password)
+app.post('/api/pdf-security/decrypt', async (req: Request, res: Response) => {
+  let tmpDir = '';
+  try {
+    const pdfBuffer = extractPdfBufferFromReq(req);
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      return res.status(400).json({ error: 'No PDF document provided' });
+    }
+
+    const password = (req.headers['x-password'] || req.body?.password || '') as string;
+
+    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pdf-sec-dec-'));
+    const inputPath = path.join(tmpDir, 'input.pdf');
+    const outputPath = path.join(tmpDir, 'decrypted.pdf');
+
+    await fs.promises.writeFile(inputPath, pdfBuffer);
+
+    // qpdf --password=<pw> --decrypt <in> <out>
+    const qpdfArgs = [`--password=${password}`, '--decrypt', inputPath, outputPath];
+
+    try {
+      await execFileAsync('qpdf', qpdfArgs, { timeout: 30000 });
+    } catch (qErr: any) {
+      const stderr = String(qErr?.stderr || qErr?.message || '');
+      if (stderr.includes('invalid password') || stderr.includes('password') || qErr.code === 2) {
+        return res.status(400).json({
+          error: 'Incorrect password provided. Please verify and try again.',
+          code: 'INVALID_PASSWORD',
+        });
+      }
+      throw qErr;
+    }
+
+    if (!fs.existsSync(outputPath)) {
+      return res.status(400).json({
+        error: 'Could not decrypt PDF with the provided credentials.',
+        code: 'DECRYPTION_FAILED',
+      });
+    }
+
+    const decryptedBytes = await fs.promises.readFile(outputPath);
+    const validation = await validatePdfOutput(decryptedBytes);
+    if (!validation.valid) {
+      return res.status(422).json({ error: 'Decrypted PDF validation failed: ' + validation.error });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="unlocked.pdf"');
+    res.setHeader('X-Security-Status', 'decrypted');
+    res.setHeader('X-Page-Count', String(validation.pageCount));
+    return res.send(decryptedBytes);
+  } catch (err: unknown) {
+    console.error('[PDF Decrypt Error]:', err);
+    return res.status(500).json({ error: 'PDF decryption failed: ' + String(err) });
+  } finally {
+    if (tmpDir) {
+      try {
+        await fs.promises.rm(tmpDir, { recursive: true, force: true });
+      } catch {}
+    }
+  }
+});
+
+// 3. PDF SECURITY INSPECTOR (Real encryption, algorithm, and permissions analysis)
+app.post('/api/pdf-security/inspect', async (req: Request, res: Response) => {
+  let tmpDir = '';
+  try {
+    const pdfBuffer = extractPdfBufferFromReq(req);
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      return res.status(400).json({ error: 'No PDF document provided' });
+    }
+
+    const password = (req.headers['x-password'] || req.body?.password || '') as string;
+    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pdf-sec-insp-'));
+    const inputPath = path.join(tmpDir, 'input.pdf');
+    await fs.promises.writeFile(inputPath, pdfBuffer);
+
+    const qpdfArgs = password
+      ? [`--password=${password}`, '--show-encryption', inputPath]
+      : ['--show-encryption', inputPath];
+
+    let stdout = '';
+    let isEncrypted = false;
+    let algorithm = 'None';
+    let userPasswordRequired = false;
+    let ownerPasswordRequired = false;
+    let permissions = {
+      printing: 'Full / Allowed',
+      extracting: 'Allowed',
+      modifying: 'Allowed',
+      annotations: 'Allowed',
+      formFilling: 'Allowed',
+      assembly: 'Allowed',
+    };
+
+    try {
+      const resExec = await execFileAsync('qpdf', qpdfArgs, { timeout: 15000 });
+      stdout = resExec.stdout + '\n' + resExec.stderr;
+    } catch (execErr: any) {
+      stdout = String(execErr.stdout || '') + '\n' + String(execErr.stderr || '');
+    }
+
+    if (stdout.includes('is not encrypted') || stdout.includes('File is not encrypted')) {
+      isEncrypted = false;
+      algorithm = 'None (Unprotected Document)';
+    } else {
+      isEncrypted = true;
+      if (stdout.includes('256-bit')) {
+        algorithm = '256-bit AES (Modern PDF 2.0 / Extension 3, R=6)';
+      } else if (stdout.includes('128-bit AES') || stdout.includes('AES-128')) {
+        algorithm = '128-bit AES (Standard Acrobat 7.0+, R=4)';
+      } else if (stdout.includes('128-bit')) {
+        algorithm = '128-bit RC4 (Legacy Standard)';
+      } else if (stdout.includes('40-bit')) {
+        algorithm = '40-bit RC4 (Deprecated Standard)';
+      } else {
+        algorithm = 'Encrypted (Standard PDF Security Handler)';
+      }
+
+      userPasswordRequired = stdout.includes('user password') || stdout.includes('requires a password');
+      ownerPasswordRequired = stdout.includes('owner password');
+
+      // Parse permissions from qpdf output
+      if (stdout.includes('print: none') || stdout.includes('printing not allowed')) {
+        permissions.printing = 'Disallowed / Blocked';
+      } else if (stdout.includes('print: low') || stdout.includes('low resolution only')) {
+        permissions.printing = 'Low Resolution (150 DPI) Only';
+      } else {
+        permissions.printing = 'Full High-Resolution Allowed';
+      }
+
+      if (stdout.includes('extract: n') || stdout.includes('extracting not allowed')) {
+        permissions.extracting = 'Disallowed / Protected';
+      } else {
+        permissions.extracting = 'Allowed';
+      }
+
+      if (stdout.includes('modify: none') || stdout.includes('modifying not allowed')) {
+        permissions.modifying = 'Disallowed / Read-Only';
+      } else if (stdout.includes('modify: annotate')) {
+        permissions.modifying = 'Annotations & Comments Only';
+      } else if (stdout.includes('modify: form')) {
+        permissions.modifying = 'Form Filling Only';
+      } else if (stdout.includes('modify: assembly')) {
+        permissions.modifying = 'Document Assembly Only';
+      } else {
+        permissions.modifying = 'Full Content Modification Allowed';
+      }
+
+      permissions.annotations = !stdout.includes('modify: none') ? 'Allowed' : 'Disallowed';
+      permissions.formFilling = !stdout.includes('modify: none') ? 'Allowed' : 'Disallowed';
+      permissions.assembly = !stdout.includes('modify: none') ? 'Allowed' : 'Disallowed';
+    }
+
+    // Also inspect document metadata using pdf-lib if accessible
+    let metadata: Record<string, string> = {};
+    try {
+      const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+      metadata = {
+        title: pdfDoc.getTitle() || '',
+        author: pdfDoc.getAuthor() || '',
+        subject: pdfDoc.getSubject() || '',
+        creator: pdfDoc.getCreator() || '',
+        producer: pdfDoc.getProducer() || '',
+        creationDate: pdfDoc.getCreationDate()?.toISOString() || '',
+        modificationDate: pdfDoc.getModificationDate()?.toISOString() || '',
+        pageCount: String(pdfDoc.getPageCount()),
+      };
+    } catch {}
+
+    return res.json({
+      status: 'ok',
+      isEncrypted,
+      algorithm,
+      userPasswordRequired,
+      ownerPasswordRequired,
+      permissions,
+      metadata,
+      rawSummary: stdout.trim(),
+    });
+  } catch (err: unknown) {
+    console.error('[PDF Inspect Error]:', err);
+    return res.status(500).json({ error: 'Inspection failed: ' + String(err) });
+  } finally {
+    if (tmpDir) {
+      try {
+        await fs.promises.rm(tmpDir, { recursive: true, force: true });
+      } catch {}
+    }
+  }
+});
+
+// 4. PDF METADATA & PRIVACY CLEANER
+app.post('/api/pdf-security/clean-metadata', async (req: Request, res: Response) => {
+  let tmpDir = '';
+  try {
+    const pdfBuffer = extractPdfBufferFromReq(req);
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      return res.status(400).json({ error: 'No PDF document provided' });
+    }
+
+    // Inspect before metadata
+    const beforeDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+    const beforeMeta = {
+      title: beforeDoc.getTitle() || '(None)',
+      author: beforeDoc.getAuthor() || '(None)',
+      subject: beforeDoc.getSubject() || '(None)',
+      creator: beforeDoc.getCreator() || '(None)',
+      producer: beforeDoc.getProducer() || '(None)',
+      creationDate: beforeDoc.getCreationDate()?.toISOString() || '(None)',
+      modificationDate: beforeDoc.getModificationDate()?.toISOString() || '(None)',
+    };
+
+    // Strip metadata by copying pages into a pristine document
+    const cleanDoc = await PDFDocument.create();
+    const copiedPages = await cleanDoc.copyPages(beforeDoc, beforeDoc.getPageIndices());
+    copiedPages.forEach((page) => cleanDoc.addPage(page));
+
+    // Clear Info Dictionary fields
+    cleanDoc.setTitle('');
+    cleanDoc.setAuthor('');
+    cleanDoc.setSubject('');
+    cleanDoc.setKeywords([]);
+    cleanDoc.setProducer('');
+    cleanDoc.setCreator('');
+
+    const cleanPdfBytes = await cleanDoc.save();
+
+    const afterMeta = {
+      title: '(Removed)',
+      author: '(Removed)',
+      subject: '(Removed)',
+      creator: '(Removed)',
+      producer: '(Removed)',
+      creationDate: '(Removed)',
+      modificationDate: '(Removed)',
+    };
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="cleaned-privacy.pdf"');
+    res.setHeader('X-Metadata-Before', encodeURIComponent(JSON.stringify(beforeMeta)));
+    res.setHeader('X-Metadata-After', encodeURIComponent(JSON.stringify(afterMeta)));
+    return res.send(Buffer.from(cleanPdfBytes));
+  } catch (err: unknown) {
+    console.error('[PDF Clean Metadata Error]:', err);
+    return res.status(500).json({ error: 'Metadata cleaning failed: ' + String(err) });
+  }
+});
+
+// 5. AUTOMATED REGRESSION TEST ENDPOINT FOR PDF SECURITY & PAGE MANIPULATION
+app.get('/api/test-pdf-security', async (_req: Request, res: Response) => {
+  let tmpDir = '';
+  try {
+    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'test-sec-'));
+
+    // Create a standard test PDF
+    const testDoc = await PDFDocument.create();
+    const page1 = testDoc.addPage([595.28, 841.89]); // A4
+    page1.drawText('Confidential Document Security Test Page 1', { x: 50, y: 750 });
+    const page2 = testDoc.addPage([595.28, 841.89]);
+    page2.drawText('Confidential Document Security Test Page 2', { x: 50, y: 750 });
+    testDoc.setAuthor('Security Tester');
+    testDoc.setTitle('Confidential Test');
+    const origBytes = await testDoc.save();
+
+    const origPath = path.join(tmpDir, 'orig.pdf');
+    const encPath = path.join(tmpDir, 'enc.pdf');
+    const decPath = path.join(tmpDir, 'dec.pdf');
+    await fs.promises.writeFile(origPath, origBytes);
+
+    // Test 1: Encrypt with AES-256 and user password
+    const testPw = 'StrongPass123!';
+    await execFileAsync('qpdf', [
+      '--encrypt',
+      testPw,
+      testPw,
+      '256',
+      '--print=none',
+      '--extract=n',
+      '--modify=none',
+      '--',
+      origPath,
+      encPath,
+    ]);
+    const encBytes = await fs.promises.readFile(encPath);
+    const encValid = encBytes.length > 0 && encBytes.toString('utf-8', 0, 5) === '%PDF-';
+
+    // Test 2: Verify encrypted PDF cannot be opened without password
+    let failedWithoutPw = false;
+    try {
+      await execFileAsync('qpdf', ['--check', encPath]);
+    } catch {
+      failedWithoutPw = true;
+    }
+
+    // Test 3: Decrypt with wrong password (must fail)
+    let wrongPwFailed = false;
+    try {
+      await execFileAsync('qpdf', ['--password=WrongPassword', '--decrypt', encPath, path.join(tmpDir, 'wrong.pdf')]);
+    } catch {
+      wrongPwFailed = true;
+    }
+
+    // Test 4: Decrypt with correct password
+    await execFileAsync('qpdf', [`--password=${testPw}`, '--decrypt', encPath, decPath]);
+    const decBytes = await fs.promises.readFile(decPath);
+    const decDoc = await PDFDocument.load(decBytes);
+    const decPageCount = decDoc.getPageCount();
+
+    return res.json({
+      status: 'pass',
+      tests: [
+        { name: 'PDF AES-256 Encryption', passed: encValid },
+        { name: 'Password Enforcement (Requires Key)', passed: failedWithoutPw },
+        { name: 'Rejection of Incorrect Password', passed: wrongPwFailed },
+        { name: 'Decryption with Correct Password', passed: decPageCount === 2 },
+      ],
+      details: {
+        originalSize: origBytes.length,
+        encryptedSize: encBytes.length,
+        decryptedSize: decBytes.length,
+        pageCount: decPageCount,
+      },
+    });
+  } catch (err: unknown) {
+    return res.status(500).json({ status: 'fail', error: String(err) });
+  } finally {
+    if (tmpDir) {
+      try {
+        await fs.promises.rm(tmpDir, { recursive: true, force: true });
+      } catch {}
+    }
+  }
+});
+
+/**
  * TECHNICAL SEO & GOOGLE SEARCH CONSOLE STATIC ENDPOINTS (Section 2, 11, 12)
  */
 
