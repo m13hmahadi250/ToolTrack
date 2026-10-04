@@ -12,6 +12,8 @@ export type ToolCategory =
   | 'ocr'
   | 'inspector';
 
+export type ToolOfflineCapability = 'offline' | 'partial' | 'online_only';
+
 export interface ToolItem {
   id: string;
   name: string;
@@ -27,6 +29,7 @@ export interface ToolItem {
   inputFormats?: string[];
   outputFormats?: string[];
   route?: string;
+  offlineCapability?: ToolOfflineCapability;
 }
 
 export type PageStandardSize =

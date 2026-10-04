@@ -39,8 +39,9 @@ import { OcrPdfTool } from './components/tools/OcrPdfTool';
 import { PdfInspectorTool } from './components/tools/PdfInspectorTool';
 import { PdfCompareTool } from './components/tools/PdfCompareTool';
 import { WhiteboardView } from './components/whiteboard/WhiteboardView';
-import { ChevronRight, Home, Star } from 'lucide-react';
-import { TOOLS_LIST } from './data/toolsList';
+import { OfflineIndicator } from './components/common/OfflineIndicator';
+import { ChevronRight, Home, Star, Wifi, Cloud } from 'lucide-react';
+import { TOOLS_LIST, getToolOfflineCapability } from './data/toolsList';
 
 function MainContent() {
   const {
@@ -284,10 +285,40 @@ function MainContent() {
                 </span>
               </button>
 
-              <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50/80 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-900/60">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>100% In-Browser Safe</span>
-              </div>
+              {(() => {
+                const capability = getToolOfflineCapability(currentTool);
+                if (capability === 'offline') {
+                  return (
+                    <div
+                      className="hidden sm:flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50/80 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-900/60"
+                      title="This tool runs 100% locally in your browser and works completely offline"
+                    >
+                      <Wifi className="w-3 h-3 text-emerald-500" />
+                      <span>Works Offline</span>
+                    </div>
+                  );
+                }
+                if (capability === 'partial') {
+                  return (
+                    <div
+                      className="hidden sm:flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 font-medium bg-indigo-50/80 dark:bg-indigo-950/40 px-2.5 py-0.5 rounded-full border border-indigo-200/60 dark:border-indigo-900/60"
+                      title="Core browser tools work offline; deep cloud models benefit from an active connection"
+                    >
+                      <Wifi className="w-3 h-3 text-indigo-500" />
+                      <span>Offline Ready</span>
+                    </div>
+                  );
+                }
+                return (
+                  <div
+                    className="hidden sm:flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-400 font-medium bg-amber-50/80 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200/60 dark:border-amber-900/60"
+                    title="This tool requires an active internet connection"
+                  >
+                    <Cloud className="w-3 h-3 text-amber-500" />
+                    <span>Internet Required</span>
+                  </div>
+                );
+              })()}
             </div>
           </nav>
         )}
@@ -298,6 +329,7 @@ function MainContent() {
       <Footer />
       <ProcessingQueueModal />
       <RecentActivityModal />
+      <OfflineIndicator />
     </div>
   );
 }

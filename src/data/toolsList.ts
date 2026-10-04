@@ -598,9 +598,31 @@ export const TOOLS_LIST: ToolItem[] = [
     maxFiles: 10,
     popular: true,
     route: '/whiteboard',
+    offlineCapability: 'offline',
     keywords: ['whiteboard', 'canvas', 'drawing', 'teaching', 'presentation', 'diagram', 'flowchart', 'mind map', 'sticky notes', 'freehand', 'annotate image'],
     synonyms: ['online whiteboard', 'drawing canvas', 'sketchboard', 'diagram maker', 'teaching board', 'lecture canvas'],
     inputFormats: ['Image', 'Board JSON'],
     outputFormats: ['PNG', 'JPG', 'PDF', 'SVG', 'JSON'],
   },
 ];
+
+/**
+ * Returns offline execution capability for any tool in the registry
+ * 'offline': Fully functional in-browser without internet
+ * 'partial': Core features work offline; advanced cloud models require connection
+ * 'online_only': Server/cloud API strictly required
+ */
+export function getToolOfflineCapability(toolOrId: ToolItem | string): 'offline' | 'partial' | 'online_only' {
+  const tool = typeof toolOrId === 'string' ? TOOLS_LIST.find((t) => t.id === toolOrId) : toolOrId;
+  if (!tool) return 'offline';
+  if (tool.offlineCapability) return tool.offlineCapability;
+
+  // Specific classification
+  if (tool.id === 'ocr-pdf') return 'partial';
+  if (tool.id === 'pdf-to-word') return 'partial';
+  if (tool.id === 'pdf-to-excel') return 'partial';
+  if (tool.id === 'image-background-remover') return 'partial';
+
+  return 'offline';
+}
+

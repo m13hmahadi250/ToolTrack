@@ -164,6 +164,7 @@ export const CATEGORIES_SEO: Record<string, CategorySeoData> = {
     h1: 'Design & Visual Media Tools',
     tagline: 'Inspect DPI, crop, watermark, and modify visual graphics right in your browser.',
     toolIds: [
+      'whiteboard',
       'image-background-changer',
       'image-cropper',
       'image-watermark',
@@ -175,6 +176,53 @@ export const CATEGORIES_SEO: Record<string, CategorySeoData> = {
 };
 
 export const TOOLS_SEO: Record<string, ToolSeoData> = {
+  whiteboard: {
+    toolId: 'whiteboard',
+    name: 'Online Whiteboard',
+    route: '/whiteboard',
+    aliases: ['/whiteboard', '/tools/whiteboard', 'whiteboard', '#whiteboard'],
+    categoryKey: 'design',
+    categoryName: 'Design & Visual Utilities',
+    categoryRoute: '/tools/design',
+    seoTitle: 'Online Whiteboard – Free Drawing & Collaboration Tool | ToolTrack',
+    seoDescription:
+      'Free online whiteboard for drawing, diagrams, flowcharts, teaching, notes, and image annotations directly in your browser with high-resolution export.',
+    h1: 'Online Whiteboard',
+    tagline: 'Infinite collaborative canvas for drawing, teaching, diagramming, and real-time sketching.',
+    keywords: [
+      'online whiteboard',
+      'whiteboard online',
+      'free drawing board',
+      'collaborative whiteboard',
+      'sketchboard',
+      'diagram maker',
+      'flowchart canvas',
+      'teaching whiteboard',
+      'annotate images',
+      'sticky notes canvas',
+    ],
+    supportedFormats: {
+      input: ['PNG (.png)', 'JPG (.jpg)', 'WEBP (.webp)', 'SVG (.svg)', 'JSON (.json)'],
+      output: ['PNG (.png)', 'JPG (.jpg)', 'PDF (.pdf)', 'SVG (.svg)', 'JSON (.json)'],
+    },
+    features: [
+      'Infinite zoomable vector canvas with smooth handwriting rendering',
+      'Rich shapes library: rectangles, diamonds, circles, arrows, connectors, and callouts',
+      'Local offline-first persistence using IndexedDB and instant autosave',
+      'High-resolution multi-format export to PNG, JPG, SVG, PDF, and Board JSON',
+    ],
+    howTo: [
+      { step: 1, title: 'Open Whiteboard', description: 'Launch the canvas directly in your browser with zero sign-in required.' },
+      { step: 2, title: 'Draw & Annotate', description: 'Use the pen, pencil, highlighter, shapes, sticky notes, and text tools to build diagrams.' },
+      { step: 3, title: 'Export or Save', description: 'Download your high-res graphics as PNG, SVG, or PDF, or save the project locally.' },
+    ],
+    faq: [
+      { question: 'Does the whiteboard work offline?', answer: 'Yes. The whiteboard is 100% client-side and automatically stores boards in local IndexedDB storage, allowing drawing without internet.' },
+      { question: 'Is there a limit on canvas size or board count?', answer: 'No. The canvas has infinite coordinate space and supports unlimited locally saved boards.' },
+    ],
+    relatedToolIds: ['image-cropper', 'image-watermark', 'notes-to-pdf', 'assignment-pdf-maker'],
+  },
+
   'merge-pdf': {
     toolId: 'merge-pdf',
     name: 'PDF Merge',
@@ -1646,59 +1694,6 @@ export const TOOLS_SEO: Record<string, ToolSeoData> = {
       { question: 'Can I paste multiple pages of text?', answer: 'Yes. The text engine automatically computes line height and creates new pages whenever text exceeds the printable margin.' },
     ],
     relatedToolIds: ['pdf-to-text', 'notes-to-pdf', 'assignment-pdf-maker', 'word-to-pdf'],
-  },
-
-  whiteboard: {
-    toolId: 'whiteboard',
-    name: 'Online Whiteboard',
-    route: '/whiteboard',
-    aliases: ['/tools/whiteboard', '/whiteboard', 'whiteboard'],
-    categoryKey: 'design',
-    categoryName: 'Design & Visual Utilities',
-    categoryRoute: '/tools/design',
-    seoTitle: 'Free Online Whiteboard – Infinite Canvas for Teaching & Diagrams | ToolTrack',
-    seoDescription:
-      'Infinite interactive online whiteboard for teaching, presentations, flowcharting, mind mapping, and image annotation. Draw, create shapes, and export high-res PNG, JPG, SVG, and PDF.',
-    h1: 'Online Whiteboard & Infinite Canvas',
-    tagline: 'Infinite collaborative canvas for teaching, presentations, diagramming, and image annotation.',
-    keywords: [
-      'online whiteboard',
-      'free whiteboard',
-      'interactive whiteboard',
-      'teaching whiteboard',
-      'drawing canvas',
-      'diagram maker',
-      'flowchart creator',
-      'mind map online',
-      'annotate images',
-      'whiteboard pdf export',
-    ],
-    supportedFormats: {
-      input: ['Image (.png, .jpg, .webp, .svg)', 'Whiteboard Project (.json)'],
-      output: ['PNG (.png)', 'JPG (.jpg)', 'PDF (.pdf)', 'SVG (.svg)', 'JSON (.tooltrack-board)'],
-    },
-    features: [
-      'Infinite canvas with smooth pan, zoom, and touch gesture support',
-      'Rich freehand pen, pencil, and transparent highlighter with custom smoothing',
-      'Geometric shapes, dynamic flow connectors, sticky notes, and text formatting',
-      'Paste screenshots and images directly from clipboard to annotate with drawings',
-      'Presentation mode with temporary glowing laser pointer for online classes',
-      'Reliable IndexedDB local autosave that survives browser reloads',
-      'High-resolution multi-format export to PNG (1x, 2x, 3x), JPG, SVG, and vector PDF',
-    ],
-    howTo: [
-      { step: 1, title: 'Choose a Tool or Template', description: 'Pick pen, shapes, sticky notes, or start from a pre-made template.' },
-      { step: 2, title: 'Draw, Annotate & Diagram', description: 'Sketch concepts, paste reference images, or connect diagram nodes.' },
-      { step: 3, title: 'Organize in Frames', description: 'Group concepts into named presentation frames for smooth structured lessons.' },
-      { step: 4, title: 'Export & Share', description: 'Download your whiteboard as high-res PNG, JPG, SVG, PDF, or editable project file.' },
-    ],
-    faq: [
-      { question: 'Is the whiteboard free and private?', answer: 'Yes! All drawing data and uploaded images remain 100% locally in your browser with zero server uploads.' },
-      { question: 'Does my board save automatically if I refresh?', answer: 'Yes. Changes are automatically debounced and saved into IndexedDB in your browser.' },
-      { question: 'Can I paste screenshots from clipboard?', answer: 'Yes, press Ctrl+V (or Cmd+V) to instantly paste any copied image directly onto the canvas.' },
-      { question: 'Can I export the whiteboard to PDF?', answer: 'Yes, ToolTrack compiles your whiteboard elements into sharp, high-resolution PDF pages.' },
-    ],
-    relatedToolIds: ['image-cropper', 'image-watermark', 'image-text', 'images-to-pdf'],
   },
 };
 

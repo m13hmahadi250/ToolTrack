@@ -13,6 +13,7 @@ import { MegaMenu, getIconComponent } from './MegaMenu';
 import { GlobalToolSearch } from './GlobalToolSearch';
 import { HeaderCategoryDropdown } from './HeaderCategoryDropdown';
 import { ToolTrackBrand } from './ToolTrackBrand';
+import { PWAInstallButton } from './PWAInstallButton';
 import { HEADER_CATEGORIES, getToolsForHeaderCategory } from '../../data/categoryRegistry';
 import { TOOLS_LIST } from '../../data/toolsList';
 
@@ -186,7 +187,10 @@ export const Header: React.FC = () => {
           </div>
 
           {/* Right Action Icons */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* In-App PWA Install Prompt */}
+            <PWAInstallButton className="hidden sm:flex" />
+
             {/* Queue Button */}
             <button
               onClick={() => setIsQueueOpen(true)}
@@ -297,6 +301,10 @@ export const Header: React.FC = () => {
                   <span>All Tools Directory</span>
                   <span className="text-[10px] font-semibold text-slate-400">38+ tools →</span>
                 </button>
+
+                <div className="pt-1">
+                  <PWAInstallButton variant="full" className="w-full justify-center py-2" />
+                </div>
 
                 <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-1 pt-2">
                   Tool Categories
