@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import http from 'http';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import sharp from 'sharp';
@@ -1186,11 +1187,21 @@ app.get('/api/seo-audit', async (_req: Request, res: Response) => {
   }
 });
 
-// Mount Vite middleware in development
+// Mount Vite middleware in development with unified HTTP/WebSocket server
 async function startServer() {
+  const httpServer = http.createServer(app);
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        ws: {
+          server: httpServer,
+        },
+        hmr: {
+          server: httpServer,
+        },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -1198,7 +1209,7 @@ async function startServer() {
     app.use(express.static('dist'));
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`ToolTrack full-stack server running on http://0.0.0.0:${PORT}`);
   });
 }

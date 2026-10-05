@@ -1,5 +1,6 @@
 export type WhiteboardTool =
   | 'select'
+  | 'lasso'
   | 'hand'
   | 'pencil'
   | 'pen'
@@ -48,10 +49,16 @@ export type GridType = 'none' | 'dot' | 'square' | 'ruled';
 export type ConnectorType = 'straight' | 'elbow' | 'curved';
 export type AnchorPoint = 'top' | 'right' | 'bottom' | 'left' | 'center';
 
+export type PenStyle = 'ballpoint' | 'fountain' | 'marker' | 'pencil' | 'fine' | 'highlighter';
+export type SmoothingMode = 'off' | 'natural' | 'smooth' | 'beautify';
+export type PenCursorChoice = 'auto' | 'fountain' | 'ballpoint' | 'stylus' | 'pencil' | 'precision';
+
 export interface Point {
   x: number;
   y: number;
   pressure?: number;
+  time?: number;
+  width?: number;
 }
 
 export interface ConnectorEndpoint {
@@ -80,6 +87,9 @@ export interface WhiteboardElement {
 
   // Freehand points (pencil, pen, highlighter)
   points?: Point[];
+  penStyle?: PenStyle;
+  smoothingMode?: SmoothingMode;
+  beautify?: boolean;
 
   // Text specific
   text?: string;

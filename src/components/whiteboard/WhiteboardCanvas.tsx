@@ -9,9 +9,13 @@ import {
   ResizeHandle,
   SelectionBounds,
   StrokeStyle,
+  PenStyle,
+  SmoothingMode,
+  PenCursorChoice,
 } from '../../types/whiteboard';
-import { WhiteboardRenderer } from '../../lib/whiteboardRenderer';
+import { WhiteboardRenderer, isDarkColor } from '../../lib/whiteboardRenderer';
 import { WhiteboardStroke } from '../../lib/whiteboardStroke';
+import { getWhiteboardCursorStyle } from '../../lib/whiteboardCursors';
 
 interface WhiteboardCanvasProps {
   board: WhiteboardBoard;
@@ -29,7 +33,12 @@ interface WhiteboardCanvasProps {
   currentStrokeWidth: number;
   currentStrokeStyle: StrokeStyle;
   currentOpacity: number;
-  smoothingMode?: 'smooth' | 'natural';
+  currentPenStyle?: PenStyle;
+  penCursorChoice?: PenCursorChoice;
+  smoothingMode?: SmoothingMode;
+  isBeautifyEnabled?: boolean;
+  isSmartShapeEnabled?: boolean;
+  onShapeRecognized?: (shape: string) => void;
   // Context Menu
   onOpenContextMenu: (coords: { x: number; y: number; worldX: number; worldY: number }) => void;
   // Double-click text editing
@@ -53,7 +62,12 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   currentStrokeWidth,
   currentStrokeStyle,
   currentOpacity,
+  currentPenStyle = 'fountain',
+  penCursorChoice = 'auto',
   smoothingMode = 'smooth',
+  isBeautifyEnabled = false,
+  isSmartShapeEnabled = false,
+  onShapeRecognized,
   onOpenContextMenu,
   editingElementId,
   onStartEditing,
@@ -79,11 +93,26 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   // Keep active drawing element in a ref to avoid re-rendering entire React tree on pointermove!
   const activeDrawingElementRef = useRef<WhiteboardElement | null>(null);
   const [marqueeBox, setMarqueeBox] = useState<{ start: Point; current: Point } | null>(null);
+  const [lassoPoints, setLassoPoints] = useState<Point[] | null>(null);
+  const lassoPointsRef = useRef<Point[] | null>(null);
   const [laserPoints, setLaserPoints] = useState<LaserPoint[]>([]);
   const [measureLine, setMeasureLine] = useState<MeasureLine | null>(null);
 
   // Dragging / Resizing / Rotating selected elements
-  const interactionModeRef = useRef<'none' | 'pan' | 'draw' | 'move' | 'resize' | 'rotate' | 'marquee' | 'laser' | 'measure' | 'erase' | 'pinch'>('none');
+  const interactionModeRef = useRef<
+    | 'none'
+    | 'pan'
+    | 'draw'
+    | 'move'
+    | 'resize'
+    | 'rotate'
+    | 'marquee'
+    | 'lasso'
+    | 'laser'
+    | 'measure'
+    | 'erase'
+    | 'pinch'
+  >('none');
   const activeHandleRef = useRef<ResizeHandle | null>(null);
   const startPointerRef = useRef<Point>({ x: 0, y: 0 }); // World coords
   const startScreenRef = useRef<Point>({ x: 0, y: 0 }); // Screen coords
@@ -190,7 +219,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           requestRef.current = requestAnimationFrame(renderCanvas);
         }
       },
-      smoothingMode
+      smoothingMode,
+      lassoPoints
     );
 
     // Interactive circular eraser target ring while Eraser tool is active
@@ -459,11 +489,19 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       return;
     }
 
+    // 5.5. Lasso Tool: Freehand loop selection
+    if (activeTool === 'lasso') {
+      interactionModeRef.current = 'lasso';
+      lassoPointsRef.current = [worldPt];
+      setLassoPoints([worldPt]);
+      return;
+    }
+
     // 6. Freehand Drawing Tools (Pencil, Pen, Highlighter)
     if (['pencil', 'pen', 'highlighter'].includes(activeTool)) {
       interactionModeRef.current = 'draw';
       const actualWidth =
-        activeTool === 'highlighter'
+        activeTool === 'highlighter' || currentPenStyle === 'highlighter'
           ? Math.max(currentStrokeWidth * 3.5, 18)
           : currentStrokeWidth;
 
@@ -478,7 +516,17 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         strokeWidth: actualWidth,
         opacity: activeTool === 'highlighter' ? Math.min(currentOpacity, 0.45) : currentOpacity,
         zIndex: board.elements.length,
-        points: [{ x: worldPt.x, y: worldPt.y, pressure: e.pressure && e.pressure > 0 ? e.pressure : 0.5 }],
+        penStyle: currentPenStyle,
+        smoothingMode,
+        beautify: isBeautifyEnabled,
+        points: [
+          {
+            x: worldPt.x,
+            y: worldPt.y,
+            pressure: e.pressure && e.pressure > 0 ? e.pressure : 0.5,
+            time: performance.now(),
+          },
+        ],
       };
       activeDrawingElementRef.current = newEl;
       renderCanvas();
@@ -650,6 +698,18 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       return;
     }
 
+    // Lasso Mode
+    if (interactionModeRef.current === 'lasso') {
+      const prev = lassoPointsRef.current || [];
+      const updated = [...prev, worldPt];
+      lassoPointsRef.current = updated;
+      setLassoPoints(updated);
+      if (requestRef.current === null) {
+        requestRef.current = requestAnimationFrame(renderCanvas);
+      }
+      return;
+    }
+
     // High-frequency Freehand Drawing & Shape Mode
     // Updates active drawing element in ref and renders on next vsync via RAF
     // Completely eliminates component re-renders during active drawing!
@@ -664,13 +724,14 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         const pts = el.points || [];
         let lastPt = pts[pts.length - 1];
         let hasNew = false;
+        const now = performance.now();
 
         for (const ce of coalesced) {
           const cpt = screenToWorld(ce.clientX, ce.clientY);
-          // Distance filter: discard micro-jitter (< 1.0 px)
-          if (!lastPt || Math.hypot(cpt.x - lastPt.x, cpt.y - lastPt.y) >= 1.0) {
+          // Distance filter: discard micro-jitter (< 1.2 px)
+          if (!lastPt || Math.hypot(cpt.x - lastPt.x, cpt.y - lastPt.y) >= 1.2) {
             const pressure = ce.pressure !== undefined && ce.pressure > 0 ? ce.pressure : 0.5;
-            pts.push({ x: cpt.x, y: cpt.y, pressure });
+            pts.push({ x: cpt.x, y: cpt.y, pressure, time: now });
             lastPt = cpt;
             hasNew = true;
           }
@@ -802,12 +863,95 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
       if (['pencil', 'pen', 'highlighter'].includes(activeEl.type)) {
         if (activeEl.points && activeEl.points.length > 0) {
-          const bounds = WhiteboardStroke.getStrokeBounds(activeEl);
-          activeEl.x = bounds.x;
-          activeEl.y = bounds.y;
-          activeEl.width = bounds.width;
-          activeEl.height = bounds.height;
-          onAddElement(activeEl);
+          // Optional beautify ink pass: cleans mouse handwriting micro-jitter
+          if (isBeautifyEnabled || smoothingMode === 'beautify') {
+            activeEl.points = WhiteboardStroke.beautifyPoints(activeEl.points, 1);
+          }
+
+          // Optional Smart Shape Recognition
+          let convertedToShape = false;
+          if (isSmartShapeEnabled && activeEl.points.length >= 8) {
+            const recognized = WhiteboardStroke.recognizeShape(activeEl.points);
+            if (recognized) {
+              if (recognized.type === 'circle') {
+                const shapeEl: WhiteboardElement = {
+                  id: `el_shape_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                  type: 'circle',
+                  x: recognized.bounds.x,
+                  y: recognized.bounds.y,
+                  width: Math.max(recognized.bounds.width, 14),
+                  height: Math.max(recognized.bounds.height, 14),
+                  strokeColor: activeEl.strokeColor,
+                  strokeWidth: activeEl.strokeWidth,
+                  fillColor: 'transparent',
+                  opacity: activeEl.opacity,
+                  zIndex: board.elements.length,
+                };
+                onAddElement(shapeEl);
+                convertedToShape = true;
+                if (onShapeRecognized) onShapeRecognized('circle');
+              } else if (recognized.type === 'rectangle') {
+                const shapeEl: WhiteboardElement = {
+                  id: `el_shape_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                  type: 'rectangle',
+                  x: recognized.bounds.x,
+                  y: recognized.bounds.y,
+                  width: Math.max(recognized.bounds.width, 14),
+                  height: Math.max(recognized.bounds.height, 14),
+                  strokeColor: activeEl.strokeColor,
+                  strokeWidth: activeEl.strokeWidth,
+                  fillColor: 'transparent',
+                  opacity: activeEl.opacity,
+                  zIndex: board.elements.length,
+                };
+                onAddElement(shapeEl);
+                convertedToShape = true;
+                if (onShapeRecognized) onShapeRecognized('rectangle');
+              } else if (recognized.type === 'triangle') {
+                const shapeEl: WhiteboardElement = {
+                  id: `el_shape_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                  type: 'triangle',
+                  x: recognized.bounds.x,
+                  y: recognized.bounds.y,
+                  width: Math.max(recognized.bounds.width, 14),
+                  height: Math.max(recognized.bounds.height, 14),
+                  strokeColor: activeEl.strokeColor,
+                  strokeWidth: activeEl.strokeWidth,
+                  fillColor: 'transparent',
+                  opacity: activeEl.opacity,
+                  zIndex: board.elements.length,
+                };
+                onAddElement(shapeEl);
+                convertedToShape = true;
+                if (onShapeRecognized) onShapeRecognized('triangle');
+              } else if (recognized.type === 'line' && recognized.points) {
+                const shapeEl: WhiteboardElement = {
+                  id: `el_shape_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                  type: 'line',
+                  x: recognized.points[0].x,
+                  y: recognized.points[0].y,
+                  width: recognized.points[1].x - recognized.points[0].x,
+                  height: recognized.points[1].y - recognized.points[0].y,
+                  strokeColor: activeEl.strokeColor,
+                  strokeWidth: activeEl.strokeWidth,
+                  opacity: activeEl.opacity,
+                  zIndex: board.elements.length,
+                };
+                onAddElement(shapeEl);
+                convertedToShape = true;
+                if (onShapeRecognized) onShapeRecognized('line');
+              }
+            }
+          }
+
+          if (!convertedToShape) {
+            const bounds = WhiteboardStroke.getStrokeBounds(activeEl);
+            activeEl.x = bounds.x;
+            activeEl.y = bounds.y;
+            activeEl.width = bounds.width;
+            activeEl.height = bounds.height;
+            onAddElement(activeEl);
+          }
         }
       } else {
         // Shapes / Lines / Arrows / Connectors / Frames
@@ -820,6 +964,30 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       // NOTE: NEVER auto-select created drawings or shapes!
       // They remain unselected by default as expected in a professional whiteboard.
       if (onToolUsed) onToolUsed();
+    }
+
+    // Finalize Lasso Selection
+    if (interactionModeRef.current === 'lasso' && lassoPointsRef.current) {
+      const poly = lassoPointsRef.current;
+      if (poly.length >= 3) {
+        const captured = board.elements.filter((el) => {
+          const b = WhiteboardRenderer.getSelectionBounds([el]);
+          if (!b) return false;
+          const center = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+          return (
+            WhiteboardRenderer.isPointInPolygon(center, poly) ||
+            WhiteboardRenderer.isPointInPolygon({ x: b.x, y: b.y }, poly) ||
+            WhiteboardRenderer.isPointInPolygon({ x: b.x + b.width, y: b.y + b.height }, poly)
+          );
+        });
+        onSelectElements(captured.map((e) => e.id));
+      }
+      lassoPointsRef.current = null;
+      setLassoPoints(null);
+      interactionModeRef.current = 'none';
+      renderCanvas();
+      if (onToolUsed) onToolUsed();
+      return;
     }
 
     // Finalize Marquee Selection
@@ -1010,17 +1178,25 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     };
   }
 
-  // Cursor style based on active tool
+  // Cursor style based on active tool with professional Pen / Nib cursor
+  let customCursorStyle: string | undefined = undefined;
   let cursorClass = 'cursor-default';
+
   if (activeTool === 'hand' || isSpacePressed) {
     cursorClass = isPointerDown ? 'cursor-grabbing' : 'cursor-grab';
-  } else if (['pencil', 'pen', 'highlighter'].includes(activeTool)) {
-    cursorClass = 'cursor-crosshair';
-  } else if (activeTool === 'eraser') {
-    cursorClass = 'cursor-crosshair';
+  } else if (['pencil', 'pen', 'highlighter', 'eraser', 'lasso'].includes(activeTool)) {
+    cursorClass = '';
+    customCursorStyle = getWhiteboardCursorStyle({
+      tool: activeTool,
+      penStyle: currentPenStyle,
+      cursorChoice: penCursorChoice,
+      strokeColor: currentStrokeColor,
+      strokeWidth: currentStrokeWidth,
+      isDarkBackground: isDarkColor(board.backgroundColor),
+    });
   } else if (activeTool === 'text') {
     cursorClass = 'cursor-text';
-  } else if (['rectangle', 'circle', 'line', 'arrow', 'diamond', 'triangle', 'star', 'frame'].includes(activeTool)) {
+  } else if (['rectangle', 'circle', 'line', 'arrow', 'diamond', 'triangle', 'star', 'frame', 'measure'].includes(activeTool)) {
     cursorClass = 'cursor-crosshair';
   }
 
@@ -1034,6 +1210,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       <canvas
         ref={canvasRef}
         className={`w-full h-full block ${cursorClass}`}
+        style={customCursorStyle ? { cursor: customCursorStyle } : undefined}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

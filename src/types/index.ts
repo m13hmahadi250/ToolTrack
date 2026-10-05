@@ -89,15 +89,20 @@ export interface ProcessingJob {
   fileSize: number;
   toolId: string;
   toolName: string;
-  status: 'waiting' | 'analyzing' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  status: 'waiting' | 'analyzing' | 'processing' | 'paused' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   startTime: number;
   endTime?: number;
+  processingTimeMs?: number;
+  totalFiles?: number;
+  fileIndex?: number;
+  batchId?: string;
   outputFileName?: string;
   outputBlob?: Blob;
   outputSize?: number;
   errorMessage?: string;
   warningMessage?: string;
+  retryCount?: number;
 }
 
 export interface RecentActivityItem {

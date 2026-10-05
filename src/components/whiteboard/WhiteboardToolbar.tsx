@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   MousePointer,
+  LassoSelect,
   Hand,
   Pencil,
   PenTool,
@@ -27,13 +28,23 @@ import {
   ChevronUp,
   Undo2,
   Redo2,
+  Feather,
+  Wand2,
+  Shapes,
 } from 'lucide-react';
-import { WhiteboardTool } from '../../types/whiteboard';
+import {
+  WhiteboardTool,
+  PenStyle,
+  SmoothingMode,
+  PenCursorChoice,
+} from '../../types/whiteboard';
 
 const getActiveToolIcon = (tool: WhiteboardTool) => {
   switch (tool) {
     case 'select':
       return <MousePointer className="w-4 h-4" />;
+    case 'lasso':
+      return <LassoSelect className="w-4 h-4" />;
     case 'hand':
       return <Hand className="w-4 h-4" />;
     case 'pencil':
@@ -94,8 +105,16 @@ interface WhiteboardToolbarProps {
   isPresentationMode?: boolean;
   currentStrokeWidth?: number;
   onChangeStrokeWidth?: (w: number) => void;
-  smoothingMode?: 'smooth' | 'natural';
-  onChangeSmoothingMode?: (m: 'smooth' | 'natural') => void;
+  currentPenStyle?: PenStyle;
+  onChangePenStyle?: (style: PenStyle) => void;
+  penCursorChoice?: PenCursorChoice;
+  onChangePenCursorChoice?: (choice: PenCursorChoice) => void;
+  smoothingMode?: SmoothingMode;
+  onChangeSmoothingMode?: (m: SmoothingMode) => void;
+  isBeautifyEnabled?: boolean;
+  onToggleBeautify?: () => void;
+  isSmartShapeEnabled?: boolean;
+  onToggleSmartShape?: () => void;
 }
 
 export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
@@ -109,8 +128,16 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   isPresentationMode = false,
   currentStrokeWidth = 3,
   onChangeStrokeWidth,
+  currentPenStyle = 'fountain',
+  onChangePenStyle,
+  penCursorChoice = 'auto',
+  onChangePenCursorChoice,
   smoothingMode = 'smooth',
   onChangeSmoothingMode,
+  isBeautifyEnabled = false,
+  onToggleBeautify,
+  isSmartShapeEnabled = false,
+  onToggleSmartShape,
 }) => {
   const [shapesMenuOpen, setShapesMenuOpen] = useState(false);
   const [drawMenuOpen, setDrawMenuOpen] = useState(false);
@@ -337,6 +364,19 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
         </button>
 
         <button
+          onClick={() => onSelectTool('lasso')}
+          className={`p-2 rounded-xl transition cursor-pointer relative group ${
+            activeTool === 'lasso'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+          }`}
+          title="Lasso Selection (Q) – Freehand loop select"
+        >
+          <LassoSelect className="w-4 h-4" />
+          <span className="sr-only">Lasso</span>
+        </button>
+
+        <button
           onClick={() => onSelectTool('hand')}
           className={`p-2 rounded-xl transition cursor-pointer relative group ${
             activeTool === 'hand'
@@ -389,7 +429,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
                   ? 'bg-indigo-600 text-white hover:bg-indigo-700 border-l border-indigo-500/40'
                   : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
               } ${drawMenuOpen ? 'ring-2 ring-indigo-500/50' : ''}`}
-              title="Select Drawing Mode"
+              title="Select Drawing Mode & Pen Styles"
             >
               <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${drawMenuOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -397,76 +437,44 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
           {/* Draw Submenu */}
           {drawMenuOpen && (
-            <div className="absolute bottom-full mb-3 left-0 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3 min-w-[220px] z-50 text-slate-800 dark:text-slate-100">
-              {/* Tool Selection */}
+            <div className="absolute bottom-full mb-3 left-0 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3.5 min-w-[280px] max-w-[340px] z-50 text-slate-800 dark:text-slate-100">
+              {/* Pen Styles Grid */}
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1.5">
-                  Tool Type
+                  Pen & Ink Style
                 </span>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSelectTool('pen');
-                      setDrawMenuOpen(false);
-                    }}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-                      activeTool === 'pen'
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <PenTool className="w-3.5 h-3.5" />
-                    <span>Pen</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSelectTool('pencil');
-                      setDrawMenuOpen(false);
-                    }}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-                      activeTool === 'pencil'
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    <span>Pencil</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSelectTool('highlighter');
-                      setDrawMenuOpen(false);
-                    }}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-                      activeTool === 'highlighter'
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <Highlighter className="w-3.5 h-3.5" />
-                    <span>Highlight</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSelectTool('eraser');
-                      setDrawMenuOpen(false);
-                    }}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-                      activeTool === 'eraser'
-                        ? 'bg-rose-600 text-white shadow-xs'
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                    }`}
-                  >
-                    <Eraser className="w-3.5 h-3.5" />
-                    <span>Eraser</span>
-                  </button>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: 'fountain', label: 'Fountain', tool: 'pen', icon: <Feather className="w-3.5 h-3.5" /> },
+                    { id: 'ballpoint', label: 'Ballpoint', tool: 'pen', icon: <PenTool className="w-3.5 h-3.5" /> },
+                    { id: 'marker', label: 'Marker', tool: 'pen', icon: <PenTool className="w-3.5 h-3.5" /> },
+                    { id: 'pencil', label: 'Pencil', tool: 'pencil', icon: <Pencil className="w-3.5 h-3.5" /> },
+                    { id: 'fine', label: 'Fine Pen', tool: 'pen', icon: <Minus className="w-3.5 h-3.5" /> },
+                    { id: 'highlighter', label: 'Highlight', tool: 'highlighter', icon: <Highlighter className="w-3.5 h-3.5" /> },
+                  ].map((item) => {
+                    const isSelected =
+                      (activeTool === item.tool && (currentPenStyle === item.id || (!currentPenStyle && item.id === 'fountain'))) ||
+                      (activeTool === 'highlighter' && item.id === 'highlighter') ||
+                      (activeTool === 'pencil' && item.id === 'pencil');
+                    return (
+                      <button
+                        type="button"
+                        key={item.id}
+                        onClick={() => {
+                          onSelectTool(item.tool as WhiteboardTool);
+                          if (onChangePenStyle) onChangePenStyle(item.id as PenStyle);
+                        }}
+                        className={`flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-medium transition cursor-pointer border ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                        }`}
+                      >
+                        {item.icon}
+                        <span className="mt-1 font-semibold">{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -481,8 +489,8 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
                       {currentStrokeWidth}px
                     </span>
                   </div>
-                  <div className="grid grid-cols-6 gap-1">
-                    {[1, 2, 4, 8, 12, 20].map((w) => (
+                  <div className="grid grid-cols-7 gap-1">
+                    {[1, 2, 3, 5, 8, 14, 20].map((w) => (
                       <button
                         type="button"
                         key={w}
@@ -501,35 +509,106 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
                 </div>
               )}
 
-              {/* Smoothing Mode Toggle */}
+              {/* Pen-Style Cursor Choice */}
+              {onChangePenCursorChoice && (
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1.5">
+                    Pen Cursor Style
+                  </span>
+                  <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-[10px]">
+                    {[
+                      { id: 'auto', label: 'Auto' },
+                      { id: 'fountain', label: 'Fountain' },
+                      { id: 'ballpoint', label: 'Ballpoint' },
+                      { id: 'stylus', label: 'Stylus' },
+                      { id: 'pencil', label: 'Pencil' },
+                      { id: 'precision', label: 'Precision' },
+                    ].map((cur) => (
+                      <button
+                        type="button"
+                        key={cur.id}
+                        onClick={() => onChangePenCursorChoice(cur.id as PenCursorChoice)}
+                        className={`py-1 px-1 rounded-lg font-medium transition cursor-pointer text-center ${
+                          penCursorChoice === cur.id
+                            ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-bold shadow-2xs'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        {cur.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Beautify Ink & Smart Shapes Features */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                {onToggleBeautify && (
+                  <button
+                    type="button"
+                    onClick={onToggleBeautify}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer border ${
+                      isBeautifyEnabled
+                        ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-300 dark:border-indigo-700'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Beautify Ink (Auto-Smooth)</span>
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                      isBeautifyEnabled ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                    }`}>
+                      {isBeautifyEnabled ? 'ON' : 'OFF'}
+                    </span>
+                  </button>
+                )}
+
+                {onToggleSmartShape && (
+                  <button
+                    type="button"
+                    onClick={onToggleSmartShape}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer border ${
+                      isSmartShapeEnabled
+                        ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-300 dark:border-indigo-700'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Shapes className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Smart Shape Recognition</span>
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                      isSmartShapeEnabled ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                    }`}>
+                      {isSmartShapeEnabled ? 'ON' : 'OFF'}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {/* Smoothing Engine Mode Toggle */}
               {onChangeSmoothingMode && (
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1.5">
-                    Ink Engine
+                    Ink Smoothing Level
                   </span>
-                  <div className="grid grid-cols-2 gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => onChangeSmoothingMode('smooth')}
-                      className={`py-1 px-2 rounded-lg font-medium transition cursor-pointer ${
-                        smoothingMode === 'smooth'
-                          ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-bold shadow-2xs'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      Smooth Ink
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onChangeSmoothingMode('natural')}
-                      className={`py-1 px-2 rounded-lg font-medium transition cursor-pointer ${
-                        smoothingMode === 'natural'
-                          ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-bold shadow-2xs'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      Free Pen
-                    </button>
+                  <div className="grid grid-cols-4 gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-[10px]">
+                    {(['off', 'natural', 'smooth', 'beautify'] as SmoothingMode[]).map((mode) => (
+                      <button
+                        type="button"
+                        key={mode}
+                        onClick={() => onChangeSmoothingMode(mode)}
+                        className={`py-1 px-1 rounded-lg font-medium transition cursor-pointer text-center capitalize ${
+                          smoothingMode === mode
+                            ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-bold shadow-2xs'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        {mode}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}

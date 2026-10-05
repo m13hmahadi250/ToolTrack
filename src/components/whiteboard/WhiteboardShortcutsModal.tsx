@@ -17,8 +17,10 @@ export const WhiteboardShortcutsModal: React.FC<WhiteboardShortcutsModalProps> =
       title: 'Tools & Drawing',
       shortcuts: [
         { key: 'V', desc: 'Select Tool' },
+        { key: 'Q', desc: 'Lasso Selection Tool' },
         { key: 'H', desc: 'Hand / Pan Tool' },
         { key: 'P', desc: 'Pen / Freehand Draw' },
+        { key: 'B', desc: 'Toggle Beautify Ink' },
         { key: 'E', desc: 'Eraser Tool' },
         { key: 'T', desc: 'Text Tool' },
         { key: 'S', desc: 'Sticky Note' },

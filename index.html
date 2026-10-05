@@ -3,8 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ToolTrack – Free Online PDF, Image & Document Tools</title>
-    <meta name="description" content="All Your File Tools in One Place. Free, private online PDF, image, and document processing suite. Merge, split, compress, convert, edit, and normalize files instantly." />
+    <script>
+      // Ignore WebSocket errors in AI Studio iframe environment as per constraints
+      (function() {
+        var origError = console.error;
+        console.error = function() {
+          var msg = arguments[0];
+          if (typeof msg === 'string' && (msg.indexOf('[vite] failed to connect to websocket') !== -1 || msg.indexOf('vite:ws:disconnect') !== -1)) {
+            return;
+          }
+          return origError.apply(console, arguments);
+        };
+      })();
+    </script>
+    <title>ToolTrack – All-in-one PDF, image, and document processing platform</title>
+    <meta name="description" content="All-in-one PDF, image, and document processing platform with real client-side utilities, page size normalizer, and batch processing." />
     <meta name="keywords" content="PDF tools, image compressor, background remover, PDF to Word, Word to PDF, normalize PDF page size, PDF merge, PDF split, OCR online, student document tools" />
     <meta name="author" content="ToolTrack" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -17,15 +30,15 @@
     <!-- OpenGraph Social Sharing -->
     <meta property="og:site_name" content="ToolTrack" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="ToolTrack – Free Online PDF, Image & Document Tools" />
-    <meta property="og:description" content="All Your File Tools in One Place. Free, private online PDF, image, and document processing suite. Merge, split, compress, convert, edit, and normalize files instantly." />
+    <meta property="og:title" content="ToolTrack – All-in-one PDF, image, and document processing platform" />
+    <meta property="og:description" content="All-in-one PDF, image, and document processing platform with real client-side utilities, page size normalizer, and batch processing." />
     <meta property="og:url" content="https://tooltracker.vercel.app/" />
     <meta property="og:image" content="https://tooltracker.vercel.app/icon-512.png" />
     
     <!-- Twitter Social Cards -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="ToolTrack – Free Online PDF, Image & Document Tools" />
-    <meta name="twitter:description" content="All Your File Tools in One Place. Free, private online PDF, image, and document processing suite." />
+    <meta name="twitter:title" content="ToolTrack – All-in-one PDF, image, and document processing platform" />
+    <meta name="twitter:description" content="All-in-one PDF, image, and document processing platform with real client-side utilities, page size normalizer, and batch processing." />
     <meta name="twitter:image" content="https://tooltracker.vercel.app/icon-512.png" />
     
     <meta name="theme-color" content="#4f46e5" />

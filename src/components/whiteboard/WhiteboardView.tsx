@@ -6,6 +6,9 @@ import {
   GridType,
   StrokeStyle,
   FrameItem,
+  PenStyle,
+  SmoothingMode,
+  PenCursorChoice,
 } from '../../types/whiteboard';
 import {
   createDefaultBoard,
@@ -58,7 +61,11 @@ export const WhiteboardView: React.FC = () => {
   const [currentStrokeWidth, setCurrentStrokeWidth] = useState<number>(3);
   const [currentStrokeStyle, setCurrentStrokeStyle] = useState<StrokeStyle>('solid');
   const [currentOpacity, setCurrentOpacity] = useState<number>(1);
-  const [smoothingMode, setSmoothingMode] = useState<'smooth' | 'natural'>('smooth');
+  const [currentPenStyle, setCurrentPenStyle] = useState<PenStyle>('fountain');
+  const [penCursorChoice, setPenCursorChoice] = useState<PenCursorChoice>('auto');
+  const [smoothingMode, setSmoothingMode] = useState<SmoothingMode>('smooth');
+  const [isBeautifyEnabled, setIsBeautifyEnabled] = useState<boolean>(false);
+  const [isSmartShapeEnabled, setIsSmartShapeEnabled] = useState<boolean>(false);
 
   // Modals & Context Menus
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
@@ -989,7 +996,11 @@ export const WhiteboardView: React.FC = () => {
         currentStrokeWidth={currentStrokeWidth}
         currentStrokeStyle={currentStrokeStyle}
         currentOpacity={currentOpacity}
+        currentPenStyle={currentPenStyle}
+        penCursorChoice={penCursorChoice}
         smoothingMode={smoothingMode}
+        isBeautifyEnabled={isBeautifyEnabled}
+        isSmartShapeEnabled={isSmartShapeEnabled}
         onOpenContextMenu={(coords) => setContextMenu(coords)}
         editingElementId={editingElementId}
         onStartEditing={(id) => setEditingElementId(id)}
@@ -1023,6 +1034,14 @@ export const WhiteboardView: React.FC = () => {
           onChangeStrokeStyle={setCurrentStrokeStyle}
           currentOpacity={currentOpacity}
           onChangeOpacity={setCurrentOpacity}
+          currentPenStyle={currentPenStyle}
+          onChangePenStyle={setCurrentPenStyle}
+          penCursorChoice={penCursorChoice}
+          onChangePenCursorChoice={setPenCursorChoice}
+          smoothingMode={smoothingMode}
+          onChangeSmoothingMode={setSmoothingMode}
+          isBeautifyEnabled={isBeautifyEnabled}
+          onToggleBeautify={() => setIsBeautifyEnabled((p) => !p)}
           onDuplicate={handleDuplicateSelected}
           onDelete={() => handleDeleteElements(selectedElementIds)}
           onLockToggle={handleLockToggle}
@@ -1045,8 +1064,16 @@ export const WhiteboardView: React.FC = () => {
         isPresentationMode={isPresentationMode}
         currentStrokeWidth={currentStrokeWidth}
         onChangeStrokeWidth={setCurrentStrokeWidth}
+        currentPenStyle={currentPenStyle}
+        onChangePenStyle={setCurrentPenStyle}
+        penCursorChoice={penCursorChoice}
+        onChangePenCursorChoice={setPenCursorChoice}
         smoothingMode={smoothingMode}
         onChangeSmoothingMode={setSmoothingMode}
+        isBeautifyEnabled={isBeautifyEnabled}
+        onToggleBeautify={() => setIsBeautifyEnabled((p) => !p)}
+        isSmartShapeEnabled={isSmartShapeEnabled}
+        onToggleSmartShape={() => setIsSmartShapeEnabled((p) => !p)}
       />
 
       {/* Bottom-Right Zoom & Frame Navigation Bar */}

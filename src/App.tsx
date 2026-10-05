@@ -39,6 +39,7 @@ import { OcrPdfTool } from './components/tools/OcrPdfTool';
 import { PdfInspectorTool } from './components/tools/PdfInspectorTool';
 import { PdfCompareTool } from './components/tools/PdfCompareTool';
 import { WhiteboardView } from './components/whiteboard/WhiteboardView';
+import { BatchProcessingDashboard } from './components/batch/BatchProcessingDashboard';
 import { OfflineIndicator } from './components/common/OfflineIndicator';
 import { ChevronRight, Home, Star, Wifi, Cloud } from 'lucide-react';
 import { TOOLS_LIST, getToolOfflineCapability } from './data/toolsList';
@@ -184,6 +185,16 @@ function MainContent() {
       case 'whiteboard':
         toolComponent = <WhiteboardView />;
         break;
+      case 'batch-dashboard':
+      case 'batch-processing':
+      case 'queue':
+        return (
+          <div className="max-w-5xl mx-auto py-4 px-3 sm:px-6">
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden min-h-[600px] bg-white dark:bg-slate-900">
+              <BatchProcessingDashboard isModal={false} />
+            </div>
+          </div>
+        );
       default:
         return <NotFoundPage />;
     }

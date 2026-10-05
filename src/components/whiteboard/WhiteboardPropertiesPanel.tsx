@@ -3,6 +3,9 @@ import {
   WhiteboardElement,
   WhiteboardTool,
   StrokeStyle,
+  PenStyle,
+  SmoothingMode,
+  PenCursorChoice,
 } from '../../types/whiteboard';
 import {
   Bold,
@@ -27,6 +30,11 @@ import {
   AlignStartHorizontal,
   AlignCenterHorizontal,
   AlignEndHorizontal,
+  Feather,
+  PenTool,
+  Pencil,
+  Highlighter,
+  Minus,
 } from 'lucide-react';
 
 interface WhiteboardPropertiesPanelProps {
@@ -44,6 +52,15 @@ interface WhiteboardPropertiesPanelProps {
   onChangeStrokeStyle: (style: StrokeStyle) => void;
   currentOpacity: number;
   onChangeOpacity: (opacity: number) => void;
+  // Pen-specific properties
+  currentPenStyle?: PenStyle;
+  onChangePenStyle?: (style: PenStyle) => void;
+  penCursorChoice?: PenCursorChoice;
+  onChangePenCursorChoice?: (choice: PenCursorChoice) => void;
+  smoothingMode?: SmoothingMode;
+  onChangeSmoothingMode?: (mode: SmoothingMode) => void;
+  isBeautifyEnabled?: boolean;
+  onToggleBeautify?: () => void;
   // Actions
   onDuplicate: () => void;
   onDelete: () => void;
@@ -95,6 +112,14 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
   onChangeStrokeStyle,
   currentOpacity,
   onChangeOpacity,
+  currentPenStyle = 'fountain',
+  onChangePenStyle,
+  penCursorChoice = 'auto',
+  onChangePenCursorChoice,
+  smoothingMode = 'smooth',
+  onChangeSmoothingMode,
+  isBeautifyEnabled = false,
+  onToggleBeautify,
   onDuplicate,
   onDelete,
   onLockToggle,
@@ -117,6 +142,9 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
 
   const isTextElement = singleElement?.type === 'text';
   const isStickyElement = singleElement?.type === 'sticky';
+  const isFreehandElement =
+    (singleElement && ['pencil', 'pen', 'highlighter'].includes(singleElement.type)) ||
+    (!hasSelection && ['pencil', 'pen', 'highlighter'].includes(activeTool));
   const isShapeOrLine =
     singleElement &&
     [
@@ -133,8 +161,8 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
       'connector',
     ].includes(singleElement.type);
 
-  // If no elements are selected and active tool is select, hand, laser, or eraser, hide property panel to keep screen minimal
-  if (!hasSelection && ['select', 'hand', 'laser', 'eraser'].includes(activeTool)) {
+  // If no elements are selected and active tool is select, lasso, hand, laser, or eraser, hide property panel to keep screen minimal
+  if (!hasSelection && ['select', 'lasso', 'hand', 'laser', 'eraser'].includes(activeTool)) {
     return null;
   }
 
@@ -318,6 +346,102 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
               />
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Pen Style & Ink Controls for Freehand Strokes */}
+      {isFreehandElement && (
+        <div className="space-y-2 pt-1 border-t border-slate-200 dark:border-slate-800">
+          <label className="font-semibold text-slate-600 dark:text-slate-400 block text-[11px] uppercase tracking-wider">
+            Pen & Ink Style
+          </label>
+          <div className="grid grid-cols-3 gap-1">
+            {[
+              { id: 'fountain', label: 'Fountain', icon: <Feather className="w-3.5 h-3.5" /> },
+              { id: 'ballpoint', label: 'Ballpoint', icon: <PenTool className="w-3.5 h-3.5" /> },
+              { id: 'marker', label: 'Marker', icon: <PenTool className="w-3.5 h-3.5" /> },
+              { id: 'pencil', label: 'Pencil', icon: <Pencil className="w-3.5 h-3.5" /> },
+              { id: 'fine', label: 'Fine', icon: <Minus className="w-3.5 h-3.5" /> },
+              { id: 'highlighter', label: 'Highlight', icon: <Highlighter className="w-3.5 h-3.5" /> },
+            ].map((pStyle) => {
+              const activeStyle = singleElement ? singleElement.penStyle || 'fountain' : currentPenStyle;
+              const isSelected = activeStyle === pStyle.id;
+              return (
+                <button
+                  key={pStyle.id}
+                  onClick={() => {
+                    if (hasSelection) {
+                      onUpdateSelected({ penStyle: pStyle.id as PenStyle });
+                    }
+                    if (onChangePenStyle) onChangePenStyle(pStyle.id as PenStyle);
+                  }}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-xs font-medium transition cursor-pointer ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      : 'border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  {pStyle.icon}
+                  <span>{pStyle.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Beautify Ink Toggle */}
+          {onToggleBeautify && (
+            <button
+              onClick={() => {
+                if (hasSelection) {
+                  onUpdateSelected({ beautify: !singleElement?.beautify });
+                }
+                onToggleBeautify();
+              }}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer border ${
+                (singleElement ? singleElement.beautify : isBeautifyEnabled)
+                  ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-300 dark:border-indigo-700'
+                  : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Beautify Ink</span>
+              </span>
+              <span className="text-[10px] font-bold">
+                {(singleElement ? singleElement.beautify : isBeautifyEnabled) ? 'ON' : 'OFF'}
+              </span>
+            </button>
+          )}
+
+          {/* Smoothing Level Selector */}
+          {onChangeSmoothingMode && (
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold text-slate-500 block">Smoothing Level</label>
+              <div className="grid grid-cols-4 gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-[10px]">
+                {(['off', 'natural', 'smooth', 'beautify'] as SmoothingMode[]).map((mode) => {
+                  const currentMode = singleElement ? singleElement.smoothingMode || 'smooth' : smoothingMode;
+                  return (
+                    <button
+                      key={mode}
+                      onClick={() => {
+                        if (hasSelection) {
+                          onUpdateSelected({ smoothingMode: mode });
+                        }
+                        onChangeSmoothingMode(mode);
+                      }}
+                      className={`py-1 px-1 rounded-lg font-medium transition cursor-pointer text-center capitalize ${
+                        currentMode === mode
+                          ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-bold shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

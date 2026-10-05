@@ -6,6 +6,7 @@ import {
   SelectionBounds,
   ResizeHandle,
   Point,
+  SmoothingMode,
 } from '../types/whiteboard';
 import { WhiteboardStroke } from './whiteboardStroke';
 
@@ -76,7 +77,8 @@ export class WhiteboardRenderer {
     marqueeBox: { start: Point; current: Point } | null,
     showGrid = true,
     renderTrigger?: () => void,
-    smoothingMode: 'smooth' | 'natural' = 'smooth'
+    smoothingMode: SmoothingMode = 'smooth',
+    lassoPoints: Point[] | null = null
   ) {
     const { viewport, backgroundColor, gridType } = board;
     const isDark = isDarkColor(backgroundColor);
@@ -135,6 +137,11 @@ export class WhiteboardRenderer {
     // Render Drag Selection Marquee
     if (marqueeBox) {
       this.renderMarquee(ctx, marqueeBox);
+    }
+
+    // Render Freehand Lasso Trail
+    if (lassoPoints && lassoPoints.length > 1) {
+      this.renderLasso(ctx, lassoPoints);
     }
 
     ctx.restore();
@@ -206,7 +213,7 @@ export class WhiteboardRenderer {
     el: WhiteboardElement,
     isDark = true,
     renderTrigger?: () => void,
-    smoothingMode: 'smooth' | 'natural' = 'smooth'
+    smoothingMode: SmoothingMode = 'smooth'
   ) {
     ctx.save();
     ctx.globalAlpha = el.opacity ?? 1;
@@ -294,9 +301,9 @@ export class WhiteboardRenderer {
   private static renderFreehand(
     ctx: CanvasRenderingContext2D,
     el: WhiteboardElement,
-    smoothingMode: 'smooth' | 'natural' = 'smooth'
+    smoothingMode: SmoothingMode = 'smooth'
   ) {
-    WhiteboardStroke.renderStroke(ctx, el, smoothingMode);
+    WhiteboardStroke.renderStroke(ctx, el, el.smoothingMode || smoothingMode);
   }
 
   private static renderLine(ctx: CanvasRenderingContext2D, el: WhiteboardElement) {
@@ -1060,6 +1067,46 @@ export class WhiteboardRenderer {
     ctx.fillRect(x, y, w, h);
     ctx.strokeRect(x, y, w, h);
     ctx.restore();
+  }
+
+  /**
+   * Freehand lasso selection trail renderer
+   */
+  private static renderLasso(ctx: CanvasRenderingContext2D, points: Point[]) {
+    if (!points || points.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = '#6366f1';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.fillStyle = 'rgba(99, 102, 241, 0.14)';
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * Ray-casting point-in-polygon algorithm for lasso selection
+   */
+  static isPointInPolygon(point: Point, polygon: Point[]): boolean {
+    if (polygon.length < 3) return false;
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].x;
+      const yi = polygon[i].y;
+      const xj = polygon[j].x;
+      const yj = polygon[j].y;
+      const intersect =
+        yi > point.y !== yj > point.y &&
+        point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi;
+      if (intersect) inside = !inside;
+    }
+    return inside;
   }
 
   /**
