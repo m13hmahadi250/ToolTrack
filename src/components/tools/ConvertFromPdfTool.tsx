@@ -37,6 +37,7 @@ export const ConvertFromPdfTool: React.FC = () => {
   const [resultBlob, setResultBlob] = useState<Blob | null>(null);
   const [resultFileName, setResultFileName] = useState('');
   const [isZip, setIsZip] = useState(false);
+  const [excelPreviewRows, setExcelPreviewRows] = useState<string[][]>([]);
 
   const processingVersionRef = React.useRef(0);
   const hasConvertedOnceRef = React.useRef(false);
@@ -45,6 +46,7 @@ export const ConvertFromPdfTool: React.FC = () => {
     if (files.length === 0) return;
     setFile(files[0]);
     setResultBlob(null);
+    setExcelPreviewRows([]);
     hasConvertedOnceRef.current = false;
   };
 
@@ -54,6 +56,7 @@ export const ConvertFromPdfTool: React.FC = () => {
 
     setProcessing(true);
     setProgress(0.1);
+    setExcelPreviewRows([]);
 
     const baseName = file.name.replace(/\.[^/.]+$/, '');
     const jobId = addJob({
@@ -130,20 +133,21 @@ export const ConvertFromPdfTool: React.FC = () => {
         });
       } else if (activeTab === 'excel') {
         setProgress(0.5);
-        const excelBlob = await pdfToExcel(buffer);
+        const excelRes = await pdfToExcel(buffer);
         if (processingVersionRef.current !== targetVersion) return;
 
         const outName = `${baseName}.xlsx`;
-        setResultBlob(excelBlob);
+        setResultBlob(excelRes.blob);
         setResultFileName(outName);
         setIsZip(false);
+        setExcelPreviewRows(excelRes.previewRows || []);
 
         updateJob(jobId, {
           status: 'completed',
           progress: 1.0,
-          outputBlob: excelBlob,
+          outputBlob: excelRes.blob,
           outputFileName: outName,
-          outputSize: excelBlob.size,
+          outputSize: excelRes.blob.size,
         });
       } else {
         // text
@@ -322,6 +326,52 @@ export const ConvertFromPdfTool: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Extracted Excel Table Preview */}
+          {resultBlob && activeTab === 'excel' && excelPreviewRows.length > 0 && (
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span>Spreadsheet Extraction Preview (First {excelPreviewRows.length} Rows)</span>
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  Rows detected & formatted
+                </span>
+              </div>
+
+              <div className="max-h-72 overflow-x-auto overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/60 text-xs font-mono">
+                <table className="w-full border-collapse">
+                  <tbody>
+                    {excelPreviewRows.map((row, rIdx) => {
+                      const isHeader = rIdx === 0 || row[0]?.startsWith('[');
+                      return (
+                        <tr
+                          key={rIdx}
+                          className={
+                            isHeader
+                              ? 'bg-slate-200/80 dark:bg-slate-800 text-slate-900 dark:text-white font-bold'
+                              : rIdx % 2 === 0
+                              ? 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300'
+                              : 'bg-slate-50/80 dark:bg-slate-850 text-slate-700 dark:text-slate-300'
+                          }
+                        >
+                          {row.map((cell, cIdx) => (
+                            <td
+                              key={cIdx}
+                              className="px-3 py-2 border border-slate-200 dark:border-slate-800 whitespace-nowrap"
+                            >
+                              {cell}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Result Card */}
           {resultBlob && (

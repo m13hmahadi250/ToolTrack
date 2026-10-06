@@ -87,7 +87,28 @@ export async function textToPdf(textContent: string, title = 'Document'): Promis
   return await pdfDoc.save();
 }
 
-export async function excelToPdf(fileBuffer: ArrayBuffer): Promise<Uint8Array> {
+export async function excelToPdf(fileBuffer: ArrayBuffer, fileName = 'spreadsheet.xlsx'): Promise<Uint8Array> {
+  // 1. Primary: High-fidelity LibreOffice headless Calc engine (calc_pdf_Export)
+  try {
+    const response = await fetch('/api/convert-excel-to-pdf', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(fileName),
+      },
+      body: fileBuffer,
+    });
+    if (response.ok) {
+      const arr = await response.arrayBuffer();
+      if (arr.byteLength > 100) {
+        return new Uint8Array(arr);
+      }
+    }
+  } catch (netErr) {
+    console.warn('[ExcelToPdf] Server Calc endpoint unavailable, utilizing client-side fallback:', netErr);
+  }
+
+  // 2. Client-side Offline Fallback: SheetJS + PDF-Lib
   const workbook = XLSX.read(fileBuffer, { type: 'array' });
   const firstSheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[firstSheetName];
@@ -215,28 +236,85 @@ function escapeXml(unsafe: string): string {
     .replace(/'/g, '&apos;');
 }
 
-export async function pdfToExcel(pdfBuffer: ArrayBuffer): Promise<Blob> {
-  const { pages } = await extractTextFromPdf(pdfBuffer);
+export interface PdfToExcelResult {
+  blob: Blob;
+  rows: string[][];
+  previewRows: string[][];
+  totalRows: number;
+  totalCols: number;
+}
+
+export async function pdfToExcel(pdfBuffer: ArrayBuffer): Promise<PdfToExcelResult> {
   const rows: string[][] = [];
 
-  pages.forEach((pageText, pIdx) => {
-    rows.push([`--- Page ${pIdx + 1} ---`]);
-    const lines = pageText.split('\n');
-    lines.forEach((line) => {
-      // Split on tabs or multiple spaces as table columns
-      const cols = line.split(/\t|\s{2,}/).map((c) => c.trim()).filter(Boolean);
-      if (cols.length > 0) {
-        rows.push(cols);
+  try {
+    const analysis = await analyzePdfLayout(pdfBuffer);
+    analysis.pages.forEach((page, pIdx) => {
+      let pageHasTable = false;
+      page.visualBlocks.forEach((block) => {
+        if (block.type === 'table' && block.tableData && block.tableData.rows.length > 0) {
+          pageHasTable = true;
+          rows.push([`[Table Page ${pIdx + 1}]`]);
+          block.tableData.rows.forEach((r) => {
+            const rowCells = r.cells.map((c) => c.text.trim());
+            if (rowCells.some((c) => c.length > 0)) {
+              rows.push(rowCells);
+            }
+          });
+        }
+      });
+
+      // If no explicit table block, group text lines by column alignments
+      if (!pageHasTable) {
+        rows.push([`[Page ${pIdx + 1}]`]);
+        page.visualBlocks.forEach((block) => {
+          if (block.lines && block.lines.length > 0) {
+            block.lines.forEach((line) => {
+              const cols = line.text.split(/\t|\s{2,}/).map((c: string) => c.trim()).filter(Boolean);
+              if (cols.length > 0) {
+                rows.push(cols);
+              }
+            });
+          }
+        });
       }
     });
-  });
+  } catch (err) {
+    console.warn('[PdfToExcel] Layout analysis fallback:', err);
+    const { pages } = await extractTextFromPdf(pdfBuffer);
+    pages.forEach((pageText, pIdx) => {
+      rows.push([`[Page ${pIdx + 1}]`]);
+      const lines = pageText.split('\n');
+      lines.forEach((line) => {
+        const cols = line.split(/\t|\s{2,}/).map((c) => c.trim()).filter(Boolean);
+        if (cols.length > 0) {
+          rows.push(cols);
+        }
+      });
+    });
+  }
+
+  if (rows.length === 0) {
+    rows.push(['No tabular data detected in PDF document']);
+  }
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Extracted Data');
 
   const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  return new Blob([excelBuffer], {
+  const blob = new Blob([excelBuffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
+
+  const previewRows = rows.slice(0, 20);
+  const maxCols = Math.max(...rows.map((r) => r.length), 1);
+
+  return {
+    blob,
+    rows,
+    previewRows,
+    totalRows: rows.length,
+    totalCols: maxCols,
+  };
 }

@@ -679,6 +679,136 @@ app.get('/api/test-word-to-pdf', async (_req: Request, res: Response) => {
 });
 
 /**
+ * HIGH-FIDELITY SPREADSHEET CONVERSION ENGINE (Excel / XLSX / XLS / CSV -> PDF)
+ * Uses native LibreOffice headless Calc engine (calc_pdf_Export).
+ * Preserves spreadsheet tables, column widths, borders, fonts, formulas, and multiple sheets.
+ */
+app.post('/api/convert-excel-to-pdf', async (req: Request, res: Response) => {
+  let tmpDir: string | null = null;
+  try {
+    let inputBuffer: Buffer | null = null;
+    let rawFileName = 'spreadsheet.xlsx';
+
+    if (req.headers['x-file-name']) {
+      rawFileName = decodeURIComponent(String(req.headers['x-file-name']));
+    }
+
+    if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+      inputBuffer = req.body;
+    } else if (req.body && req.body.file) {
+      const dataUri = req.body.file as string;
+      const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        inputBuffer = Buffer.from(match[2], 'base64');
+      } else {
+        inputBuffer = Buffer.from(dataUri, 'base64');
+      }
+      if (req.body.fileName) {
+        rawFileName = String(req.body.fileName);
+      }
+    }
+
+    if (!inputBuffer || inputBuffer.length === 0) {
+      return res.status(400).json({ error: 'No spreadsheet data provided. Please provide an XLSX, XLS, or CSV file.' });
+    }
+
+    if (inputBuffer.length > 100 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Spreadsheet exceeds 100MB limit.' });
+    }
+
+    const extMatch = rawFileName.match(/\.([a-zA-Z0-9]+)$/);
+    let ext = extMatch ? `.${extMatch[1].toLowerCase()}` : '.xlsx';
+    if (!['.xlsx', '.xls', '.csv', '.ods', '.tsv'].includes(ext)) {
+      ext = '.xlsx';
+    }
+
+    const safeBaseName = path
+      .basename(rawFileName, path.extname(rawFileName))
+      .replace(/[^a-zA-Z0-9_\-\.]/g, '_')
+      .substring(0, 80) || 'spreadsheet';
+
+    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'excel2pdf-'));
+    const inputFilePath = path.join(tmpDir, `${safeBaseName}${ext}`);
+    const expectedPdfPath = path.join(tmpDir, `${safeBaseName}.pdf`);
+
+    await fs.promises.writeFile(inputFilePath, inputBuffer);
+
+    console.log(`[ExcelToPdf] Running LibreOffice headless Calc renderer on ${inputFilePath}...`);
+    const sofficeArgs = [
+      '--headless',
+      '--invisible',
+      '--nologo',
+      '--nodefault',
+      '--nofirststartwizard',
+      '--convert-to',
+      'pdf:calc_pdf_Export',
+      '--outdir',
+      tmpDir,
+      inputFilePath,
+    ];
+
+    try {
+      const { stdout, stderr } = await execFileAsync('soffice', sofficeArgs, {
+        timeout: 60000,
+        maxBuffer: 50 * 1024 * 1024,
+      });
+      if (stdout) console.log('[ExcelToPdf soffice stdout]:', stdout.trim());
+      if (stderr && !stderr.includes('javaldx')) console.warn('[ExcelToPdf soffice stderr]:', stderr.trim());
+    } catch (execErr: unknown) {
+      console.error('[ExcelToPdf] LibreOffice process error:', execErr);
+      throw new Error('Spreadsheet rendering engine failed to execute: ' + String(execErr));
+    }
+
+    let pdfBuffer: Buffer | null = null;
+    if (fs.existsSync(expectedPdfPath)) {
+      pdfBuffer = await fs.promises.readFile(expectedPdfPath);
+    } else {
+      const files = await fs.promises.readdir(tmpDir);
+      const pdfFile = files.find((f) => f.endsWith('.pdf'));
+      if (pdfFile) {
+        pdfBuffer = await fs.promises.readFile(path.join(tmpDir, pdfFile));
+      }
+    }
+
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      return res.status(500).json({
+        error: 'The spreadsheet rendering engine did not produce a valid PDF output file.',
+      });
+    }
+
+    const validation = await validatePdfOutput(pdfBuffer);
+    if (!validation.valid) {
+      console.error('[ExcelToPdf Validation Failed]:', validation.error);
+      return res.status(422).json({
+        error: 'Spreadsheet conversion output validation failed: ' + validation.error,
+        validation,
+      });
+    }
+
+    const outPdfName = `${safeBaseName}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(outPdfName)}"`);
+    res.setHeader('X-Provider-Used', 'libreoffice-calc');
+    res.setHeader('X-Page-Count', String(validation.pageCount));
+    res.setHeader('X-Original-Size', String(inputBuffer.length));
+    res.setHeader('X-Output-Size', String(pdfBuffer.length));
+    res.setHeader('X-Validation-Status', 'passed');
+    return res.send(pdfBuffer);
+  } catch (err: unknown) {
+    console.error('[ExcelToPdf Error]:', err);
+    return res.status(500).json({ error: String(err) });
+  } finally {
+    if (tmpDir) {
+      try {
+        await fs.promises.rm(tmpDir, { recursive: true, force: true });
+      } catch (cleanErr) {
+        console.warn('[ExcelToPdf] Temp cleanup warning:', cleanErr);
+      }
+    }
+  }
+});
+
+/**
  * ====================================================================
  * PDF SECURITY, ENCRYPTION, DECRYPTION & INSPECTION API (QPDF ENGINE)
  * ====================================================================
