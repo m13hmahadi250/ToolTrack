@@ -1,6 +1,6 @@
 import { PDFDocument } from 'pdf-lib';
 import { WhiteboardBoard, WhiteboardElement } from '../types/whiteboard';
-import { WhiteboardRenderer } from './whiteboardRenderer';
+import { WhiteboardRenderer, getCachedImage } from './whiteboardRenderer';
 
 export type ExportFormat = 'png' | 'jpg' | 'svg' | 'pdf' | 'json';
 export type ExportQuality = 'standard' | 'high' | 'ultra';
@@ -35,8 +35,32 @@ export function calculateExportBounds(
 }
 
 /**
- * Exports whiteboard to high-resolution raster or vector file
+ * Preloads all image elements present in the export list so they render immediately
  */
+async function preloadImagesForExport(elements: WhiteboardElement[]): Promise<void> {
+  const imageElements = elements.filter((el) => el.type === 'image' && el.imageUrl);
+  if (imageElements.length === 0) return;
+
+  const loadPromises = imageElements.map((el) => {
+    return new Promise<void>((resolve) => {
+      const img = getCachedImage(el.imageUrl!);
+      if (img && img.complete && img.naturalWidth > 0) {
+        resolve();
+        return;
+      }
+      const loader = new Image();
+      loader.crossOrigin = 'anonymous';
+      loader.onload = () => resolve();
+      loader.onerror = () => resolve(); // continue even if an image fails
+      loader.src = el.imageUrl!;
+    });
+  });
+
+  await Promise.race([
+    Promise.all(loadPromises),
+    new Promise<void>((r) => setTimeout(r, 4000)), // 4s timeout maximum
+  ]);
+}
 export async function exportWhiteboard(
   board: WhiteboardBoard,
   options: ExportOptions
@@ -93,6 +117,9 @@ export async function exportWhiteboard(
   if (quality === 'standard') scale = 1;
   if (quality === 'ultra') scale = 3;
 
+  // Preload any image elements so they are ready before drawing to canvas
+  await preloadImagesForExport(elementsToRender);
+
   // Offscreen Canvas for rendering
   const exportCanvas = document.createElement('canvas');
   exportCanvas.width = Math.round(bounds.width * scale);
@@ -120,18 +147,65 @@ export async function exportWhiteboard(
   }
   ctx.restore();
 
+  // Helper to safely obtain blob with dataURL fallback
+  const canvasToBlobSafe = (canvas: HTMLCanvasElement, mimeType: string, qualityVal?: number): Promise<Blob> => {
+    return new Promise<Blob>((resolve, reject) => {
+      try {
+        canvas.toBlob(
+          (b) => {
+            if (b) {
+              resolve(b);
+            } else {
+              // Fallback to dataURL if toBlob returns null or is not supported
+              try {
+                const dataUrl = canvas.toDataURL(mimeType, qualityVal);
+                const arr = dataUrl.split(',');
+                const mimeMatch = arr[0].match(/:(.*?);/);
+                const mime = mimeMatch ? mimeMatch[1] : mimeType;
+                const bstr = atob(arr[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while (n--) {
+                  u8arr[n] = bstr.charCodeAt(n);
+                }
+                resolve(new Blob([u8arr], { type: mime }));
+              } catch (fallbackErr) {
+                reject(fallbackErr || new Error(`${mimeType} export conversion failed`));
+              }
+            }
+          },
+          mimeType,
+          qualityVal
+        );
+      } catch (err) {
+        // Fallback to dataURL
+        try {
+          const dataUrl = canvas.toDataURL(mimeType, qualityVal);
+          const arr = dataUrl.split(',');
+          const mimeMatch = arr[0].match(/:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : mimeType;
+          const bstr = atob(arr[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          resolve(new Blob([u8arr], { type: mime }));
+        } catch (fallbackErr) {
+          reject(err || fallbackErr || new Error(`${mimeType} export failed`));
+        }
+      }
+    });
+  };
+
   // Export raster image formats
   if (format === 'png') {
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      exportCanvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG export failed'))), 'image/png');
-    });
+    const blob = await canvasToBlobSafe(exportCanvas, 'image/png');
     return { blob, fileName: `${cleanTitle}-${quality}.png` };
   }
 
   if (format === 'jpg') {
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      exportCanvas.toBlob((b) => (b ? resolve(b) : reject(new Error('JPG export failed'))), 'image/jpeg', 0.95);
-    });
+    const blob = await canvasToBlobSafe(exportCanvas, 'image/jpeg', 0.95);
     return { blob, fileName: `${cleanTitle}-${quality}.jpg` };
   }
 
@@ -154,7 +228,12 @@ export async function exportWhiteboard(
     });
 
     const pdfBytes = await pdfDoc.save();
-    const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+    // Use Uint8Array slice to ensure safe ArrayBuffer across all browsers
+    const pdfArrayBuffer = pdfBytes.buffer.slice(
+      pdfBytes.byteOffset,
+      pdfBytes.byteOffset + pdfBytes.byteLength
+    );
+    const blob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
     return { blob, fileName: `${cleanTitle}.pdf` };
   }
 
@@ -191,14 +270,35 @@ function generateSvg(
     const fill = el.fillColor || 'none';
     const opacity = el.opacity ?? 1;
 
+    const isDashed = el.strokeStyle === 'dashed' ? ' stroke-dasharray="8,6"' : el.strokeStyle === 'dotted' ? ' stroke-dasharray="3,5"' : '';
+
     if (el.type === 'rectangle') {
-      innerElements += `<rect x="${relX}" y="${relY}" width="${el.width}" height="${el.height}" stroke="${stroke}" stroke-width="${strokeW}" fill="${fill}" opacity="${opacity}" />\n`;
+      innerElements += `<rect x="${relX}" y="${relY}" width="${el.width}" height="${el.height}" stroke="${stroke}" stroke-width="${strokeW}" fill="${fill}" opacity="${opacity}"${isDashed} />\n`;
+    } else if (el.type === 'rounded_rectangle') {
+      innerElements += `<rect x="${relX}" y="${relY}" width="${el.width}" height="${el.height}" rx="12" ry="12" stroke="${stroke}" stroke-width="${strokeW}" fill="${fill}" opacity="${opacity}"${isDashed} />\n`;
     } else if (el.type === 'circle') {
       const cx = relX + el.width / 2;
       const cy = relY + el.height / 2;
-      innerElements += `<ellipse cx="${cx}" cy="${cy}" rx="${Math.abs(el.width / 2)}" ry="${Math.abs(el.height / 2)}" stroke="${stroke}" stroke-width="${strokeW}" fill="${fill}" opacity="${opacity}" />\n`;
-    } else if (el.type === 'line' || el.type === 'arrow') {
-      innerElements += `<line x1="${relX}" y1="${relY}" x2="${relX + el.width}" y2="${relY + el.height}" stroke="${stroke}" stroke-width="${strokeW}" opacity="${opacity}" />\n`;
+      innerElements += `<ellipse cx="${cx}" cy="${cy}" rx="${Math.abs(el.width / 2)}" ry="${Math.abs(el.height / 2)}" stroke="${stroke}" stroke-width="${strokeW}" fill="${fill}" opacity="${opacity}"${isDashed} />\n`;
+    } else if (el.type === 'diamond') {
+      const p1 = `${relX + el.width / 2},${relY}`;
+      const p2 = `${relX + el.width},${relY + el.height / 2}`;
+      const p3 = `${relX + el.width / 2},${relY + el.height}`;
+      const p4 = `${relX},${relY + el.height / 2}`;
+      innerElements += `<polygon points="${p1} ${p2} ${p3} ${p4}" stroke="${stroke}" stroke-width="${strokeW}" fill="${fill}" opacity="${opacity}"${isDashed} />\n`;
+    } else if (el.type === 'triangle') {
+      const p1 = `${relX + el.width / 2},${relY}`;
+      const p2 = `${relX + el.width},${relY + el.height}`;
+      const p3 = `${relX},${relY + el.height}`;
+      innerElements += `<polygon points="${p1} ${p2} ${p3}" stroke="${stroke}" stroke-width="${strokeW}" fill="${fill}" opacity="${opacity}"${isDashed} />\n`;
+    } else if (el.type === 'line' || el.type === 'arrow' || el.type === 'double_arrow') {
+      innerElements += `<line x1="${relX}" y1="${relY}" x2="${relX + el.width}" y2="${relY + el.height}" stroke="${stroke}" stroke-width="${strokeW}" opacity="${opacity}"${isDashed} stroke-linecap="round" />\n`;
+    } else if (el.type === 'image' && el.imageUrl) {
+      innerElements += `<image href="${el.imageUrl}" x="${relX}" y="${relY}" width="${el.width}" height="${el.height}" opacity="${opacity}" preserveAspectRatio="none" />\n`;
+    } else if (el.type === 'sticky') {
+      const stickyBg = el.fillColor || '#fef08a';
+      innerElements += `<rect x="${relX}" y="${relY}" width="${el.width}" height="${el.height}" rx="6" ry="6" fill="${stickyBg}" stroke="rgba(0,0,0,0.1)" stroke-width="1" opacity="${opacity}" />\n`;
+      innerElements += `<text x="${relX + 12}" y="${relY + 24}" fill="#1e293b" font-size="14" font-family="sans-serif">${escapeXml(el.text || '')}</text>\n`;
     } else if (el.type === 'text') {
       innerElements += `<text x="${relX}" y="${relY + (el.fontSize || 20)}" fill="${stroke}" font-size="${el.fontSize || 20}" font-family="sans-serif">${escapeXml(el.text || '')}</text>\n`;
     } else if (el.type === 'pencil' || el.type === 'pen' || el.type === 'highlighter') {
@@ -206,7 +306,8 @@ function generateSvg(
         const pathData = el.points
           .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x - bounds.x} ${p.y - bounds.y}`)
           .join(' ');
-        innerElements += `<path d="${pathData}" stroke="${stroke}" stroke-width="${strokeW}" fill="none" opacity="${opacity}" stroke-linecap="round" stroke-linejoin="round" />\n`;
+        const hlOpacity = el.type === 'highlighter' ? 0.35 : opacity;
+        innerElements += `<path d="${pathData}" stroke="${stroke}" stroke-width="${strokeW}" fill="none" opacity="${hlOpacity}" stroke-linecap="round" stroke-linejoin="round" />\n`;
       }
     }
   }
@@ -232,10 +333,19 @@ function escapeXml(str: string): string {
 export function triggerFileDownload(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
+  a.style.display = 'none';
   a.href = url;
   a.download = fileName;
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    try {
+      if (document.body.contains(a)) {
+        document.body.removeChild(a);
+      }
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore cleanup errors
+    }
+  }, 1000);
 }
