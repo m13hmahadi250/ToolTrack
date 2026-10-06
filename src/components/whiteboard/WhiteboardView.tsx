@@ -66,6 +66,8 @@ export const WhiteboardView: React.FC = () => {
   const [smoothingMode, setSmoothingMode] = useState<SmoothingMode>('smooth');
   const [isBeautifyEnabled, setIsBeautifyEnabled] = useState<boolean>(false);
   const [isSmartShapeEnabled, setIsSmartShapeEnabled] = useState<boolean>(false);
+  const [eraserSize, setEraserSize] = useState<number>(24);
+  const [eraserMode, setEraserMode] = useState<'precision' | 'stroke'>('precision');
 
   // Modals & Context Menus
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
@@ -324,6 +326,27 @@ export const WhiteboardView: React.FC = () => {
     },
     [board, recordHistory]
   );
+
+  const handleCommitElements = useCallback(
+    (newElements: WhiteboardElement[]) => {
+      recordHistory({
+        ...board,
+        elements: newElements,
+      });
+      setSelectedElementIds((prev) => prev.filter((id) => newElements.some((el) => el.id === id)));
+    },
+    [board, recordHistory]
+  );
+
+  const handleClearAllInk = useCallback(() => {
+    const nonInkElements = board.elements.filter((el) => !WhiteboardRenderer.isErasableElement(el));
+    if (nonInkElements.length === board.elements.length) return;
+    recordHistory({
+      ...board,
+      elements: nonInkElements,
+    });
+    setSelectedElementIds((prev) => prev.filter((id) => nonInkElements.some((el) => el.id === id)));
+  }, [board, recordHistory]);
 
   const handleDuplicateSelected = useCallback(() => {
     if (selectedElementIds.length === 0) return;
@@ -1016,6 +1039,9 @@ export const WhiteboardView: React.FC = () => {
           }
           setEditingElementId(null);
         }}
+        eraserSize={eraserSize}
+        eraserMode={eraserMode}
+        onCommitElements={handleCommitElements}
       />
 
       {/* Left-Side Contextual Properties Panel */}
@@ -1049,6 +1075,11 @@ export const WhiteboardView: React.FC = () => {
           onGroupToggle={handleGroupToggle}
           onAlign={handleAlign}
           onDistribute={handleDistribute}
+          eraserSize={eraserSize}
+          onChangeEraserSize={setEraserSize}
+          eraserMode={eraserMode}
+          onChangeEraserMode={setEraserMode}
+          onClearAllInk={handleClearAllInk}
         />
       )}
 
@@ -1074,6 +1105,10 @@ export const WhiteboardView: React.FC = () => {
         onToggleBeautify={() => setIsBeautifyEnabled((p) => !p)}
         isSmartShapeEnabled={isSmartShapeEnabled}
         onToggleSmartShape={() => setIsSmartShapeEnabled((p) => !p)}
+        eraserSize={eraserSize}
+        onChangeEraserSize={setEraserSize}
+        eraserMode={eraserMode}
+        onChangeEraserMode={setEraserMode}
       />
 
       {/* Bottom-Right Zoom & Frame Navigation Bar */}

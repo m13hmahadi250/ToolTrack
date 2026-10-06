@@ -115,6 +115,11 @@ interface WhiteboardToolbarProps {
   onToggleBeautify?: () => void;
   isSmartShapeEnabled?: boolean;
   onToggleSmartShape?: () => void;
+  // Eraser properties
+  eraserSize?: number;
+  onChangeEraserSize?: (size: number) => void;
+  eraserMode?: 'precision' | 'stroke';
+  onChangeEraserMode?: (mode: 'precision' | 'stroke') => void;
 }
 
 export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
@@ -138,9 +143,14 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   onToggleBeautify,
   isSmartShapeEnabled = false,
   onToggleSmartShape,
+  eraserSize = 24,
+  onChangeEraserSize,
+  eraserMode = 'precision',
+  onChangeEraserMode,
 }) => {
   const [shapesMenuOpen, setShapesMenuOpen] = useState(false);
   const [drawMenuOpen, setDrawMenuOpen] = useState(false);
+  const [eraserMenuOpen, setEraserMenuOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState<boolean>(() => {
     try {
       return localStorage.getItem('tooltrack_whiteboard_toolbar_minimized') === 'true';
@@ -161,6 +171,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
   const shapesMenuRef = useRef<HTMLDivElement>(null);
   const drawMenuRef = useRef<HTMLDivElement>(null);
+  const eraserMenuRef = useRef<HTMLDivElement>(null);
 
   // Close menus on outside click reliably
   useEffect(() => {
@@ -172,6 +183,9 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
       }
       if (drawMenuRef.current && !drawMenuRef.current.contains(target)) {
         setDrawMenuOpen(false);
+      }
+      if (eraserMenuRef.current && !eraserMenuRef.current.contains(target)) {
+        setEraserMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -616,19 +630,140 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
           )}
         </div>
 
-        {/* 3. Dedicated Eraser Tool Button */}
-        <button
-          onClick={() => onSelectTool('eraser')}
-          className={`p-2 rounded-xl transition cursor-pointer relative group ${
-            activeTool === 'eraser'
-              ? 'bg-rose-600 text-white shadow-md ring-2 ring-rose-500/30'
-              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-          }`}
-          title="Eraser (E) – Erase strokes, drawings, and text"
-        >
-          <Eraser className="w-4 h-4" />
-          <span className="sr-only">Eraser (E)</span>
-        </button>
+        {/* 2.5 Dedicated Eraser Tool Dropdown */}
+        <div className="relative" ref={eraserMenuRef}>
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() => {
+                if (activeTool === 'eraser') {
+                  setEraserMenuOpen((p) => !p);
+                } else {
+                  onSelectTool('eraser');
+                }
+                setDrawMenuOpen(false);
+                setShapesMenuOpen(false);
+              }}
+              className={`p-2 rounded-l-xl transition cursor-pointer ${
+                activeTool === 'eraser'
+                  ? 'bg-rose-600 text-white shadow-md'
+                  : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+              }`}
+              title="Eraser (E) – Erase ink & annotations (Images protected)"
+            >
+              <Eraser className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEraserMenuOpen((p) => !p);
+                setDrawMenuOpen(false);
+                setShapesMenuOpen(false);
+              }}
+              className={`p-1.5 px-1 rounded-r-xl transition cursor-pointer flex items-center justify-center ${
+                activeTool === 'eraser'
+                  ? 'bg-rose-600 text-white hover:bg-rose-700 border-l border-rose-500/40'
+                  : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+              } ${eraserMenuOpen ? 'ring-2 ring-rose-500/50' : ''}`}
+              title="Eraser Size & Mode Settings"
+            >
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${eraserMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          {/* Eraser Submenu Popover */}
+          {eraserMenuOpen && (
+            <div className="absolute bottom-full mb-3 left-0 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3 min-w-[260px] z-50 text-slate-800 dark:text-slate-100">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Eraser Size
+                  </span>
+                  <span className="font-mono text-xs font-bold text-rose-600 dark:text-rose-400">
+                    {eraserSize}px
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { label: 'Small', size: 12 },
+                    { label: 'Medium', size: 24 },
+                    { label: 'Large', size: 48 },
+                  ].map((p) => (
+                    <button
+                      type="button"
+                      key={p.size}
+                      onClick={() => onChangeEraserSize && onChangeEraserSize(p.size)}
+                      className={`py-1.5 px-2 rounded-xl border text-center text-xs font-semibold transition cursor-pointer ${
+                        eraserSize === p.size
+                          ? 'bg-rose-500/15 border-rose-500 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/30'
+                          : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="pt-2">
+                  <input
+                    type="range"
+                    min="6"
+                    max="80"
+                    step="2"
+                    value={eraserSize}
+                    onChange={(e) => onChangeEraserSize && onChangeEraserSize(parseInt(e.target.value, 10))}
+                    className="w-full accent-rose-600 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Eraser Mode */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1.5">
+                  Erasing Behavior
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onChangeEraserMode && onChangeEraserMode('precision')}
+                    className={`p-2 rounded-xl border text-left text-xs transition cursor-pointer ${
+                      eraserMode === 'precision'
+                        ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300 font-bold ring-1 ring-rose-500/20'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <div className="font-bold text-[11px]">Precision Split</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal mt-0.5 leading-tight">
+                      Cuts only touched ink
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onChangeEraserMode && onChangeEraserMode('stroke')}
+                    className={`p-2 rounded-xl border text-left text-xs transition cursor-pointer ${
+                      eraserMode === 'stroke'
+                        ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300 font-bold ring-1 ring-rose-500/20'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <div className="font-bold text-[11px]">Whole Stroke</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal mt-0.5 leading-tight">
+                      Deletes full stroke
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Protection hint */}
+              <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <span>🛡️</span>
+                <span>Images, text & shapes are protected</span>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-800 mx-0.5" />
 

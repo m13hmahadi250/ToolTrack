@@ -597,4 +597,204 @@ export class WhiteboardStroke {
 
     return null;
   }
+
+  /**
+   * Distance from point P to segment [A, B]
+   */
+  static distToSegment(p: Point, a: Point, b: Point): number {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const l2 = dx * dx + dy * dy;
+    if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2));
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+  }
+
+  /**
+   * Fast hit check whether a stroke intersects an eraser capsule
+   */
+  static isStrokeHitByEraser(
+    element: WhiteboardElement,
+    p1: Point,
+    p2: Point,
+    eraserRadius: number
+  ): boolean {
+    if (!element.points || element.points.length === 0) return false;
+    const strokeWidth = element.strokeWidth || 3;
+    const effectiveRadius = eraserRadius + strokeWidth / 2;
+
+    // Fast AABB check
+    const sweepMinX = Math.min(p1.x, p2.x) - effectiveRadius;
+    const sweepMaxX = Math.max(p1.x, p2.x) + effectiveRadius;
+    const sweepMinY = Math.min(p1.y, p2.y) - effectiveRadius;
+    const sweepMaxY = Math.max(p1.y, p2.y) + effectiveRadius;
+
+    if (
+      element.x + element.width < sweepMinX ||
+      element.x > sweepMaxX ||
+      element.y + element.height < sweepMinY ||
+      element.y > sweepMaxY
+    ) {
+      return false;
+    }
+
+    const pts = element.points;
+    if (pts.length === 1) {
+      return this.distToSegment(pts[0], p1, p2) <= effectiveRadius;
+    }
+
+    for (let i = 0; i < pts.length; i++) {
+      if (this.distToSegment(pts[i], p1, p2) <= effectiveRadius) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Precise Vector Ink Eraser with Segment Splitting:
+   * Erases only the touched portion of a freehand stroke, splitting it into
+   * surviving connected sub-strokes while preserving untouched segments.
+   *
+   * Returns:
+   * - null: Stroke was NOT hit (no change)
+   * - []: Stroke was completely erased (should be removed from board)
+   * - WhiteboardElement[]: One or more surviving sub-stroke segments
+   */
+  static eraseStrokeSegment(
+    element: WhiteboardElement,
+    p1: Point,
+    p2: Point,
+    eraserRadius: number
+  ): WhiteboardElement[] | null {
+    if (!element.points || element.points.length === 0) return null;
+
+    const strokeWidth = element.strokeWidth || 3;
+    const effectiveRadius = eraserRadius + Math.min(strokeWidth / 2, 8);
+
+    // Fast AABB rejection
+    const sweepMinX = Math.min(p1.x, p2.x) - effectiveRadius;
+    const sweepMaxX = Math.max(p1.x, p2.x) + effectiveRadius;
+    const sweepMinY = Math.min(p1.y, p2.y) - effectiveRadius;
+    const sweepMaxY = Math.max(p1.y, p2.y) + effectiveRadius;
+
+    if (
+      element.x + element.width < sweepMinX ||
+      element.x > sweepMaxX ||
+      element.y + element.height < sweepMinY ||
+      element.y > sweepMaxY
+    ) {
+      return null;
+    }
+
+    // Densify points along large steps so eraser cuts through fast straight movements smoothly
+    const densePoints: Point[] = [];
+    const raw = element.points;
+    for (let i = 0; i < raw.length; i++) {
+      densePoints.push(raw[i]);
+      if (i < raw.length - 1) {
+        const next = raw[i + 1];
+        const segDist = Math.hypot(next.x - raw[i].x, next.y - raw[i].y);
+        if (segDist > 3.5) {
+          const stepCount = Math.min(Math.floor(segDist / 2.5), 15);
+          for (let k = 1; k <= stepCount; k++) {
+            const frac = k / (stepCount + 1);
+            densePoints.push({
+              x: raw[i].x + (next.x - raw[i].x) * frac,
+              y: raw[i].y + (next.y - raw[i].y) * frac,
+              pressure: (raw[i].pressure ?? 0.5) * (1 - frac) + (next.pressure ?? 0.5) * frac,
+              time: (raw[i].time ?? 0) * (1 - frac) + (next.time ?? 0) * frac,
+            });
+          }
+        }
+      }
+    }
+
+    // Mark erased points
+    let anyErased = false;
+    let anyKept = false;
+    const isPointErased: boolean[] = new Array(densePoints.length);
+
+    for (let i = 0; i < densePoints.length; i++) {
+      const d = this.distToSegment(densePoints[i], p1, p2);
+      if (d <= effectiveRadius) {
+        isPointErased[i] = true;
+        anyErased = true;
+      } else {
+        isPointErased[i] = false;
+        anyKept = true;
+      }
+    }
+
+    // If nothing touched, return null (unmodified)
+    if (!anyErased) return null;
+
+    // If everything erased, return empty array (deleted)
+    if (!anyKept) return [];
+
+    // Group contiguous kept points into surviving runs
+    const runs: Point[][] = [];
+    let currentRun: Point[] = [];
+
+    for (let i = 0; i < densePoints.length; i++) {
+      if (!isPointErased[i]) {
+        currentRun.push(densePoints[i]);
+      } else {
+        if (currentRun.length > 0) {
+          runs.push(currentRun);
+          currentRun = [];
+        }
+      }
+    }
+    if (currentRun.length > 0) {
+      runs.push(currentRun);
+    }
+
+    // Filter out runs that are too tiny (micro specks < 1.5px total length)
+    const validRuns: Point[][] = [];
+    for (const run of runs) {
+      if (run.length >= 2) {
+        let totalLen = 0;
+        for (let j = 0; j < run.length - 1; j++) {
+          totalLen += Math.hypot(run[j + 1].x - run[j].x, run[j + 1].y - run[j].y);
+        }
+        if (totalLen >= 1.5) {
+          validRuns.push(this.filterPoints(run, 1.5));
+        }
+      }
+    }
+
+    if (validRuns.length === 0) return [];
+
+    // Convert surviving runs into WhiteboardElements
+    const survivingElements: WhiteboardElement[] = [];
+
+    validRuns.forEach((pts, idx) => {
+      const bounds = this.getStrokeBounds({ ...element, points: pts });
+      if (idx === 0) {
+        // First run preserves original ID
+        survivingElements.push({
+          ...element,
+          points: pts,
+          x: bounds.x,
+          y: bounds.y,
+          width: bounds.width,
+          height: bounds.height,
+        });
+      } else {
+        // Subsequent segments get new unique ID
+        survivingElements.push({
+          ...element,
+          id: `el_split_${Date.now()}_${Math.random().toString(36).substr(2, 4)}_${idx}`,
+          points: pts,
+          x: bounds.x,
+          y: bounds.y,
+          width: bounds.width,
+          height: bounds.height,
+        });
+      }
+    });
+
+    return survivingElements;
+  }
 }

@@ -45,6 +45,10 @@ interface WhiteboardCanvasProps {
   editingElementId: string | null;
   onStartEditing: (id: string) => void;
   onFinishEditing: (id: string, newText: string) => void;
+  // Eraser configuration
+  eraserSize?: number;
+  eraserMode?: 'precision' | 'stroke';
+  onCommitElements?: (elements: WhiteboardElement[]) => void;
 }
 
 export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
@@ -72,6 +76,9 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   editingElementId,
   onStartEditing,
   onFinishEditing,
+  eraserSize = 24,
+  eraserMode = 'precision',
+  onCommitElements,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -125,11 +132,11 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   const pinchStartZoomRef = useRef<number>(1);
   const pinchCenterWorldRef = useRef<Point | null>(null);
 
-  // Eraser Interaction State
-  const pendingErasedIdsRef = useRef<Set<string>>(new Set());
-  const [transientErasedIds, setTransientErasedIds] = useState<Set<string>>(new Set());
+  // High-performance Eraser Interaction State (Zero React state updates during active erasing)
+  const eraserCursorPosRef = useRef<Point | null>(null);
+  const workingElementsRef = useRef<WhiteboardElement[] | null>(null);
+  const hasEraseChangedRef = useRef<boolean>(false);
   const lastEraserPointRef = useRef<Point | null>(null);
-  const [eraserCursorPos, setEraserCursorPos] = useState<Point | null>(null);
 
   // Inline Text Editor State
   const [editingText, setEditingText] = useState('');
@@ -199,8 +206,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const rect = canvas.getBoundingClientRect();
-    const visibleElements = board.elements.filter((el) => !transientErasedIds.has(el.id));
-    const boardToRender = transientErasedIds.size > 0 ? { ...board, elements: visibleElements } : board;
+    const elementsToRender = workingElementsRef.current || board.elements;
+    const boardToRender = workingElementsRef.current ? { ...board, elements: elementsToRender } : board;
 
     WhiteboardRenderer.render(
       ctx,
@@ -224,12 +231,14 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     );
 
     // Interactive circular eraser target ring while Eraser tool is active
-    if (activeTool === 'eraser' && eraserCursorPos) {
+    if (activeTool === 'eraser' && eraserCursorPosRef.current) {
+      const ePos = eraserCursorPosRef.current;
+      const eraserRadius = (eraserSize || 24) / 2;
       ctx.save();
       ctx.translate(board.viewport.x, board.viewport.y);
       ctx.scale(board.viewport.zoom, board.viewport.zoom);
       ctx.beginPath();
-      ctx.arc(eraserCursorPos.x, eraserCursorPos.y, 16, 0, Math.PI * 2);
+      ctx.arc(ePos.x, ePos.y, eraserRadius, 0, Math.PI * 2);
       ctx.strokeStyle = isPointerDown ? '#f43f5e' : 'rgba(244, 63, 94, 0.75)';
       ctx.lineWidth = 1.5 / board.viewport.zoom;
       ctx.fillStyle = isPointerDown ? 'rgba(244, 63, 94, 0.22)' : 'rgba(244, 63, 94, 0.08)';
@@ -239,7 +248,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     }
 
     requestRef.current = null;
-  }, [board, selectedElements, laserPoints, measureLine, marqueeBox, transientErasedIds, activeTool, eraserCursorPos, isPointerDown, smoothingMode]);
+  }, [board, selectedElements, laserPoints, measureLine, marqueeBox, activeTool, isPointerDown, smoothingMode, eraserSize]);
 
   // Native non-passive wheel listener attached to container
   // Guarantees e.preventDefault() prevents browser page zoom during Ctrl/Cmd + Wheel
@@ -417,10 +426,14 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     // 4. Eraser Mode
     if (activeTool === 'eraser') {
       interactionModeRef.current = 'erase';
-      pendingErasedIdsRef.current = new Set();
+      hasEraseChangedRef.current = false;
+      workingElementsRef.current = [...board.elements];
       lastEraserPointRef.current = worldPt;
-      setEraserCursorPos(worldPt);
-      eraseAtPoint(worldPt);
+      eraserCursorPosRef.current = worldPt;
+      eraseAlongSegment(worldPt, worldPt);
+      if (requestRef.current === null) {
+        requestRef.current = requestAnimationFrame(renderCanvas);
+      }
       return;
     }
 
@@ -670,22 +683,20 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     // Update eraser cursor position for hover / drag circle
     if (activeTool === 'eraser') {
-      setEraserCursorPos(worldPt);
+      eraserCursorPosRef.current = worldPt;
+      if (requestRef.current === null) {
+        requestRef.current = requestAnimationFrame(renderCanvas);
+      }
     }
 
     // Eraser Mode
     if (interactionModeRef.current === 'erase') {
       const prev = lastEraserPointRef.current || worldPt;
-      const dist = Math.hypot(worldPt.x - prev.x, worldPt.y - prev.y);
-      const steps = Math.max(1, Math.ceil(dist / 6));
-      for (let s = 1; s <= steps; s++) {
-        const interpPt = {
-          x: prev.x + (worldPt.x - prev.x) * (s / steps),
-          y: prev.y + (worldPt.y - prev.y) * (s / steps),
-        };
-        eraseAtPoint(interpPt);
-      }
+      eraseAlongSegment(prev, worldPt);
       lastEraserPointRef.current = worldPt;
+      if (requestRef.current === null) {
+        requestRef.current = requestAnimationFrame(renderCanvas);
+      }
       return;
     }
 
@@ -1009,13 +1020,24 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     // Finalize Eraser Mode
     if (interactionModeRef.current === 'erase') {
-      if (pendingErasedIdsRef.current.size > 0) {
-        onDeleteElements(Array.from(pendingErasedIdsRef.current));
-        pendingErasedIdsRef.current.clear();
-      }
-      setTransientErasedIds(new Set());
-      lastEraserPointRef.current = null;
       interactionModeRef.current = 'none';
+      lastEraserPointRef.current = null;
+      if (hasEraseChangedRef.current && workingElementsRef.current) {
+        const finalElements = workingElementsRef.current;
+        workingElementsRef.current = null;
+        hasEraseChangedRef.current = false;
+        if (onCommitElements) {
+          onCommitElements(finalElements);
+        } else {
+          const currentIds = new Set(finalElements.map((e) => e.id));
+          const deleted = board.elements.filter((e) => !currentIds.has(e.id)).map((e) => e.id);
+          if (deleted.length > 0) onDeleteElements(deleted);
+        }
+      } else {
+        workingElementsRef.current = null;
+        hasEraseChangedRef.current = false;
+      }
+      renderCanvas();
       if (onToolUsed) onToolUsed();
       return;
     }
@@ -1024,33 +1046,60 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     activeHandleRef.current = null;
   };
 
-  const eraseAtPoint = useCallback(
-    (point: Point) => {
-      let newlyHit = false;
-      for (const el of board.elements) {
-        if (pendingErasedIdsRef.current.has(el.id)) continue;
-        if (WhiteboardRenderer.isPointInElement(point, el)) {
-          pendingErasedIdsRef.current.add(el.id);
-          newlyHit = true;
+  const eraseAlongSegment = useCallback(
+    (p1: Point, p2: Point) => {
+      if (!workingElementsRef.current) return;
+      const currentElements = workingElementsRef.current;
+      const eraserRadius = (eraserSize || 24) / 2;
+      let modified = false;
+
+      const nextElements: WhiteboardElement[] = [];
+
+      for (const el of currentElements) {
+        // Strict safety rule: Only unlocked freehand ink strokes are erasable.
+        // Images, shapes, text, sticky notes, connectors, and frames MUST NEVER be deleted!
+        if (!WhiteboardRenderer.isErasableElement(el)) {
+          nextElements.push(el);
+          continue;
+        }
+
+        if (eraserMode === 'stroke') {
+          // Whole stroke erase mode
+          if (WhiteboardStroke.isStrokeHitByEraser(el, p1, p2, eraserRadius)) {
+            modified = true;
+            // Stroke deleted
+            continue;
+          }
+          nextElements.push(el);
+        } else {
+          // Precision segment-splitting mode
+          const result = WhiteboardStroke.eraseStrokeSegment(el, p1, p2, eraserRadius);
+          if (result === null) {
+            // Stroke unaffected
+            nextElements.push(el);
+          } else {
+            modified = true;
+            for (const seg of result) {
+              nextElements.push(seg);
+            }
+          }
         }
       }
-      if (newlyHit) {
-        setTransientErasedIds(new Set(pendingErasedIdsRef.current));
+
+      if (modified) {
+        workingElementsRef.current = nextElements;
+        hasEraseChangedRef.current = true;
       }
     },
-    [board.elements]
+    [eraserSize, eraserMode]
   );
 
   const handlePointerLeave = () => {
-    setEraserCursorPos(null);
+    eraserCursorPosRef.current = null;
     if (interactionModeRef.current === 'erase') {
-      if (pendingErasedIdsRef.current.size > 0) {
-        onDeleteElements(Array.from(pendingErasedIdsRef.current));
-        pendingErasedIdsRef.current.clear();
-      }
-      setTransientErasedIds(new Set());
-      lastEraserPointRef.current = null;
-      interactionModeRef.current = 'none';
+      handlePointerUp();
+    } else {
+      renderCanvas();
     }
   };
 

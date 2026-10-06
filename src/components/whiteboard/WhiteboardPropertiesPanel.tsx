@@ -69,6 +69,12 @@ interface WhiteboardPropertiesPanelProps {
   onGroupToggle: () => void;
   onAlign: (alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
   onDistribute: (axis: 'h' | 'v') => void;
+  // Eraser properties
+  eraserSize?: number;
+  onChangeEraserSize?: (size: number) => void;
+  eraserMode?: 'precision' | 'stroke';
+  onChangeEraserMode?: (mode: 'precision' | 'stroke') => void;
+  onClearAllInk?: () => void;
 }
 
 const COLOR_SWATCHES = [
@@ -127,6 +133,11 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
   onGroupToggle,
   onAlign,
   onDistribute,
+  eraserSize = 24,
+  onChangeEraserSize,
+  eraserMode = 'precision',
+  onChangeEraserMode,
+  onClearAllInk,
 }) => {
   const hasSelection = selectedElements.length > 0;
   const singleElement = hasSelection && selectedElements.length === 1 ? selectedElements[0] : null;
@@ -161,8 +172,8 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
       'connector',
     ].includes(singleElement.type);
 
-  // If no elements are selected and active tool is select, lasso, hand, laser, or eraser, hide property panel to keep screen minimal
-  if (!hasSelection && ['select', 'lasso', 'hand', 'laser', 'eraser'].includes(activeTool)) {
+  // If no elements are selected and active tool is select, lasso, hand, or laser, hide property panel to keep screen minimal
+  if (!hasSelection && ['select', 'lasso', 'hand', 'laser'].includes(activeTool)) {
     return null;
   }
 
@@ -262,6 +273,123 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
 
       {!isCollapsed && (
         <>
+          {/* Dedicated Eraser Tool Controls */}
+          {activeTool === 'eraser' && !hasSelection && (
+            <div className="space-y-4">
+              {/* Eraser Size Preset Buttons */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300">Eraser Size</label>
+                  <span className="font-mono text-rose-600 dark:text-rose-400 font-bold">{eraserSize}px</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { label: 'Small', size: 12 },
+                    { label: 'Medium', size: 24 },
+                    { label: 'Large', size: 48 },
+                  ].map((p) => (
+                    <button
+                      key={p.size}
+                      onClick={() => onChangeEraserSize && onChangeEraserSize(p.size)}
+                      className={`py-1.5 px-2 rounded-xl border text-center font-medium transition cursor-pointer ${
+                        eraserSize === p.size
+                          ? 'bg-rose-500/15 border-rose-500 text-rose-600 dark:text-rose-400 font-bold ring-1 ring-rose-500/30'
+                          : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Slider */}
+                <div className="pt-1.5">
+                  <input
+                    type="range"
+                    min="6"
+                    max="80"
+                    step="2"
+                    value={eraserSize}
+                    onChange={(e) => onChangeEraserSize && onChangeEraserSize(parseInt(e.target.value, 10))}
+                    className="w-full accent-rose-600 cursor-pointer"
+                  />
+                </div>
+
+                {/* Live Size Preview Circle */}
+                <div className="flex items-center justify-center p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
+                  <div
+                    className="rounded-full border-2 border-rose-500 bg-rose-500/15 transition-all duration-100"
+                    style={{ width: `${Math.max(8, eraserSize)}px`, height: `${Math.max(8, eraserSize)}px` }}
+                  />
+                </div>
+              </div>
+
+              {/* Eraser Mode Selection */}
+              <div className="space-y-1.5 pt-1 border-t border-slate-200 dark:border-slate-800">
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block">Eraser Precision</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onChangeEraserMode && onChangeEraserMode('precision')}
+                    className={`p-2 rounded-xl border text-left transition cursor-pointer ${
+                      eraserMode === 'precision'
+                        ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 text-indigo-700 dark:text-indigo-300 font-bold ring-1 ring-indigo-500/20'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold">Split & Trim</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal leading-tight mt-0.5">
+                      Erases crossed ink only
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onChangeEraserMode && onChangeEraserMode('stroke')}
+                    className={`p-2 rounded-xl border text-left transition cursor-pointer ${
+                      eraserMode === 'stroke'
+                        ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 text-indigo-700 dark:text-indigo-300 font-bold ring-1 ring-indigo-500/20'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold">Whole Stroke</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal leading-tight mt-0.5">
+                      Removes touched stroke
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Protection Notice */}
+              <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
+                <span className="font-bold text-xs mt-0.5">🛡️</span>
+                <div>
+                  <span className="font-bold block">Images & Objects Protected</span>
+                  <span className="text-[10px] opacity-90 leading-tight block mt-0.5">
+                    The ink eraser only removes freehand drawings. Uploaded images, text, and shapes will never be deleted.
+                  </span>
+                </div>
+              </div>
+
+              {/* Clear All Ink Quick Action */}
+              {onClearAllInk && (
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={onClearAllInk}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 font-semibold transition cursor-pointer text-xs"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear All Ink Annotations</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Standard Element / Creation Property Controls */}
+          {!(activeTool === 'eraser' && !hasSelection) && (
+            <>
           {/* Sticky Note Color Palette */}
       {isStickyElement && (
         <div className="space-y-1.5">
@@ -711,6 +839,8 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
           </button>
         </div>
       )}
+            </>
+          )}
         </>
       )}
     </aside>

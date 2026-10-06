@@ -1262,4 +1262,15 @@ export class WhiteboardRenderer {
 
     return pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY;
   }
+
+  /**
+   * Determines if an element can be erased by the normal Ink Eraser.
+   * Only freehand ink annotations (pencil, pen, highlighter) that are unlocked
+   * are erasable. Images, shapes, text, sticky notes, connectors, and frames
+   * are strictly protected and NEVER deleted by the ink eraser.
+   */
+  static isErasableElement(el: WhiteboardElement): boolean {
+    if (!el || el.locked) return false;
+    return el.type === 'pencil' || el.type === 'pen' || el.type === 'highlighter';
+  }
 }
