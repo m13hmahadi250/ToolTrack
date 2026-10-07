@@ -31,7 +31,7 @@ export class WhiteboardStroke {
    * Filters out redundant points that are too close (< minDistance px)
    * Eliminates hand trembling and mouse integer quantization steps.
    */
-  static filterPoints(rawPoints: Point[], minDistance = 1.5): Point[] {
+  static filterPoints(rawPoints: Point[], minDistance = 1.0): Point[] {
     if (rawPoints.length <= 2) return rawPoints;
 
     const filtered: Point[] = [rawPoints[0]];
@@ -47,6 +47,31 @@ export class WhiteboardStroke {
     }
 
     return filtered;
+  }
+
+  /**
+   * Smooths points based on explicit user smoothing level:
+   * - 'off': raw input points, absolute minimum filtering
+   * - 'low': minimal noise filter (0.6px), authentic handwriting preserved
+   * - 'medium': adaptive spline smoothing with corner locking (sharp letter corners preserved)
+   * - 'high': multi-pass stabilization and Catmull-Rom spline curves for ultra-clean handwriting
+   * - 'natural'/'smooth'/'beautify': backwards compatibility mappings
+   */
+  static smoothPointsByMode(points: Point[], mode: SmoothingMode = 'medium'): Point[] {
+    if (!points || points.length <= 2) return points;
+    if (mode === 'off') return points;
+    if (mode === 'low' || mode === 'natural') {
+      return this.filterPoints(points, 0.6);
+    }
+    if (mode === 'medium' || mode === 'smooth') {
+      const filtered = this.filterPoints(points, 0.9);
+      return this.beautifyPoints(filtered, 1);
+    }
+    if (mode === 'high' || mode === 'beautify') {
+      const filtered = this.filterPoints(points, 1.2);
+      return this.beautifyPoints(filtered, 2);
+    }
+    return points;
   }
 
   /**
@@ -363,9 +388,10 @@ export class WhiteboardStroke {
     let rawPoints = element.points;
     if (!rawPoints || rawPoints.length === 0) return;
 
-    // Apply beautification if enabled
-    if (element.beautify || smoothingMode === 'beautify') {
-      rawPoints = this.beautifyPoints(rawPoints, 1);
+    // Apply explicit smoothing mode if specified
+    const activeMode = element.smoothingMode || smoothingMode;
+    if (activeMode !== 'off' || element.beautify) {
+      rawPoints = this.smoothPointsByMode(rawPoints, element.beautify ? 'beautify' : activeMode);
     }
 
     const n = rawPoints.length;

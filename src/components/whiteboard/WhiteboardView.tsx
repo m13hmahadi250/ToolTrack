@@ -9,7 +9,12 @@ import {
   PenStyle,
   SmoothingMode,
   PenCursorChoice,
+  WhiteboardPdfDocument,
 } from '../../types/whiteboard';
+import {
+  convertPdfToWhiteboardElements,
+  exportAnnotatedPdfDocument,
+} from '../../lib/whiteboardPdf';
 import {
   createDefaultBoard,
   saveBoardToStorage,
@@ -68,6 +73,57 @@ export const WhiteboardView: React.FC = () => {
   const [isSmartShapeEnabled, setIsSmartShapeEnabled] = useState<boolean>(false);
   const [eraserSize, setEraserSize] = useState<number>(24);
   const [eraserMode, setEraserMode] = useState<'precision' | 'stroke'>('precision');
+
+  // Auto-hide UI during active drawing/erasing (distraction-free mode)
+  const [isDrawingActive, setIsDrawingActive] = useState<boolean>(false);
+  const drawingRestoreTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleDrawingActiveChange = useCallback((active: boolean) => {
+    if (active) {
+      if (drawingRestoreTimerRef.current) {
+        clearTimeout(drawingRestoreTimerRef.current);
+        drawingRestoreTimerRef.current = null;
+      }
+      setIsDrawingActive(true);
+    } else {
+      if (drawingRestoreTimerRef.current) {
+        clearTimeout(drawingRestoreTimerRef.current);
+      }
+      // Smooth restoration after 800ms idle following stroke completion
+      drawingRestoreTimerRef.current = setTimeout(() => {
+        setIsDrawingActive(false);
+        drawingRestoreTimerRef.current = null;
+      }, 800);
+    }
+  }, []);
+
+  // Cleanup drawing restore timer on unmount
+  useEffect(() => {
+    return () => {
+      if (drawingRestoreTimerRef.current) {
+        clearTimeout(drawingRestoreTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Smart reveal: If user moves cursor toward top header (< 68px) or bottom toolbar (> innerHeight - 84px),
+  // immediately reveal controls
+  useEffect(() => {
+    if (!isDrawingActive) return;
+
+    const handleProximityMove = (e: MouseEvent) => {
+      if (e.clientY < 68 || e.clientY > window.innerHeight - 84) {
+        if (drawingRestoreTimerRef.current) {
+          clearTimeout(drawingRestoreTimerRef.current);
+          drawingRestoreTimerRef.current = null;
+        }
+        setIsDrawingActive(false);
+      }
+    };
+
+    window.addEventListener('pointermove', handleProximityMove, { passive: true });
+    return () => window.removeEventListener('pointermove', handleProximityMove);
+  }, [isDrawingActive]);
 
   // Modals & Context Menus
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
@@ -635,7 +691,312 @@ export const WhiteboardView: React.FC = () => {
   };
 
   // -------------------------------------------------------------
-  // Clipboard Paste (Images and Elements)
+  // PDF Document Import & Management Handlers
+  // -------------------------------------------------------------
+  const handlePdfUpload = useCallback(
+    async (file: File | Blob, position?: { startX?: number; startY?: number }) => {
+      try {
+        setSaveStatus('saving');
+        const fileName = file instanceof File ? file.name : 'Document.pdf';
+
+        const existingPdfPages = board.elements.filter((el) => el.type === 'image' && el.pdfDocumentId);
+        let startX = position?.startX;
+        let startY = position?.startY;
+
+        if (startX === undefined || startY === undefined) {
+          if (existingPdfPages.length > 0) {
+            // Place next to existing PDF so multiple documents sit side-by-side cleanly
+            const maxRight = Math.max(...existingPdfPages.map((p) => p.x + p.width));
+            startX = maxRight + 80;
+            startY = 80;
+          } else {
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            const targetW = 740;
+            startX = Math.round((-board.viewport.x + winW / 2) / board.viewport.zoom - targetW / 2);
+            startY = Math.round((-board.viewport.y + winH / 2) / board.viewport.zoom - 300);
+          }
+        }
+
+        const result = await convertPdfToWhiteboardElements(file, {
+          name: fileName,
+          startX,
+          startY,
+          existingElementCount: board.elements.length,
+          pageWidth: 740,
+          pageGap: 40,
+        });
+
+        const newDoc: WhiteboardPdfDocument = {
+          id: result.documentId,
+          title: result.documentTitle,
+          totalPages: result.totalPages,
+          pageElementIds: result.elements.map((e) => e.id),
+          createdAt: Date.now(),
+        };
+
+        const updatedElements = [...board.elements, ...result.elements];
+        const updatedDocs = [...(board.pdfDocuments || []), newDoc];
+
+        const nextBoard: WhiteboardBoard = {
+          ...board,
+          elements: updatedElements,
+          pdfDocuments: updatedDocs,
+        };
+
+        recordHistory(nextBoard);
+        setBoard(nextBoard);
+        setSaveStatus('saved');
+        setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+        if (result.elements.length > 0) {
+          setSelectedElementIds([result.elements[0].id]);
+        }
+      } catch (err) {
+        console.error('Failed to parse or render PDF:', err);
+        setSaveStatus('error');
+      }
+    },
+    [board, recordHistory]
+  );
+
+  const insertPastedText = useCallback(
+    (text: string) => {
+      const centerWorldX = (-board.viewport.x + window.innerWidth / 2) / board.viewport.zoom - 100;
+      const centerWorldY = (-board.viewport.y + window.innerHeight / 2) / board.viewport.zoom - 20;
+
+      const lines = text.split('\n');
+      const maxLineLen = Math.max(...lines.map((l) => l.length), 1);
+      const estWidth = Math.max(140, Math.min(maxLineLen * 11 + 24, 700));
+      const estHeight = Math.max(36, lines.length * 26 + 10);
+
+      const newEl: WhiteboardElement = {
+        id: `el_txt_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        type: 'text',
+        x: Math.round(centerWorldX),
+        y: Math.round(centerWorldY),
+        width: estWidth,
+        height: estHeight,
+        strokeColor: currentStrokeColor,
+        strokeWidth: 1,
+        opacity: 1,
+        zIndex: board.elements.length + 1,
+        text,
+      };
+
+      handleAddElement(newEl);
+    },
+    [board.viewport, board.elements.length, currentStrokeColor, handleAddElement]
+  );
+
+  const handleRotatePdfPage = useCallback(
+    (pageEl: WhiteboardElement) => {
+      const nextRot = ((pageEl.rotation || 0) + 90) % 360;
+      handleUpdateElement(pageEl.id, { rotation: nextRot });
+    },
+    [handleUpdateElement]
+  );
+
+  const handleDuplicatePdfPage = useCallback(
+    (pageEl: WhiteboardElement) => {
+      if (!pageEl.pdfDocumentId) return;
+      const docId = pageEl.pdfDocumentId;
+      const curNum = pageEl.pdfPageNumber || 1;
+      const shiftY = pageEl.height + 40;
+
+      const updated = board.elements.map((el) => {
+        if (el.pdfDocumentId === docId && (el.pdfPageNumber || 0) > curNum) {
+          return {
+            ...el,
+            y: el.y + shiftY,
+            pdfPageNumber: (el.pdfPageNumber || 0) + 1,
+            pdfTotalPages: (el.pdfTotalPages || 1) + 1,
+          };
+        }
+        if (el.pdfDocumentId === docId) {
+          return { ...el, pdfTotalPages: (el.pdfTotalPages || 1) + 1 };
+        }
+        return el;
+      });
+
+      const copyPage: WhiteboardElement = {
+        ...pageEl,
+        id: `el_pdf_${docId}_p${curNum}_copy_${Date.now()}`,
+        y: pageEl.y + shiftY,
+        pdfPageNumber: curNum + 1,
+        pdfTotalPages: (pageEl.pdfTotalPages || 1) + 1,
+        zIndex: board.elements.length + 1,
+      };
+
+      updated.push(copyPage);
+      const nextBoard: WhiteboardBoard = { ...board, elements: updated };
+      recordHistory(nextBoard);
+      setBoard(nextBoard);
+      setSelectedElementIds([copyPage.id]);
+    },
+    [board, recordHistory]
+  );
+
+  const handleDeletePdfPage = useCallback(
+    (pageEl: WhiteboardElement) => {
+      if (!pageEl.pdfDocumentId) {
+        handleDeleteElements([pageEl.id]);
+        return;
+      }
+      const docId = pageEl.pdfDocumentId;
+      const curNum = pageEl.pdfPageNumber || 1;
+      const shiftY = pageEl.height + 40;
+
+      const updated = board.elements
+        .filter((el) => el.id !== pageEl.id)
+        .map((el) => {
+          if (el.pdfDocumentId === docId && (el.pdfPageNumber || 0) > curNum) {
+            return {
+              ...el,
+              y: Math.max(10, el.y - shiftY),
+              pdfPageNumber: (el.pdfPageNumber || 0) - 1,
+              pdfTotalPages: Math.max(1, (el.pdfTotalPages || 1) - 1),
+            };
+          }
+          if (el.pdfDocumentId === docId) {
+            return {
+              ...el,
+              pdfTotalPages: Math.max(1, (el.pdfTotalPages || 1) - 1),
+            };
+          }
+          return el;
+        });
+
+      const nextBoard: WhiteboardBoard = { ...board, elements: updated };
+      recordHistory(nextBoard);
+      setBoard(nextBoard);
+      setSelectedElementIds([]);
+    },
+    [board, handleDeleteElements, recordHistory]
+  );
+
+  const handleMovePdfPage = useCallback(
+    (pageEl: WhiteboardElement, direction: 'up' | 'down') => {
+      if (!pageEl.pdfDocumentId) return;
+      const docId = pageEl.pdfDocumentId;
+      const curNum = pageEl.pdfPageNumber || 1;
+      const targetNum = direction === 'up' ? curNum - 1 : curNum + 1;
+
+      const targetSibling = board.elements.find(
+        (el) => el.pdfDocumentId === docId && el.pdfPageNumber === targetNum
+      );
+      if (!targetSibling) return;
+
+      const curY = pageEl.y;
+      const siblingY = targetSibling.y;
+
+      const updated = board.elements.map((el) => {
+        if (el.id === pageEl.id) {
+          return { ...el, y: siblingY, pdfPageNumber: targetNum };
+        }
+        if (el.id === targetSibling.id) {
+          return { ...el, y: curY, pdfPageNumber: curNum };
+        }
+        return el;
+      });
+
+      const nextBoard: WhiteboardBoard = { ...board, elements: updated };
+      recordHistory(nextBoard);
+      setBoard(nextBoard);
+    },
+    [board, recordHistory]
+  );
+
+  const handleNavigatePdfPage = useCallback(
+    (docId: string, currentNum: number, dir: 'prev' | 'next') => {
+      const targetNum = dir === 'next' ? currentNum + 1 : currentNum - 1;
+      const targetPage = board.elements.find(
+        (el) => el.pdfDocumentId === docId && el.pdfPageNumber === targetNum
+      );
+      if (targetPage) {
+        handleFocusElement(targetPage);
+      }
+    },
+    [board.elements, handleFocusElement]
+  );
+
+  const handleRemovePdfDocument = useCallback(
+    (docId: string) => {
+      const docPages = board.elements.filter((el) => el.pdfDocumentId === docId);
+      if (docPages.length === 0) return;
+
+      const pageBoundsList = docPages.map((p) => ({
+        x: p.x,
+        y: p.y,
+        r: p.x + p.width,
+        b: p.y + p.height,
+        z: p.zIndex,
+      }));
+
+      const isOverDoc = (el: WhiteboardElement) => {
+        if (el.pdfDocumentId === docId) return true;
+        const b = WhiteboardRenderer.getSelectionBounds([el]);
+        if (!b) return false;
+        return pageBoundsList.some(
+          (pb) =>
+            el.zIndex > pb.z &&
+            b.x + b.width > pb.x &&
+            b.x < pb.r &&
+            b.y + b.height > pb.y &&
+            b.y < pb.b
+        );
+      };
+
+      const remaining = board.elements.filter((el) => !isOverDoc(el));
+      const remainingDocs = (board.pdfDocuments || []).filter((d) => d.id !== docId);
+
+      const nextBoard: WhiteboardBoard = {
+        ...board,
+        elements: remaining,
+        pdfDocuments: remainingDocs,
+      };
+
+      recordHistory(nextBoard);
+      setBoard(nextBoard);
+      setSelectedElementIds([]);
+    },
+    [board, recordHistory]
+  );
+
+  const handleExportAnnotatedPdf = useCallback(
+    async (targetDocId?: string) => {
+      const allPdfPages = board.elements.filter((el) => el.type === 'image' && el.pdfDocumentId);
+      if (allPdfPages.length === 0) return;
+
+      const docIdToExport = targetDocId || allPdfPages[0].pdfDocumentId!;
+      try {
+        setSaveStatus('saving');
+        const { blob, fileName } = await exportAnnotatedPdfDocument(
+          docIdToExport,
+          board.elements,
+          board.backgroundColor
+        );
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+        setSaveStatus('saved');
+      } catch (err) {
+        console.error('Failed to export annotated PDF:', err);
+        setSaveStatus('error');
+      }
+    },
+    [board.elements, board.backgroundColor]
+  );
+
+  // -------------------------------------------------------------
+  // Clipboard Paste (Images, PDFs, Text, and Elements)
   // -------------------------------------------------------------
   const insertImageUrl = useCallback(
     (dataUrl: string) => {
@@ -702,9 +1063,38 @@ export const WhiteboardView: React.FC = () => {
         return;
       }
 
-      let imageBlob: Blob | File | null = null;
+      // 1. Check for PDF in clipboard files / items
+      let pdfFile: File | null = null;
+      if (e.clipboardData?.files && e.clipboardData.files.length > 0) {
+        for (let i = 0; i < e.clipboardData.files.length; i++) {
+          const file = e.clipboardData.files[i];
+          if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+            pdfFile = file;
+            break;
+          }
+        }
+      }
+      if (!pdfFile && e.clipboardData?.items) {
+        for (let i = 0; i < e.clipboardData.items.length; i++) {
+          const item = e.clipboardData.items[i];
+          if (item.type === 'application/pdf') {
+            const f = item.getAsFile();
+            if (f) {
+              pdfFile = f;
+              break;
+            }
+          }
+        }
+      }
 
-      // 1. Check clipboard items
+      if (pdfFile) {
+        e.preventDefault();
+        handlePdfUpload(pdfFile);
+        return;
+      }
+
+      // 2. Check for image files / clipboard images
+      let imageBlob: Blob | File | null = null;
       if (e.clipboardData?.items) {
         for (let i = 0; i < e.clipboardData.items.length; i++) {
           const item = e.clipboardData.items[i];
@@ -718,7 +1108,6 @@ export const WhiteboardView: React.FC = () => {
         }
       }
 
-      // 2. Check clipboard files (screenshots / file copies)
       if (!imageBlob && e.clipboardData?.files && e.clipboardData.files.length > 0) {
         for (let i = 0; i < e.clipboardData.files.length; i++) {
           const file = e.clipboardData.files[i];
@@ -729,7 +1118,6 @@ export const WhiteboardView: React.FC = () => {
         }
       }
 
-      // If image found on system clipboard, insert it!
       if (imageBlob) {
         e.preventDefault();
         insertImageBlob(imageBlob);
@@ -751,12 +1139,21 @@ export const WhiteboardView: React.FC = () => {
       if (clipboardElements.length > 0) {
         e.preventDefault();
         handlePaste();
+        return;
+      }
+
+      // 5. Check if clipboard contains plain text and paste as text element
+      const plainText = e.clipboardData?.getData('text/plain');
+      if (plainText && plainText.trim()) {
+        e.preventDefault();
+        insertPastedText(plainText.trim());
+        return;
       }
     };
 
     window.addEventListener('paste', handlePasteEvent);
     return () => window.removeEventListener('paste', handlePasteEvent);
-  }, [insertImageBlob, insertImageUrl, clipboardElements, handlePaste]);
+  }, [insertImageBlob, insertImageUrl, clipboardElements, handlePaste, handlePdfUpload, insertPastedText]);
 
   // -------------------------------------------------------------
   // Keyboard Shortcuts (Undo, Redo, Copy, Delete, Tools)
@@ -1002,6 +1399,7 @@ export const WhiteboardView: React.FC = () => {
         saveStatus={saveStatus}
         lastSavedTime={lastSavedTime}
         isPresentationMode={isPresentationMode}
+        isDrawingActive={isDrawingActive}
       />
 
       {/* Main Interactive Canvas Area */}
@@ -1042,6 +1440,7 @@ export const WhiteboardView: React.FC = () => {
         eraserSize={eraserSize}
         eraserMode={eraserMode}
         onCommitElements={handleCommitElements}
+        onDrawingActiveChange={handleDrawingActiveChange}
       />
 
       {/* Left-Side Contextual Properties Panel */}
@@ -1080,6 +1479,7 @@ export const WhiteboardView: React.FC = () => {
           eraserMode={eraserMode}
           onChangeEraserMode={setEraserMode}
           onClearAllInk={handleClearAllInk}
+          isDrawingActive={isDrawingActive}
         />
       )}
 
@@ -1109,6 +1509,7 @@ export const WhiteboardView: React.FC = () => {
         onChangeEraserSize={setEraserSize}
         eraserMode={eraserMode}
         onChangeEraserMode={setEraserMode}
+        isDrawingActive={isDrawingActive}
       />
 
       {/* Bottom-Right Zoom & Frame Navigation Bar */}
@@ -1127,6 +1528,7 @@ export const WhiteboardView: React.FC = () => {
             const frameEl = board.elements.find((el) => el.id === frames[idx]?.elementId);
             if (frameEl) handleFocusElement(frameEl);
           }}
+          isDrawingActive={isDrawingActive}
         />
       )}
 

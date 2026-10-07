@@ -228,12 +228,8 @@ export async function exportWhiteboard(
     });
 
     const pdfBytes = await pdfDoc.save();
-    // Use Uint8Array slice to ensure safe ArrayBuffer across all browsers
-    const pdfArrayBuffer = pdfBytes.buffer.slice(
-      pdfBytes.byteOffset,
-      pdfBytes.byteOffset + pdfBytes.byteLength
-    );
-    const blob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
+    // Uint8Array is directly assignable to BlobPart in standard DOM typings
+    const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
     return { blob, fileName: `${cleanTitle}.pdf` };
   }
 

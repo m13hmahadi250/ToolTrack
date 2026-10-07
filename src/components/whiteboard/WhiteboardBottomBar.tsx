@@ -12,6 +12,7 @@ interface WhiteboardBottomBarProps {
   activeFrameIndex: number;
   onNavigateFrame: (direction: 'prev' | 'next') => void;
   onSelectFrame: (index: number) => void;
+  isDrawingActive?: boolean;
 }
 
 export const WhiteboardBottomBar: React.FC<WhiteboardBottomBarProps> = ({
@@ -24,13 +25,18 @@ export const WhiteboardBottomBar: React.FC<WhiteboardBottomBarProps> = ({
   activeFrameIndex,
   onNavigateFrame,
   onSelectFrame,
+  isDrawingActive = false,
 }) => {
   const zoomPct = Math.round(zoom * 100);
 
   return (
     <aside
       aria-label="Whiteboard Viewport Navigation"
-      className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-30 flex items-center gap-2 pointer-events-auto"
+      className={`fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-30 flex items-center gap-2 transition-all duration-300 ease-out ${
+        isDrawingActive
+          ? 'opacity-0 translate-y-6 pointer-events-none'
+          : 'opacity-100 translate-y-0 pointer-events-auto'
+      }`}
     >
       {/* Frames Navigation (if frames exist) */}
       {frames && frames.length > 0 && (

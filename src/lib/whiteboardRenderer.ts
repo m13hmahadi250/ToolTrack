@@ -774,7 +774,7 @@ export class WhiteboardRenderer {
   /**
    * Laser pointer trail renderer (disappears gracefully after ~1.2s)
    */
-  private static renderLaser(ctx: CanvasRenderingContext2D, points: LaserPoint[]) {
+  static renderLaser(ctx: CanvasRenderingContext2D, points: LaserPoint[]) {
     const now = Date.now();
     ctx.save();
     ctx.lineCap = 'round';
@@ -806,7 +806,7 @@ export class WhiteboardRenderer {
   /**
    * Measurement ruler overlay renderer
    */
-  private static renderMeasureLine(
+  static renderMeasureLine(
     ctx: CanvasRenderingContext2D,
     line: MeasureLine,
     isDark: boolean
@@ -1050,7 +1050,7 @@ export class WhiteboardRenderer {
   /**
    * Marquee drag selection renderer
    */
-  private static renderMarquee(
+  static renderMarquee(
     ctx: CanvasRenderingContext2D,
     box: { start: Point; current: Point }
   ) {
@@ -1072,7 +1072,7 @@ export class WhiteboardRenderer {
   /**
    * Freehand lasso selection trail renderer
    */
-  private static renderLasso(ctx: CanvasRenderingContext2D, points: Point[]) {
+  static renderLasso(ctx: CanvasRenderingContext2D, points: Point[]) {
     if (!points || points.length < 2) return;
     ctx.save();
     ctx.strokeStyle = '#6366f1';

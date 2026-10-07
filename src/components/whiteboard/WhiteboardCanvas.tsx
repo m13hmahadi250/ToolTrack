@@ -49,6 +49,9 @@ interface WhiteboardCanvasProps {
   eraserSize?: number;
   eraserMode?: 'precision' | 'stroke';
   onCommitElements?: (elements: WhiteboardElement[]) => void;
+  onDrawingActiveChange?: (isActive: boolean) => void;
+  onPdfFileDropped?: (file: File, worldCoords: Point) => void;
+  onImageFileDropped?: (file: File, worldCoords: Point) => void;
 }
 
 export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
@@ -79,9 +82,15 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   eraserSize = 24,
   eraserMode = 'precision',
   onCommitElements,
+  onDrawingActiveChange,
+  onPdfFileDropped,
+  onImageFileDropped,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const baseCanvasRef = useRef<HTMLCanvasElement>(null);
+  const activeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const requestBaseRef = useRef<number | null>(null);
+  const requestActiveRef = useRef<number | null>(null);
 
   // Synchronized Viewport Refs for high-speed event handlers (60-120fps wheel/pinch)
   const viewportRef = useRef(board.viewport);
@@ -158,7 +167,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   // Convert screen coordinates (clientX, clientY) to world canvas coordinates
   const screenToWorld = useCallback(
     (screenX: number, screenY: number): Point => {
-      const canvas = canvasRef.current;
+      const canvas = activeCanvasRef.current || baseCanvasRef.current;
       if (!canvas) return { x: 0, y: 0 };
       const rect = canvas.getBoundingClientRect();
       const x = (screenX - rect.left - board.viewport.x) / board.viewport.zoom;
@@ -171,7 +180,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   // Convert world coordinates to screen pixel coordinates
   const worldToScreen = useCallback(
     (worldX: number, worldY: number): Point => {
-      const canvas = canvasRef.current;
+      const canvas = activeCanvasRef.current || baseCanvasRef.current;
       if (!canvas) return { x: 0, y: 0 };
       const rect = canvas.getBoundingClientRect();
       return {
@@ -194,10 +203,9 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     [board.gridSnap]
   );
 
-  // Re-render canvas loop
-  const requestRef = useRef<number | null>(null);
-  const renderCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
+  // Base canvas render: background grid, committed board elements, selection box
+  const renderBaseCanvas = useCallback(() => {
+    const canvas = baseCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -215,40 +223,96 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       rect.width,
       rect.height,
       selectedElements,
-      activeDrawingElementRef.current,
-      laserPoints,
-      measureLine,
-      marqueeBox,
+      null, // Active drawing rendered exclusively on overlay activeCanvas!
+      [],
+      null,
+      null,
       true,
       () => {
-        // Triggered when async images load
-        if (requestRef.current === null) {
-          requestRef.current = requestAnimationFrame(renderCanvas);
+        if (requestBaseRef.current === null) {
+          requestBaseRef.current = requestAnimationFrame(renderBaseCanvas);
         }
       },
       smoothingMode,
-      lassoPoints
+      null
     );
 
-    // Interactive circular eraser target ring while Eraser tool is active
+    requestBaseRef.current = null;
+  }, [board, selectedElements, smoothingMode]);
+
+  // Active overlay canvas render: instantaneous 0-latency ink, eraser target ring, transient lasso/marquee
+  const renderActiveCanvas = useCallback(() => {
+    const canvas = activeCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const rect = canvas.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    const isDark = isDarkColor(board.backgroundColor);
+    const { viewport } = board;
+
+    ctx.save();
+    ctx.translate(viewport.x, viewport.y);
+    ctx.scale(viewport.zoom, viewport.zoom);
+
+    // 1. Live Active Drawing Stroke or Shape
+    if (activeDrawingElementRef.current) {
+      WhiteboardRenderer.renderElement(
+        ctx,
+        activeDrawingElementRef.current,
+        isDark,
+        undefined,
+        smoothingMode
+      );
+    }
+
+    // 2. Precision circular eraser target ring
     if (activeTool === 'eraser' && eraserCursorPosRef.current) {
       const ePos = eraserCursorPosRef.current;
       const eraserRadius = (eraserSize || 24) / 2;
-      ctx.save();
-      ctx.translate(board.viewport.x, board.viewport.y);
-      ctx.scale(board.viewport.zoom, board.viewport.zoom);
       ctx.beginPath();
       ctx.arc(ePos.x, ePos.y, eraserRadius, 0, Math.PI * 2);
       ctx.strokeStyle = isPointerDown ? '#f43f5e' : 'rgba(244, 63, 94, 0.75)';
-      ctx.lineWidth = 1.5 / board.viewport.zoom;
+      ctx.lineWidth = 1.5 / viewport.zoom;
       ctx.fillStyle = isPointerDown ? 'rgba(244, 63, 94, 0.22)' : 'rgba(244, 63, 94, 0.08)';
       ctx.fill();
       ctx.stroke();
-      ctx.restore();
     }
 
-    requestRef.current = null;
-  }, [board, selectedElements, laserPoints, measureLine, marqueeBox, activeTool, isPointerDown, smoothingMode, eraserSize]);
+    // 3. Laser Pointer trails
+    if (laserPoints.length > 0) {
+      WhiteboardRenderer.renderLaser(ctx, laserPoints);
+    }
+
+    // 4. Measure Line
+    if (measureLine) {
+      WhiteboardRenderer.renderMeasureLine(ctx, measureLine, isDark);
+    }
+
+    // 5. Selection Marquee Box
+    if (marqueeBox) {
+      WhiteboardRenderer.renderMarquee(ctx, marqueeBox);
+    }
+
+    // 6. Freehand Lasso Trail
+    if (lassoPoints && lassoPoints.length > 1) {
+      WhiteboardRenderer.renderLasso(ctx, lassoPoints);
+    }
+
+    ctx.restore();
+    requestActiveRef.current = null;
+  }, [board.backgroundColor, board.viewport, activeTool, isPointerDown, smoothingMode, eraserSize, laserPoints, measureLine, marqueeBox, lassoPoints]);
+
+  // Combined render
+  const renderCanvas = useCallback(() => {
+    renderBaseCanvas();
+    renderActiveCanvas();
+  }, [renderBaseCanvas, renderActiveCanvas]);
 
   // Native non-passive wheel listener attached to container
   // Guarantees e.preventDefault() prevents browser page zoom during Ctrl/Cmd + Wheel
@@ -309,31 +373,40 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     };
   }, []);
 
-  // Resize canvas according to devicePixelRatio
+  // Resize both canvases according to devicePixelRatio
   useEffect(() => {
     const handleResize = () => {
-      const canvas = canvasRef.current;
+      const baseCanvas = baseCanvasRef.current;
+      const activeCanvas = activeCanvasRef.current;
       const container = containerRef.current;
-      if (!canvas || !container) return;
+      if (!baseCanvas || !activeCanvas || !container) return;
 
       const rect = container.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
+      const w = Math.round(rect.width * dpr);
+      const h = Math.round(rect.height * dpr);
 
-      renderCanvas();
+      baseCanvas.width = w;
+      baseCanvas.height = h;
+      activeCanvas.width = w;
+      activeCanvas.height = h;
+
+      renderBaseCanvas();
+      renderActiveCanvas();
     };
 
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [renderCanvas]);
+  }, [renderBaseCanvas, renderActiveCanvas]);
 
   useEffect(() => {
-    renderCanvas();
-  }, [renderCanvas]);
+    renderBaseCanvas();
+  }, [renderBaseCanvas]);
+
+  useEffect(() => {
+    renderActiveCanvas();
+  }, [renderActiveCanvas]);
 
   // Laser Pointer timer cleanup
   useEffect(() => {
@@ -342,7 +415,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       const now = Date.now();
       const filtered = laserPoints.filter((p) => now - p.timestamp <= 1200);
       setLaserPoints(filtered);
-      renderCanvas();
+      renderActiveCanvas();
     }, 40);
     return () => clearInterval(timer);
   }, [laserPoints, renderCanvas]);
@@ -426,13 +499,15 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     // 4. Eraser Mode
     if (activeTool === 'eraser') {
       interactionModeRef.current = 'erase';
+      if (onDrawingActiveChange) onDrawingActiveChange(true);
       hasEraseChangedRef.current = false;
       workingElementsRef.current = [...board.elements];
       lastEraserPointRef.current = worldPt;
       eraserCursorPosRef.current = worldPt;
       eraseAlongSegment(worldPt, worldPt);
-      if (requestRef.current === null) {
-        requestRef.current = requestAnimationFrame(renderCanvas);
+      renderActiveCanvas();
+      if (hasEraseChangedRef.current) {
+        renderBaseCanvas();
       }
       return;
     }
@@ -513,6 +588,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     // 6. Freehand Drawing Tools (Pencil, Pen, Highlighter)
     if (['pencil', 'pen', 'highlighter'].includes(activeTool)) {
       interactionModeRef.current = 'draw';
+      if (onDrawingActiveChange) onDrawingActiveChange(true);
       const actualWidth =
         activeTool === 'highlighter' || currentPenStyle === 'highlighter'
           ? Math.max(currentStrokeWidth * 3.5, 18)
@@ -684,9 +760,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     // Update eraser cursor position for hover / drag circle
     if (activeTool === 'eraser') {
       eraserCursorPosRef.current = worldPt;
-      if (requestRef.current === null) {
-        requestRef.current = requestAnimationFrame(renderCanvas);
-      }
+      renderActiveCanvas();
     }
 
     // Eraser Mode
@@ -694,8 +768,9 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       const prev = lastEraserPointRef.current || worldPt;
       eraseAlongSegment(prev, worldPt);
       lastEraserPointRef.current = worldPt;
-      if (requestRef.current === null) {
-        requestRef.current = requestAnimationFrame(renderCanvas);
+      renderActiveCanvas();
+      if (hasEraseChangedRef.current) {
+        renderBaseCanvas();
       }
       return;
     }
@@ -706,6 +781,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         start: startPointerRef.current,
         current: worldPt,
       });
+      renderActiveCanvas();
       return;
     }
 
@@ -715,15 +791,13 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       const updated = [...prev, worldPt];
       lassoPointsRef.current = updated;
       setLassoPoints(updated);
-      if (requestRef.current === null) {
-        requestRef.current = requestAnimationFrame(renderCanvas);
-      }
+      renderActiveCanvas();
       return;
     }
 
     // High-frequency Freehand Drawing & Shape Mode
-    // Updates active drawing element in ref and renders on next vsync via RAF
-    // Completely eliminates component re-renders during active drawing!
+    // Renders active stroke immediately on dedicated transparent activeCanvas overlay
+    // Completely eliminates full canvas redraws and component re-renders during active writing!
     if (interactionModeRef.current === 'draw' && activeDrawingElementRef.current) {
       const el = activeDrawingElementRef.current;
       if (['pencil', 'pen', 'highlighter'].includes(el.type)) {
@@ -739,8 +813,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
         for (const ce of coalesced) {
           const cpt = screenToWorld(ce.clientX, ce.clientY);
-          // Distance filter: discard micro-jitter (< 1.2 px)
-          if (!lastPt || Math.hypot(cpt.x - lastPt.x, cpt.y - lastPt.y) >= 1.2) {
+          // Distance filter: discard micro-jitter (< 1.0 px)
+          if (!lastPt || Math.hypot(cpt.x - lastPt.x, cpt.y - lastPt.y) >= 1.0) {
             const pressure = ce.pressure !== undefined && ce.pressure > 0 ? ce.pressure : 0.5;
             pts.push({ x: cpt.x, y: cpt.y, pressure, time: now });
             lastPt = cpt;
@@ -750,9 +824,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
         if (hasNew) {
           el.points = pts;
-          if (requestRef.current === null) {
-            requestRef.current = requestAnimationFrame(renderCanvas);
-          }
+          renderActiveCanvas();
         }
       } else {
         // Shapes / Lines / Boxes
@@ -773,9 +845,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         el.width = Math.abs(w);
         el.height = Math.abs(h);
 
-        if (requestRef.current === null) {
-          requestRef.current = requestAnimationFrame(renderCanvas);
-        }
+        renderActiveCanvas();
       }
       return;
     }
@@ -874,9 +944,13 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
       if (['pencil', 'pen', 'highlighter'].includes(activeEl.type)) {
         if (activeEl.points && activeEl.points.length > 0) {
-          // Optional beautify ink pass: cleans mouse handwriting micro-jitter
-          if (isBeautifyEnabled || smoothingMode === 'beautify') {
-            activeEl.points = WhiteboardStroke.beautifyPoints(activeEl.points, 1);
+          activeEl.smoothingMode = smoothingMode;
+          // Apply user-configured smoothing mode (off, low, medium, high)
+          if (smoothingMode !== 'off') {
+            activeEl.points = WhiteboardStroke.smoothPointsByMode(
+              activeEl.points,
+              isBeautifyEnabled ? 'high' : smoothingMode
+            );
           }
 
           // Optional Smart Shape Recognition
@@ -974,6 +1048,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       renderCanvas();
       // NOTE: NEVER auto-select created drawings or shapes!
       // They remain unselected by default as expected in a professional whiteboard.
+      if (onDrawingActiveChange) onDrawingActiveChange(false);
       if (onToolUsed) onToolUsed();
     }
 
@@ -1038,6 +1113,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         hasEraseChangedRef.current = false;
       }
       renderCanvas();
+      if (onDrawingActiveChange) onDrawingActiveChange(false);
       if (onToolUsed) onToolUsed();
       return;
     }
@@ -1167,48 +1243,68 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
-    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'));
+    const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
 
     const worldPt = screenToWorld(e.clientX, e.clientY);
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const reader = new FileReader();
-      reader.onload = (loadEvent) => {
-        const dataUrl = loadEvent.target?.result as string;
-        const img = new Image();
-        img.onload = () => {
-          const maxDim = 500;
-          let w = img.naturalWidth;
-          let h = img.naturalHeight;
-          if (w > maxDim || h > maxDim) {
-            const ratio = Math.min(maxDim / w, maxDim / h);
-            w = Math.round(w * ratio);
-            h = Math.round(h * ratio);
-          }
+    // 1. Check for PDF Files
+    const pdfFiles = files.filter(
+      (f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+    );
+    if (pdfFiles.length > 0 && onPdfFileDropped) {
+      for (const pdf of pdfFiles) {
+        onPdfFileDropped(pdf, worldPt);
+      }
+      return;
+    }
 
-          const newEl: WhiteboardElement = {
-            id: `el_img_${Date.now()}_${i}`,
-            type: 'image',
-            x: worldPt.x + i * 20,
-            y: worldPt.y + i * 20,
-            width: w,
-            height: h,
-            strokeColor: '#6366f1',
-            strokeWidth: 0,
-            opacity: 1,
-            zIndex: board.elements.length + i,
-            imageUrl: dataUrl,
-            naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight,
+    // 2. Check for Image Files
+    const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length > 0) {
+      if (onImageFileDropped) {
+        for (const img of imageFiles) {
+          onImageFileDropped(img, worldPt);
+        }
+      } else {
+        for (let i = 0; i < imageFiles.length; i++) {
+          const file = imageFiles[i];
+          const reader = new FileReader();
+          reader.onload = (loadEvent) => {
+            const dataUrl = loadEvent.target?.result as string;
+            const img = new Image();
+            img.onload = () => {
+              const maxDim = 600;
+              let w = img.naturalWidth;
+              let h = img.naturalHeight;
+              if (w > maxDim || h > maxDim) {
+                const ratio = Math.min(maxDim / w, maxDim / h);
+                w = Math.round(w * ratio);
+                h = Math.round(h * ratio);
+              }
+
+              const newEl: WhiteboardElement = {
+                id: `el_img_${Date.now()}_${i}`,
+                type: 'image',
+                x: worldPt.x + i * 20,
+                y: worldPt.y + i * 20,
+                width: w,
+                height: h,
+                strokeColor: '#6366f1',
+                strokeWidth: 0,
+                opacity: 1,
+                zIndex: board.elements.length + i,
+                imageUrl: dataUrl,
+                naturalWidth: img.naturalWidth,
+                naturalHeight: img.naturalHeight,
+              };
+              onAddElement(newEl);
+            };
+            img.src = dataUrl;
           };
-          onAddElement(newEl);
-          // Dropped images remain unselected unless explicitly clicked with Select tool
-        };
-        img.src = dataUrl;
-      };
-      reader.readAsDataURL(file);
+          reader.readAsDataURL(file);
+        }
+      }
     }
   };
 
@@ -1241,6 +1337,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       cursorChoice: penCursorChoice,
       strokeColor: currentStrokeColor,
       strokeWidth: currentStrokeWidth,
+      eraserSize: eraserSize,
       isDarkBackground: isDarkColor(board.backgroundColor),
     });
   } else if (activeTool === 'text') {
@@ -1256,9 +1353,16 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      {/* 1. Base Layer Canvas: Background grid, committed board elements, selection bounds */}
       <canvas
-        ref={canvasRef}
-        className={`w-full h-full block ${cursorClass}`}
+        ref={baseCanvasRef}
+        className="absolute inset-0 w-full h-full block pointer-events-none"
+      />
+
+      {/* 2. Active Layer Canvas: Ultra-fast 0-latency ink, eraser target ring, transient overlays & pointer events */}
+      <canvas
+        ref={activeCanvasRef}
+        className={`absolute inset-0 w-full h-full block ${cursorClass}`}
         style={customCursorStyle ? { cursor: customCursorStyle } : undefined}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

@@ -12,6 +12,7 @@ export interface CursorConfig {
   cursorChoice?: PenCursorChoice;
   strokeColor?: string;
   strokeWidth?: number;
+  eraserSize?: number;
   isDarkBackground?: boolean;
 }
 
@@ -195,12 +196,16 @@ function getHighlighterSvg(color = '#eab308'): string {
 }
 
 /**
- * 6. Precision Eraser Target Ring Cursor (Hotspot 12, 12)
- * Circular boundary indicating erase contact zone with center target dot.
+ * 6. Precision Eraser Target Ring Cursor
+ * Circular boundary indicating erase contact zone with center target dot,
+ * dynamically scaled to match active eraser size.
  */
-function getEraserSvg(): string {
-  return `
-<svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+function getEraserSvg(size = 24): { svg: string; hotspot: number } {
+  const diameter = Math.max(16, Math.min(Math.round(size), 48));
+  const radius = Math.max(4, (diameter - 6) / 2);
+  const center = diameter / 2;
+  const svg = `
+<svg width="${diameter}" height="${diameter}" viewBox="0 0 ${diameter} ${diameter}" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <filter id="erShadow" x="-20%" y="-20%" width="150%" height="150%">
       <feDropShadow dx="0" dy="0.5" stdDeviation="0.5" flood-color="#000000" flood-opacity="0.5"/>
@@ -209,25 +214,26 @@ function getEraserSvg(): string {
 
   <g filter="url(#erShadow)">
     <!-- White High-Contrast Outer Ring -->
-    <circle cx="12" cy="12" r="9" stroke="#ffffff" stroke-width="2.5" fill="none"/>
+    <circle cx="${center}" cy="${center}" r="${radius}" stroke="#ffffff" stroke-width="2" fill="none"/>
     <!-- Rose Crimson Active Target Ring -->
-    <circle cx="12" cy="12" r="9" stroke="#f43f5e" stroke-width="1.5" fill="rgba(244, 63, 94, 0.15)"/>
+    <circle cx="${center}" cy="${center}" r="${radius}" stroke="#f43f5e" stroke-width="1.3" fill="rgba(244, 63, 94, 0.16)"/>
 
     <!-- Center Precision Target Dot -->
-    <circle cx="12" cy="12" r="2.5" fill="#ffffff"/>
-    <circle cx="12" cy="12" r="1.5" fill="#f43f5e"/>
+    <circle cx="${center}" cy="${center}" r="2" fill="#ffffff"/>
+    <circle cx="${center}" cy="${center}" r="1.2" fill="#f43f5e"/>
 
-    <!-- Four Cardinal Alignment Ticks -->
-    <line x1="12" y1="1" x2="12" y2="4" stroke="#ffffff" stroke-width="2"/>
-    <line x1="12" y1="1" x2="12" y2="4" stroke="#f43f5e" stroke-width="1.2"/>
-    <line x1="12" y1="20" x2="12" y2="23" stroke="#ffffff" stroke-width="2"/>
-    <line x1="12" y1="20" x2="12" y2="23" stroke="#f43f5e" stroke-width="1.2"/>
-    <line x1="1" y1="12" x2="4" y2="12" stroke="#ffffff" stroke-width="2"/>
-    <line x1="1" y1="12" x2="4" y2="12" stroke="#f43f5e" stroke-width="1.2"/>
-    <line x1="20" y1="12" x2="23" y2="12" stroke="#ffffff" stroke-width="2"/>
-    <line x1="20" y1="12" x2="23" y2="12" stroke="#f43f5e" stroke-width="1.2"/>
+    <!-- Cardinal Alignment Ticks -->
+    <line x1="${center}" y1="1" x2="${center}" y2="3.5" stroke="#ffffff" stroke-width="1.8"/>
+    <line x1="${center}" y1="1" x2="${center}" y2="3.5" stroke="#f43f5e" stroke-width="1"/>
+    <line x1="${center}" y1="${diameter - 3.5}" x2="${center}" y2="${diameter - 1}" stroke="#ffffff" stroke-width="1.8"/>
+    <line x1="${center}" y1="${diameter - 3.5}" x2="${center}" y2="${diameter - 1}" stroke="#f43f5e" stroke-width="1"/>
+    <line x1="1" y1="${center}" x2="3.5" y2="${center}" stroke="#ffffff" stroke-width="1.8"/>
+    <line x1="1" y1="${center}" x2="3.5" y2="${center}" stroke="#f43f5e" stroke-width="1"/>
+    <line x1="${diameter - 3.5}" y1="${center}" x2="${diameter - 1}" y2="${center}" stroke="#ffffff" stroke-width="1.8"/>
+    <line x1="${diameter - 3.5}" y1="${center}" x2="${diameter - 1}" y2="${center}" stroke="#f43f5e" stroke-width="1"/>
   </g>
 </svg>`.trim();
+  return { svg, hotspot: Math.round(center) };
 }
 
 /**
@@ -283,9 +289,9 @@ export function getWhiteboardCursorStyle(config: CursorConfig): string {
   const { tool, penStyle = 'fountain', cursorChoice = 'auto', strokeColor = '#6366f1' } = config;
 
   if (tool === 'eraser') {
-    const svg = getEraserSvg();
+    const { svg, hotspot } = getEraserSvg(config.eraserSize || 24);
     const uri = svgToDataUri(svg);
-    return `url("${uri}") 12 12, crosshair`;
+    return `url("${uri}") ${hotspot} ${hotspot}, crosshair`;
   }
 
   if (tool === 'lasso') {

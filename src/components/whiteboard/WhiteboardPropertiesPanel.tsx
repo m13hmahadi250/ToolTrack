@@ -35,6 +35,13 @@ import {
   Pencil,
   Highlighter,
   Minus,
+  RotateCw,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Download,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 
 interface WhiteboardPropertiesPanelProps {
@@ -75,6 +82,15 @@ interface WhiteboardPropertiesPanelProps {
   eraserMode?: 'precision' | 'stroke';
   onChangeEraserMode?: (mode: 'precision' | 'stroke') => void;
   onClearAllInk?: () => void;
+  isDrawingActive?: boolean;
+  // PDF-specific actions
+  onRotatePdfPage?: (pageEl: WhiteboardElement) => void;
+  onDuplicatePdfPage?: (pageEl: WhiteboardElement) => void;
+  onDeletePdfPage?: (pageEl: WhiteboardElement) => void;
+  onMovePdfPage?: (pageEl: WhiteboardElement, direction: 'up' | 'down') => void;
+  onNavigatePdfPage?: (docId: string, currentNum: number, dir: 'prev' | 'next') => void;
+  onRemovePdfDocument?: (docId: string) => void;
+  onExportAnnotatedPdf?: (docId: string) => void;
 }
 
 const COLOR_SWATCHES = [
@@ -138,6 +154,14 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
   eraserMode = 'precision',
   onChangeEraserMode,
   onClearAllInk,
+  isDrawingActive = false,
+  onRotatePdfPage,
+  onDuplicatePdfPage,
+  onDeletePdfPage,
+  onMovePdfPage,
+  onNavigatePdfPage,
+  onRemovePdfDocument,
+  onExportAnnotatedPdf,
 }) => {
   const hasSelection = selectedElements.length > 0;
   const singleElement = hasSelection && selectedElements.length === 1 ? selectedElements[0] : null;
@@ -215,7 +239,11 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
   return (
     <aside
       aria-label="Whiteboard Properties"
-      className={`fixed top-20 left-4 z-30 max-h-[82vh] overflow-y-auto w-64 p-3.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-2xl text-slate-800 dark:text-slate-100 space-y-4 text-xs select-none transition-all duration-200 ${
+      className={`fixed top-20 left-4 z-30 max-h-[82vh] overflow-y-auto w-64 p-3.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-2xl text-slate-800 dark:text-slate-100 space-y-4 text-xs select-none transition-all duration-300 ease-out ${
+        isDrawingActive
+          ? 'opacity-0 -translate-x-6 pointer-events-none'
+          : 'opacity-100 translate-x-0'
+      } ${
         isCollapsed ? 'space-y-0' : ''
       }`}
     >
@@ -273,6 +301,138 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
 
       {!isCollapsed && (
         <>
+          {/* PDF Document & Page Controls */}
+          {singleElement?.type === 'image' && Boolean(singleElement.pdfDocumentId) && (
+            <div className="space-y-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 truncate max-w-[150px]">
+                  <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                  <span className="truncate">{singleElement.pdfDocTitle || 'PDF Document'}</span>
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                  Page {singleElement.pdfPageNumber} of {singleElement.pdfTotalPages}
+                </span>
+              </div>
+
+              {/* Page Navigation */}
+              {onNavigatePdfPage && singleElement.pdfDocumentId && (
+                <div className="flex items-center justify-between gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onNavigatePdfPage(singleElement.pdfDocumentId!, singleElement.pdfPageNumber || 1, 'prev')}
+                    disabled={(singleElement.pdfPageNumber || 1) <= 1}
+                    className="flex-1 py-1.5 px-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-1 text-slate-700 dark:text-slate-300 font-semibold cursor-pointer text-[11px]"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Prev Page</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigatePdfPage(singleElement.pdfDocumentId!, singleElement.pdfPageNumber || 1, 'next')}
+                    disabled={(singleElement.pdfPageNumber || 1) >= (singleElement.pdfTotalPages || 1)}
+                    className="flex-1 py-1.5 px-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-1 text-slate-700 dark:text-slate-300 font-semibold cursor-pointer text-[11px]"
+                  >
+                    <span>Next Page</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Individual Page Actions */}
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                  Page Actions
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {onRotatePdfPage && (
+                    <button
+                      type="button"
+                      onClick={() => onRotatePdfPage(singleElement)}
+                      className="py-1.5 px-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium cursor-pointer text-[11px]"
+                      title="Rotate Page 90° Clockwise"
+                    >
+                      <RotateCw className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Rotate 90°</span>
+                    </button>
+                  )}
+                  {onDuplicatePdfPage && (
+                    <button
+                      type="button"
+                      onClick={() => onDuplicatePdfPage(singleElement)}
+                      className="py-1.5 px-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium cursor-pointer text-[11px]"
+                      title="Duplicate Page"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Duplicate</span>
+                    </button>
+                  )}
+                </div>
+                {onMovePdfPage && (
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => onMovePdfPage(singleElement, 'up')}
+                      disabled={(singleElement.pdfPageNumber || 1) <= 1}
+                      className="py-1.5 px-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium cursor-pointer text-[11px]"
+                      title="Move Page Up in Document"
+                    >
+                      <ArrowUp className="w-3.5 h-3.5 text-sky-500" />
+                      <span>Move Up</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onMovePdfPage(singleElement, 'down')}
+                      disabled={(singleElement.pdfPageNumber || 1) >= (singleElement.pdfTotalPages || 1)}
+                      className="py-1.5 px-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium cursor-pointer text-[11px]"
+                      title="Move Page Down in Document"
+                    >
+                      <ArrowDown className="w-3.5 h-3.5 text-sky-500" />
+                      <span>Move Down</span>
+                    </button>
+                  </div>
+                )}
+                {onDeletePdfPage && (
+                  <button
+                    type="button"
+                    onClick={() => onDeletePdfPage(singleElement)}
+                    className="w-full mt-1 py-1.5 px-2 rounded-xl border border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-medium flex items-center justify-center gap-1.5 cursor-pointer text-[11px]"
+                    title="Delete Page from Document"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Page</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Document Actions */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                  Document Actions
+                </span>
+                {onExportAnnotatedPdf && (
+                  <button
+                    type="button"
+                    onClick={() => onExportAnnotatedPdf(singleElement.pdfDocumentId!)}
+                    className="w-full py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center justify-center gap-2 shadow-xs cursor-pointer text-xs transition"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export Annotated PDF</span>
+                  </button>
+                )}
+                {onRemovePdfDocument && (
+                  <button
+                    type="button"
+                    onClick={() => onRemovePdfDocument(singleElement.pdfDocumentId!)}
+                    className="w-full py-1.5 px-2 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-950/60 text-rose-600 dark:text-rose-400 font-medium flex items-center justify-center gap-1.5 cursor-pointer text-[11px] transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove Entire PDF</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Dedicated Eraser Tool Controls */}
           {activeTool === 'eraser' && !hasSelection && (
             <div className="space-y-4">
@@ -546,8 +706,13 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
             <div className="space-y-1">
               <label className="text-[10px] font-semibold text-slate-500 block">Smoothing Level</label>
               <div className="grid grid-cols-4 gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-[10px]">
-                {(['off', 'natural', 'smooth', 'beautify'] as SmoothingMode[]).map((mode) => {
+                {(['off', 'low', 'medium', 'high'] as SmoothingMode[]).map((mode) => {
                   const currentMode = singleElement ? singleElement.smoothingMode || 'smooth' : smoothingMode;
+                  const isActive =
+                    currentMode === mode ||
+                    (mode === 'low' && currentMode === 'natural') ||
+                    (mode === 'medium' && currentMode === 'smooth') ||
+                    (mode === 'high' && currentMode === 'beautify');
                   return (
                     <button
                       key={mode}
@@ -558,7 +723,7 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
                         onChangeSmoothingMode(mode);
                       }}
                       className={`py-1 px-1 rounded-lg font-medium transition cursor-pointer text-center capitalize ${
-                        currentMode === mode
+                        isActive
                           ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-bold shadow-2xs'
                           : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                       }`}

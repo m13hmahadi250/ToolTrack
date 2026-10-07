@@ -50,7 +50,7 @@ export type ConnectorType = 'straight' | 'elbow' | 'curved';
 export type AnchorPoint = 'top' | 'right' | 'bottom' | 'left' | 'center';
 
 export type PenStyle = 'ballpoint' | 'fountain' | 'marker' | 'pencil' | 'fine' | 'highlighter';
-export type SmoothingMode = 'off' | 'natural' | 'smooth' | 'beautify';
+export type SmoothingMode = 'off' | 'low' | 'medium' | 'high' | 'natural' | 'smooth' | 'beautify';
 export type PenCursorChoice = 'auto' | 'fountain' | 'ballpoint' | 'stylus' | 'pencil' | 'precision';
 
 export interface Point {
@@ -116,6 +116,20 @@ export interface WhiteboardElement {
 
   // Frame specific
   frameTitle?: string;
+
+  // PDF Document Page specific
+  pdfDocumentId?: string;
+  pdfPageNumber?: number;
+  pdfTotalPages?: number;
+  pdfDocTitle?: string;
+}
+
+export interface WhiteboardPdfDocument {
+  id: string;
+  title: string;
+  totalPages: number;
+  pageElementIds: string[];
+  createdAt: number;
 }
 
 export interface FrameItem {
@@ -139,6 +153,7 @@ export interface WhiteboardBoard {
   };
   elements: WhiteboardElement[];
   frames?: FrameItem[];
+  pdfDocuments?: WhiteboardPdfDocument[];
 }
 
 export interface LaserPoint {

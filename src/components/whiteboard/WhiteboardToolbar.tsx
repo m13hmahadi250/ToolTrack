@@ -120,6 +120,7 @@ interface WhiteboardToolbarProps {
   onChangeEraserSize?: (size: number) => void;
   eraserMode?: 'precision' | 'stroke';
   onChangeEraserMode?: (mode: 'precision' | 'stroke') => void;
+  isDrawingActive?: boolean;
 }
 
 export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
@@ -147,6 +148,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   onChangeEraserSize,
   eraserMode = 'precision',
   onChangeEraserMode,
+  isDrawingActive = false,
 }) => {
   const [shapesMenuOpen, setShapesMenuOpen] = useState(false);
   const [drawMenuOpen, setDrawMenuOpen] = useState(false);
@@ -325,7 +327,11 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
     return (
       <aside
         aria-label="Whiteboard Toolbar"
-        className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 transition-all duration-200"
+        className={`fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 transition-all duration-300 ease-out ${
+          isDrawingActive
+            ? 'opacity-0 translate-y-6 pointer-events-none'
+            : 'opacity-100 translate-y-0'
+        }`}
       >
         <div
           onClick={toggleMinimized}
@@ -360,7 +366,11 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   return (
     <aside
       aria-label="Whiteboard Toolbar"
-      className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[98vw] overflow-visible transition-all duration-200"
+      className={`fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[98vw] overflow-visible transition-all duration-300 ease-out ${
+        isDrawingActive
+          ? 'opacity-0 translate-y-6 pointer-events-none'
+          : 'opacity-100 translate-y-0'
+      }`}
     >
       <div className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-2xl text-slate-800 dark:text-slate-100">
         {/* 1. Selection & Pan */}
@@ -609,20 +619,27 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
                     Ink Smoothing Level
                   </span>
                   <div className="grid grid-cols-4 gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-[10px]">
-                    {(['off', 'natural', 'smooth', 'beautify'] as SmoothingMode[]).map((mode) => (
-                      <button
-                        type="button"
-                        key={mode}
-                        onClick={() => onChangeSmoothingMode(mode)}
-                        className={`py-1 px-1 rounded-lg font-medium transition cursor-pointer text-center capitalize ${
-                          smoothingMode === mode
-                            ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-bold shadow-2xs'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                        }`}
-                      >
-                        {mode}
-                      </button>
-                    ))}
+                    {(['off', 'low', 'medium', 'high'] as SmoothingMode[]).map((mode) => {
+                      const isActive =
+                        smoothingMode === mode ||
+                        (mode === 'low' && smoothingMode === 'natural') ||
+                        (mode === 'medium' && smoothingMode === 'smooth') ||
+                        (mode === 'high' && smoothingMode === 'beautify');
+                      return (
+                        <button
+                          type="button"
+                          key={mode}
+                          onClick={() => onChangeSmoothingMode(mode)}
+                          className={`py-1 px-1 rounded-lg font-medium transition cursor-pointer text-center capitalize ${
+                            isActive
+                              ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-bold shadow-2xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          {mode}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1025,7 +1042,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
           <GitCommit className="w-4 h-4" />
         </button>
 
-        {/* 7. Image Upload / Paste */}
+        {/* 7. Image & PDF Upload / Paste */}
         <button
           onClick={onUploadImageClick}
           className={`p-2 rounded-xl transition cursor-pointer ${
@@ -1033,7 +1050,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
               ? 'bg-indigo-600 text-white shadow-md'
               : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
           }`}
-          title="Add / Paste Image (I)"
+          title="Add / Paste Image or PDF Document (I)"
         >
           <ImageIcon className="w-4 h-4" />
         </button>
