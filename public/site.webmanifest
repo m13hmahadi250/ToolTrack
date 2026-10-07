@@ -1,11 +1,11 @@
 {
-  "name": "ToolTrack Document Suite",
+  "name": "ToolTrack – All Your Files & Productivity Tools in One Place",
   "short_name": "ToolTrack",
-  "description": "All-in-one PDF, image, and document processing platform with real client-side utilities.",
+  "description": "All-in-one file, document, image, and productivity toolkit. Work with PDFs, Word, Excel, images, OCR, Whiteboard, and design utilities directly in your browser.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a1128",
-  "theme_color": "#2563eb",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
   "icons": [
     {
       "src": "/icon-192.png",

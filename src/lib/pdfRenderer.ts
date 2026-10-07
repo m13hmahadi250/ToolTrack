@@ -1,3 +1,4 @@
+import './pdfPolyfill';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { DetectedPageInfo } from '../types';
 

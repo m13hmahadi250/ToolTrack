@@ -20,6 +20,7 @@ import { compressPdfEngine } from '../../lib/pdfCompressionEngine';
 import { flattenPdf, removeMetadata, getPdfMetadata } from '../../lib/pdfUtils';
 import { PDFDocument } from 'pdf-lib';
 import { useToolTrack } from '../../context/ToolTrackContext';
+import { PdfProgressIndicator, PdfProgressDetails } from '../common/PdfProgressIndicator';
 
 export const CompressPdfTool: React.FC = () => {
   const { activeToolId, addJob, updateJob, addRecentActivity } = useToolTrack();
@@ -51,6 +52,12 @@ export const CompressPdfTool: React.FC = () => {
   const [outputSize, setOutputSize] = useState<number | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [isAlreadyOptimized, setIsAlreadyOptimized] = useState(false);
+
+  // Visual Progress Tracking
+  const [progressPct, setProgressPct] = useState(0);
+  const [progressStatus, setProgressStatus] = useState('');
+  const [progressDetails, setProgressDetails] = useState<PdfProgressDetails | undefined>(undefined);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const processingVersionRef = useRef(0);
 
@@ -93,6 +100,16 @@ export const CompressPdfTool: React.FC = () => {
 
     setProcessing(true);
     setIsAlreadyOptimized(false);
+    setProgressPct(5);
+    setProgressStatus('Initializing optimization pipeline...');
+    setProgressDetails({ page: 0, totalPages: 1, phase: 'structure' });
+
+    // Setup cancellation controller
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     const baseName = file.name.replace(/\.[^/.]+$/, '');
     let outName = `${baseName}-compressed.pdf`;
@@ -117,19 +134,21 @@ export const CompressPdfTool: React.FC = () => {
       toolId: jobToolId,
       toolName: toolActionTitle,
       status: 'processing',
-      progress: 0.2,
+      progress: 0.1,
       outputFileName: outName,
     });
 
     try {
       const buffer = await file.arrayBuffer();
-      if (processingVersionRef.current !== targetVersion) return;
-      updateJob(jobId, { progress: 0.5 });
+      if (processingVersionRef.current !== targetVersion || abortController.signal.aborted) return;
+      updateJob(jobId, { progress: 0.15 });
 
       let outBytes: Uint8Array;
       let outBlob: Blob;
 
       if (isFlattenTool) {
+        setProgressPct(40);
+        setProgressStatus('Flattening interactive form fields & vector layers...');
         outBytes = await flattenPdf(buffer);
         outBlob = new Blob([new Uint8Array(outBytes)], { type: 'application/pdf' });
         setStatusMessage(
@@ -138,6 +157,8 @@ export const CompressPdfTool: React.FC = () => {
             : 'All interactive annotations & vector layers successfully flattened and locked.'
         );
       } else if (isCleanTool) {
+        setProgressPct(40);
+        setProgressStatus('Stripping document metadata fields & rebuild cross-reference tables...');
         outBytes = await removeMetadata(buffer);
         outBlob = new Blob([new Uint8Array(outBytes)], { type: 'application/pdf' });
         const afterMeta = await getPdfMetadata(outBytes);
@@ -149,15 +170,27 @@ export const CompressPdfTool: React.FC = () => {
           preset: level,
           flattenForms: alsoFlatten,
           removeMetadata: true,
+          signal: abortController.signal,
+          onProgress: (prog, msg, details) => {
+            if (processingVersionRef.current === targetVersion && !abortController.signal.aborted) {
+              const currentPct = Math.round(prog * 100);
+              setProgressPct(currentPct);
+              if (msg) setProgressStatus(msg);
+              if (details) setProgressDetails(details);
+              updateJob(jobId, { progress: Math.min(0.1 + prog * 0.88, 0.98) });
+            }
+          },
         });
         outBytes = result.pdfBytes;
-        outBlob = new Blob([outBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+        outBlob = new Blob([new Uint8Array(outBytes)], { type: 'application/pdf' });
         setStatusMessage(result.statusMessage);
         setIsAlreadyOptimized(result.isAlreadyOptimized);
       }
 
-      if (processingVersionRef.current !== targetVersion) return;
+      if (processingVersionRef.current !== targetVersion || abortController.signal.aborted) return;
 
+      setProgressPct(100);
+      setProgressStatus('Processing complete!');
       setResultBlob(outBlob);
       setOutputSize(outBlob.size);
 
@@ -170,6 +203,10 @@ export const CompressPdfTool: React.FC = () => {
 
       addRecentActivity(jobToolId, toolActionTitle, file.name, 'completed');
     } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        // Operation aborted by user, exit cleanly
+        return;
+      }
       console.error(err);
       if (processingVersionRef.current === targetVersion) {
         updateJob(jobId, {
@@ -183,6 +220,17 @@ export const CompressPdfTool: React.FC = () => {
         setProcessing(false);
       }
     }
+  };
+
+  const handleCancelProcessing = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    processingVersionRef.current += 1;
+    setProcessing(false);
+    setProgressPct(0);
+    setProgressStatus('');
+    setProgressDetails(undefined);
   };
 
   const handleProcess = () => {
@@ -485,22 +533,25 @@ export const CompressPdfTool: React.FC = () => {
             )}
           </div>
 
-          {/* Processing / Result ToolTrack File Flow */}
+          {/* Visual Progress Indicator for PDF Processing */}
           {processing && (
-            <ToolTrackFileFlow
-              mode="processing"
-              stage="optimizing"
-              stageLabel={
-                isFlattenTool
-                  ? 'Merging form fields & annotations into permanent vector layers...'
-                  : isCleanTool
-                  ? 'Sanitizing document metadata & rebuilding cross-reference tables...'
-                  : 'Optimizing internal PDF streams & removing unreferenced xref objects...'
-              }
-              fileName={file.name}
-              fileSize={formatBytes(file.size)}
-              fileType="PDF Document"
-            />
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <PdfProgressIndicator
+                fileName={file.name}
+                fileSize={formatBytes(file.size)}
+                progress={progressPct}
+                statusMessage={
+                  progressStatus ||
+                  (isFlattenTool
+                    ? 'Merging form fields & annotations into permanent vector layers...'
+                    : isCleanTool
+                    ? 'Sanitizing document metadata & rebuilding cross-reference tables...'
+                    : 'Optimizing internal PDF streams & pages...')
+                }
+                details={progressDetails}
+                onCancel={handleCancelProcessing}
+              />
+            </div>
           )}
 
           {/* Results Card */}

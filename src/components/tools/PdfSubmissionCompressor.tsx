@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Minimize2,
   GraduationCap,
@@ -13,6 +13,7 @@ import {
 import { compressPdfEngine } from '../../lib/pdfCompressionEngine';
 import { FileUploader } from '../common/FileUploader';
 import { useToolTrack } from '../../context/ToolTrackContext';
+import { PdfProgressIndicator, PdfProgressDetails } from '../common/PdfProgressIndicator';
 
 export const PdfSubmissionCompressor: React.FC = () => {
   const { addJob, updateJob, addRecentActivity } = useToolTrack();
@@ -22,6 +23,11 @@ export const PdfSubmissionCompressor: React.FC = () => {
   const [customKb, setCustomKb] = useState<string>('');
 
   const [processing, setProcessing] = useState(false);
+  const [progressPct, setProgressPct] = useState(0);
+  const [progressStatus, setProgressStatus] = useState('');
+  const [progressDetails, setProgressDetails] = useState<PdfProgressDetails | undefined>(undefined);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const [result, setResult] = useState<{
     originalSize: number;
     outputSize: number;
@@ -39,11 +45,31 @@ export const PdfSubmissionCompressor: React.FC = () => {
     setResult(null);
   };
 
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    processingVersionRef.current += 1;
+    setProcessing(false);
+    setProgressPct(0);
+    setProgressStatus('');
+    setProgressDetails(undefined);
+  };
+
   const handleCompressWithVersion = async (targetVersion: number) => {
     if (!file) return;
     if (processingVersionRef.current !== targetVersion) return;
 
     setProcessing(true);
+    setProgressPct(8);
+    setProgressStatus('Initializing compression pipeline...');
+    setProgressDetails({ page: 0, totalPages: 1, phase: 'structure' });
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     const targetSizeKb = customKb ? Number(customKb) : targetLimitMb * 1024;
 
@@ -53,23 +79,36 @@ export const PdfSubmissionCompressor: React.FC = () => {
       toolId: 'pdf-submission-compressor',
       toolName: 'Submission PDF Compressor',
       status: 'processing',
-      progress: 0.2,
+      progress: 0.1,
     });
 
     try {
       const buffer = await file.arrayBuffer();
-      if (processingVersionRef.current !== targetVersion) return;
+      if (processingVersionRef.current !== targetVersion || abortController.signal.aborted) return;
 
       const engineResult = await compressPdfEngine(buffer, {
-        preset: 'maximum',
+        preset: 'target',
         targetSizeKb,
         removeMetadata: true,
         flattenForms: true,
+        signal: abortController.signal,
+        onProgress: (prog, msg, details) => {
+          if (processingVersionRef.current === targetVersion && !abortController.signal.aborted) {
+            const currentPct = Math.round(prog * 100);
+            setProgressPct(currentPct);
+            if (msg) setProgressStatus(msg);
+            if (details) setProgressDetails(details);
+            updateJob(jobId, { progress: Math.min(0.1 + prog * 0.88, 0.98) });
+          }
+        },
       });
 
-      if (processingVersionRef.current !== targetVersion) return;
+      if (processingVersionRef.current !== targetVersion || abortController.signal.aborted) return;
 
-      const outBlob = new Blob([engineResult.pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      setProgressPct(100);
+      setProgressStatus('Compression complete!');
+
+      const outBlob = new Blob([new Uint8Array(engineResult.pdfBytes)], { type: 'application/pdf' });
       const originalSize = engineResult.originalSizeBytes;
       const outputSize = engineResult.outputSizeBytes;
       const savedPercent = engineResult.savedPercent;
@@ -100,6 +139,9 @@ export const PdfSubmissionCompressor: React.FC = () => {
         'completed'
       );
     } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
       console.error(err);
       if (processingVersionRef.current === targetVersion) {
         updateJob(jobId, { status: 'failed', errorMessage: String(err) });
@@ -266,9 +308,20 @@ export const PdfSubmissionCompressor: React.FC = () => {
             </button>
 
             {processing && (
-              <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center gap-3 text-indigo-700 dark:text-indigo-300 animate-in fade-in duration-200">
-                <div className="w-4 h-4 border-2 border-indigo-600 dark:border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
-                <span className="font-bold text-xs">Optimizing original PDF to target size (debounced)...</span>
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <PdfProgressIndicator
+                  fileName={file.name}
+                  fileSize={(file.size / (1024 * 1024)).toFixed(2) + ' MB'}
+                  progress={progressPct}
+                  statusMessage={
+                    progressStatus ||
+                    `Optimizing document to meet submission target limit (≤ ${
+                      customKb ? `${customKb} KB` : `${targetLimitMb} MB`
+                    })...`
+                  }
+                  details={progressDetails}
+                  onCancel={handleCancel}
+                />
               </div>
             )}
 

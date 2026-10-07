@@ -28,9 +28,9 @@ export default defineConfig(() => {
         ],
         manifest: {
           id: '/',
-          name: 'ToolTrack – Free Online PDF, Image & Document Tools',
+          name: 'ToolTrack – All Your Files & Productivity Tools in One Place',
           short_name: 'ToolTrack',
-          description: 'All Your File Tools in One Place. Free, private, offline-capable PDF, image, and document processing suite with infinite whiteboard.',
+          description: 'All-in-one file, document, image, and productivity toolkit. Work with PDFs, Word, Excel, images, OCR, Whiteboard, and design utilities directly in your browser.',
           theme_color: '#4f46e5',
           background_color: '#0f172a',
           display: 'standalone',
