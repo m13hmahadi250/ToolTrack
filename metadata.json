@@ -1,6 +1,6 @@
 {
   "name": "ToolTrack",
-  "description": "All-in-one PDF, image, and document processing platform with real client-side utilities, page size normalizer, and batch processing.",
+  "description": "All-in-one file, document, image, and productivity toolkit. Work with PDFs, Word, Excel, images, OCR, Whiteboard, and design utilities directly in your browser.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

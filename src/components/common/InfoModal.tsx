@@ -130,8 +130,8 @@ export const InfoModal: React.FC<InfoModalProps> = ({ type, onClose }) => {
 
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-1">
                 <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <h5 className="font-bold text-slate-900 dark:text-white text-xs">20+ File Utilities</h5>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">PDF, Word, Excel, Images, OCR, and Normalization.</p>
+                <h5 className="font-bold text-slate-900 dark:text-white text-xs">38+ Utilities</h5>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">PDF, Word, Excel, Images, Whiteboard, and OCR.</p>
               </div>
             </div>
 

@@ -18,6 +18,11 @@ import {
   Clock,
   Trash2,
   Star,
+  PenTool,
+  Image as ImageIcon,
+  FileSpreadsheet,
+  ScanText,
+  Palette,
 } from 'lucide-react';
 import { useToolTrack } from '../../context/ToolTrackContext';
 import { TOOLS_LIST } from '../../data/toolsList';
@@ -74,16 +79,13 @@ export const HomePage: React.FC = () => {
 
   const categories: { id: string; label: string }[] = [
     { id: 'all', label: 'All Tools' },
-    { id: 'image-tools', label: 'Image Tools' },
-    { id: 'design-tools', label: 'Design Utilities' },
-    { id: 'student-tools', label: 'Student Tools' },
-    { id: 'page-tools', label: 'Page Tools' },
-    { id: 'organize', label: 'Organize PDF' },
-    { id: 'optimize', label: 'Optimize & Compress' },
-    { id: 'convert-to-pdf', label: 'Convert to PDF' },
-    { id: 'convert-from-pdf', label: 'Convert from PDF' },
+    { id: 'pdf', label: 'PDF Tools' },
+    { id: 'convert', label: 'Convert & Office' },
+    { id: 'image-tools', label: 'Image Studio' },
+    { id: 'ocr', label: 'OCR & Scanner' },
+    { id: 'student-tools', label: 'Student Suite' },
+    { id: 'design-tools', label: 'Design & Canvas' },
     { id: 'security', label: 'Security' },
-    { id: 'ocr', label: 'OCR' },
   ];
 
   const popularTools = useMemo(() => {
@@ -91,16 +93,34 @@ export const HomePage: React.FC = () => {
   }, []);
 
   const displayedTools = useMemo(() => {
+    let baseList = TOOLS_LIST;
+    if (activeCategory !== 'all') {
+      if (activeCategory === 'pdf') {
+        baseList = TOOLS_LIST.filter((tool) =>
+          ['page-tools', 'organize', 'optimize', 'security', 'inspector'].includes(tool.category)
+        );
+      } else if (activeCategory === 'convert') {
+        baseList = TOOLS_LIST.filter((tool) =>
+          ['convert-to-pdf', 'convert-from-pdf'].includes(tool.category)
+        );
+      } else if (activeCategory === 'ocr') {
+        baseList = TOOLS_LIST.filter((tool) => tool.category === 'ocr');
+      } else {
+        baseList = TOOLS_LIST.filter((tool) =>
+          tool.category === activeCategory ||
+          (activeCategory === 'page-tools' && tool.category === 'page-tools') ||
+          (activeCategory === 'organize' && tool.category === 'organize') ||
+          (activeCategory === 'optimize' && tool.category === 'optimize')
+        );
+      }
+    }
+
     if (!searchQuery.trim()) {
-      return activeCategory === 'all'
-        ? TOOLS_LIST
-        : TOOLS_LIST.filter((tool) => tool.category === activeCategory);
+      return baseList;
     }
     const scoredResults = searchTools(searchQuery, 40);
-    const scoredTools = scoredResults.map((s) => s.tool);
-    return activeCategory === 'all'
-      ? scoredTools
-      : scoredTools.filter((tool) => tool.category === activeCategory);
+    const scoredIds = new Set(scoredResults.map((s) => s.tool.id));
+    return baseList.filter((tool) => scoredIds.has(tool.id));
   }, [searchQuery, activeCategory]);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
@@ -131,8 +151,12 @@ export const HomePage: React.FC = () => {
       a: 'No. ToolTrack processes all documents, images, and spreadsheets locally inside your browser memory using WebAssembly and client-side HTML5 APIs. No document contents are permanently stored or uploaded to external clouds.',
     },
     {
+      q: 'What is the Whiteboard tool and do I need an account to use it?',
+      a: 'The ToolTrack Whiteboard is an infinite collaborative canvas for sketching, teaching, diagramming, sticky notes, and annotating PDFs and images. It runs 100% locally in your browser with zero logins required and instant export to PNG, SVG, PDF, or JSON.',
+    },
+    {
       q: 'Can I use ToolTrack on mobile phones and tablets?',
-      a: 'Yes. Every tool interface is fully responsive and designed for smartphones, iPads, tablets, laptops, and desktops, with full touch and drag-and-drop support.',
+      a: 'Yes. Every tool interface is fully responsive and designed for smartphones, iPads, tablets, laptops, and desktops, with full touch and stylus drag-and-drop support.',
     },
     {
       q: 'How does PDF compression work without losing text clarity?',
@@ -140,7 +164,11 @@ export const HomePage: React.FC = () => {
     },
     {
       q: 'Can I convert PDF to Word with diagrams, tables, and borders preserved?',
-      a: 'Yes. ToolTrack uses a layout-aware hybrid conversion engine that reconstructs question badges, headings, callout boxes, and tables into native Word elements, while embedding complex vector diagrams (like the Food Pyramid) as crisp high-resolution images at exact page coordinates.',
+      a: 'Yes. ToolTrack uses a layout-aware hybrid conversion engine that reconstructs question badges, headings, callout boxes, and tables into native Word elements, while embedding complex vector diagrams as crisp high-resolution images at exact page coordinates.',
+    },
+    {
+      q: 'Can I convert Excel spreadsheets and CSV to PDF?',
+      a: 'Yes. The Excel to PDF converter handles multi-sheet workbooks, cell formatting, numbers, tables, and headers with custom paper sizes (A4, Letter, Landscape) and instant previews.',
     },
     {
       q: 'Does OCR support Bengali and Arabic?',
@@ -189,11 +217,13 @@ export const HomePage: React.FC = () => {
             <span className="font-semibold text-slate-600 dark:text-slate-300">Popular:</span>
             {[
               { id: 'pdf-to-word', label: 'PDF to Word' },
+              { id: 'image-background-remover', label: 'Remove BG' },
+              { id: 'whiteboard', label: 'Whiteboard Canvas' },
               { id: 'compress-pdf', label: 'Compress PDF' },
-              { id: 'normalize-pdf-page-size', label: 'Normalize Size' },
-              { id: 'image-background-remover', label: 'Remove Background' },
-              { id: 'merge-pdf', label: 'Merge PDF' },
+              { id: 'excel-to-pdf', label: 'Excel to PDF' },
               { id: 'ocr-pdf', label: 'OCR Scan' },
+              { id: 'normalize-pdf-page-size', label: 'Normalize Size' },
+              { id: 'assignment-pdf-maker', label: 'Assignment Maker' },
             ].map((quick) => (
               <button
                 key={quick.id}
@@ -233,8 +263,8 @@ export const HomePage: React.FC = () => {
               <BookOpen className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-900 dark:text-white">35+ Full Tools</div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">PDF, images & OCR</div>
+              <div className="text-xs font-bold text-slate-900 dark:text-white">38+ Full Utilities</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">PDF, image, OCR & board</div>
             </div>
           </div>
 
@@ -243,8 +273,306 @@ export const HomePage: React.FC = () => {
               <Lock className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-900 dark:text-white">Zero Watermarks</div>
+              <div className="text-xs font-bold text-slate-900 dark:text-white">Free & Private</div>
               <div className="text-[11px] text-slate-500 dark:text-slate-400">No account required</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 5 Core Pillars Showcase */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center max-w-2xl mx-auto mb-8 space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold">
+            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Comprehensive Productivity Suite</span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            Everything You Need in One Unified Platform
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+            Switch effortlessly between document editing, high-resolution image processing, OCR extraction, and interactive visual ideation.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {/* Pillar 1: PDF & Documents */}
+          <div
+            onClick={() => {
+              setActiveCategory('pdf');
+              const el = document.getElementById('tools-directory');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 shadow-xs hover:shadow-lg transition-all text-left group cursor-pointer flex flex-col justify-between"
+          >
+            <div className="space-y-3">
+              <div className="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <FileText className="w-5 h-5" />
+              </div>
+              <h3 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                PDF & Documents
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Normalize page proportions, merge, split, compress, edit annotations, and protect documents with military-grade encryption.
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {['Normalize Size', 'Merge & Split', 'Compress PDF', 'Protect & Lock'].map((tag) => (
+                  <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="pt-4 flex items-center text-xs font-bold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1 transition-transform">
+              <span>Explore PDF Tools</span>
+              <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            </div>
+          </div>
+
+          {/* Pillar 2: Conversion & Office */}
+          <div
+            onClick={() => {
+              setActiveCategory('convert');
+              const el = document.getElementById('tools-directory');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500 shadow-xs hover:shadow-lg transition-all text-left group cursor-pointer flex flex-col justify-between"
+          >
+            <div className="space-y-3">
+              <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <FileSpreadsheet className="w-5 h-5" />
+              </div>
+              <h3 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                Office & Conversion
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Bidirectional conversion for Word DOCX, Excel spreadsheets (.xlsx, .csv), and high-resolution images with formatting preservation.
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {['PDF to Word', 'Word to PDF', 'Excel to PDF', 'Images to PDF'].map((tag) => (
+                  <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="pt-4 flex items-center text-xs font-bold text-blue-600 dark:text-blue-400 group-hover:translate-x-1 transition-transform">
+              <span>Explore Converters</span>
+              <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            </div>
+          </div>
+
+          {/* Pillar 3: Image Studio & AI */}
+          <div
+            onClick={() => {
+              setActiveCategory('image-tools');
+              const el = document.getElementById('tools-directory');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500 shadow-xs hover:shadow-lg transition-all text-left group cursor-pointer flex flex-col justify-between"
+          >
+            <div className="space-y-3">
+              <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <ImageIcon className="w-5 h-5" />
+              </div>
+              <h3 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                Image Studio
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Remove backgrounds with alpha transparency, batch compress images, resize dimensions, watermark, and convert JPG/PNG/WebP.
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {['Remove Background', 'Batch Compress', 'Crop & Resize', 'Watermark'].map((tag) => (
+                  <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="pt-4 flex items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 group-hover:translate-x-1 transition-transform">
+              <span>Explore Image Studio</span>
+              <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            </div>
+          </div>
+
+          {/* Pillar 4: Interactive Whiteboard */}
+          <div
+            onClick={() => setActiveToolId('whiteboard')}
+            className="p-6 rounded-2xl bg-linear-to-br from-indigo-50/70 via-white to-purple-50/70 dark:from-slate-850 dark:via-slate-850 dark:to-indigo-950/40 border border-indigo-300 dark:border-indigo-800/80 hover:border-indigo-500 dark:hover:border-indigo-400 shadow-xs hover:shadow-lg transition-all text-left group cursor-pointer flex flex-col justify-between relative overflow-hidden"
+          >
+            <div className="absolute top-3 right-3">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-600 text-white shadow-2xs">
+                PRO CANVAS
+              </span>
+            </div>
+            <div className="space-y-3">
+              <div className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                <PenTool className="w-5 h-5" />
+              </div>
+              <h3 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                Interactive Whiteboard
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Infinite vector canvas for freehand drawing, diagramming, sticky notes, classroom teaching, PDF slide markup, and 4K vector export.
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {['Infinite Zoom', 'Sticky Notes', 'PDF Annotation', 'SVG/PNG Export'].map((tag) => (
+                  <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-indigo-100/70 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="pt-4 flex items-center text-xs font-bold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1 transition-transform">
+              <span>Launch Whiteboard Studio</span>
+              <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            </div>
+          </div>
+
+          {/* Pillar 5: OCR & Scanner */}
+          <div
+            onClick={() => {
+              setActiveCategory('ocr');
+              const el = document.getElementById('tools-directory');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:border-purple-400 dark:hover:border-purple-500 shadow-xs hover:shadow-lg transition-all text-left group cursor-pointer flex flex-col justify-between"
+          >
+            <div className="space-y-3">
+              <div className="w-11 h-11 rounded-xl bg-purple-50 dark:bg-purple-950/70 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <ScanText className="w-5 h-5" />
+              </div>
+              <h3 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                OCR & Text Scanner
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Recognize and extract text from scanned documents, textbook snapshots, receipts, and images with multi-language models (EN, BN, AR).
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {['OCR Scan', 'Text Extract', 'Notes to PDF', 'Multilingual'].map((tag) => (
+                  <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="pt-4 flex items-center text-xs font-bold text-purple-600 dark:text-purple-400 group-hover:translate-x-1 transition-transform">
+              <span>Explore OCR Tools</span>
+              <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            </div>
+          </div>
+
+          {/* Pillar 6: Student & Academic Suite */}
+          <div
+            onClick={() => {
+              setActiveCategory('student-tools');
+              const el = document.getElementById('tools-directory');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500 shadow-xs hover:shadow-lg transition-all text-left group cursor-pointer flex flex-col justify-between"
+          >
+            <div className="space-y-3">
+              <div className="w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950/70 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <h3 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                Student & Academic Suite
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Build assignment PDFs with academic covers, enhance handwritten notes, and compress documents under strict portal size quotas (1MB, 2MB, 5MB).
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {['Assignment Maker', 'Portal Compressor', 'Notes Scanner', 'Study Sheets'].map((tag) => (
+                  <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="pt-4 flex items-center text-xs font-bold text-amber-600 dark:text-amber-400 group-hover:translate-x-1 transition-transform">
+              <span>Explore Academic Tools</span>
+              <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured Whiteboard Spotlight Banner */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-indigo-950 via-slate-900 to-slate-950 p-8 sm:p-10 text-white shadow-xl border border-indigo-700/50">
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+            <div className="max-w-2xl space-y-4">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-semibold border border-indigo-500/30">
+                <PenTool className="w-3.5 h-3.5" />
+                <span>Featured Standalone Studio</span>
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                Interactive Infinite Whiteboard — Sketch, Annotate & Ideate
+              </h2>
+
+              <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+                Whether you're teaching a class, sketching system architectures, brainstorming with sticky notes, or annotating multi-page PDFs, ToolTrack's built-in whiteboard provides a fluid, infinite workspace without requiring any account or login.
+              </p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
+                <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-200">
+                  <div className="font-bold text-indigo-400">Infinite Canvas</div>
+                  <div className="text-[11px] text-slate-400">Smooth zoom & pan</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-200">
+                  <div className="font-bold text-indigo-400">PDF Markup</div>
+                  <div className="text-[11px] text-slate-400">Annotate documents</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-200">
+                  <div className="font-bold text-indigo-400">Smart Shapes</div>
+                  <div className="text-[11px] text-slate-400">Flowcharts & notes</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-200">
+                  <div className="font-bold text-indigo-400">Vector Export</div>
+                  <div className="text-[11px] text-slate-400">PNG, SVG & PDF</div>
+                </div>
+              </div>
+
+              <div className="pt-2 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => setActiveToolId('whiteboard')}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition shadow-lg shadow-indigo-900/40 cursor-pointer"
+                >
+                  <PenTool className="w-4 h-4" />
+                  <span>Launch Interactive Whiteboard</span>
+                  <ArrowRight className="w-4 h-4 ml-1" />
+                </button>
+                <span className="text-xs text-slate-400">Zero setup · 100% private in your browser</span>
+              </div>
+            </div>
+
+            {/* Visual Whiteboard Preview illustration */}
+            <div className="hidden lg:flex flex-col items-center justify-center p-6 bg-slate-900/90 rounded-2xl border border-indigo-500/30 shrink-0 w-80 space-y-3 shadow-inner">
+              <div className="w-full flex items-center justify-between text-[11px] text-slate-400 border-b border-slate-800 pb-2">
+                <span className="font-mono flex items-center gap-1.5 text-indigo-300">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Active Canvas
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px]">100% Zoom</span>
+              </div>
+              <div className="w-full h-36 relative bg-slate-950/70 rounded-xl border border-dashed border-slate-800 flex items-center justify-center overflow-hidden">
+                <div className="absolute top-3 left-4 p-2 rounded-lg bg-amber-400/90 text-slate-950 text-[10px] font-bold shadow-md transform -rotate-3">
+                  📝 Brainstorm Note
+                </div>
+                <div className="absolute bottom-3 right-4 p-2 rounded-lg bg-indigo-600/90 text-white text-[10px] font-bold shadow-md transform rotate-2">
+                  ⚡ Diagram Node
+                </div>
+                <div className="w-20 h-20 rounded-full border-2 border-indigo-400/60 flex items-center justify-center text-[10px] text-indigo-300 font-mono">
+                  Vector Pen
+                </div>
+              </div>
+              <div className="w-full flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                <span>✦ Fountain Pen</span>
+                <span>✦ Eraser</span>
+                <span>✦ Sticky Notes</span>
+                <span>✦ Shapes</span>
+              </div>
             </div>
           </div>
         </div>
@@ -501,7 +829,7 @@ export const HomePage: React.FC = () => {
                 {t.popularTools}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-0.5">
-                The most frequently used document utilities
+                The most popular file, document, image, and whiteboard tools
               </p>
             </div>
           </div>
@@ -584,7 +912,7 @@ export const HomePage: React.FC = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-              {searchQuery ? `Search Results (${displayedTools.length})` : 'All Document Utilities'}
+              {searchQuery ? `Search Results (${displayedTools.length})` : 'All Productivity & File Utilities'}
             </h2>
             <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
               {displayedTools.length} Tools Available

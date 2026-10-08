@@ -72,7 +72,7 @@ function MainContent() {
       document.title = CATEGORIES_SEO[activeCategoryKey].seoTitle;
       window.scrollTo({ top: 0, behavior: 'instant' });
     } else {
-      document.title = 'ToolTrack — Free Online PDF, Image & Document Processing Suite';
+      document.title = 'ToolTrack – All Your Files & Productivity Tools in One Place';
     }
   }, [activeToolId, currentTool, activeCategoryKey]);
 

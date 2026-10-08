@@ -136,7 +136,7 @@ export const MegaMenu: React.FC<MegaMenuProps> = ({ isOpen, onClose }) => {
               All ToolTrack Utilities
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Select a specialized tool to process PDFs, images, or documents locally and safely.
+              Select any file, document, image, whiteboard, or OCR utility to process locally and safely.
             </p>
           </div>
           <button

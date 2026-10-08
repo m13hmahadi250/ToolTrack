@@ -78,9 +78,9 @@ export const Footer: React.FC = () => {
         </div>
 
         {/* Primary Multi-Column Directory */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 pb-12 border-b border-slate-200 dark:border-slate-800">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-8 lg:gap-8 pb-12 border-b border-slate-200 dark:border-slate-800">
           {/* Brand & Overview Column */}
-          <div className="lg:col-span-4 space-y-4 pr-0 lg:pr-6">
+          <div className="col-span-2 md:col-span-3 lg:col-span-3 space-y-4 pr-0 lg:pr-4">
             <button
               onClick={() => {
                 setActiveToolId(null);
@@ -93,7 +93,7 @@ export const Footer: React.FC = () => {
             </button>
 
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed max-w-sm">
-              The high-fidelity online document processing suite. Convert, resize, merge, split, compress, and edit PDFs and images with complete privacy and zero server storage.
+              All-in-one file, document, image and productivity toolkit. Work with PDFs, Word, Excel, images, OCR, notes and an interactive Whiteboard directly in your browser with complete privacy and zero server storage.
             </p>
 
             {/* Quiet Status Indicator */}
@@ -108,15 +108,15 @@ export const Footer: React.FC = () => {
                 </span>
               </div>
               <div className="text-[11px] text-slate-400 dark:text-slate-500">
-                No telemetry · Zero retention · Browser sandbox
+                Zero server uploads · 100% private in-browser memory
               </div>
             </div>
           </div>
 
-          {/* Core PDF Column */}
-          <div className="lg:col-span-2 col-span-1 space-y-3">
+          {/* PDF & Documents Column */}
+          <div className="col-span-1 lg:col-span-2 space-y-3">
             <h5 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-              Core PDF
+              PDF & Documents
             </h5>
             <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
               <li>
@@ -153,10 +153,10 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => setActiveToolId('rotate-pdf')}
+                  onClick={() => setActiveToolId('compress-pdf')}
                   className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
                 >
-                  Rotate PDF Pages
+                  Compress PDF Size
                 </button>
               </li>
               <li>
@@ -178,10 +178,10 @@ export const Footer: React.FC = () => {
             </ul>
           </div>
 
-          {/* Conversion Suite Column */}
-          <div className="lg:col-span-2 col-span-1 space-y-3">
+          {/* Convert & Office Column */}
+          <div className="col-span-1 lg:col-span-2 space-y-3">
             <h5 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-              Convert & Export
+              Convert & Office
             </h5>
             <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
               <li>
@@ -202,6 +202,22 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
+                  onClick={() => setActiveToolId('excel-to-pdf')}
+                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
+                >
+                  Excel (.xlsx) to PDF
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => setActiveToolId('pdf-to-excel')}
+                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
+                >
+                  PDF to Excel Table
+                </button>
+              </li>
+              <li>
+                <button
                   onClick={() => setActiveToolId('images-to-pdf')}
                   className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
                 >
@@ -218,27 +234,19 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => setActiveToolId('excel-to-pdf')}
+                  onClick={() => setActiveToolId('image-converter')}
                   className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
                 >
-                  Excel (.xlsx) to PDF
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('pdf-to-excel')}
-                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
-                >
-                  PDF to Excel Table
+                  Image Format Converter
                 </button>
               </li>
             </ul>
           </div>
 
-          {/* Optimization & AI Column */}
-          <div className="lg:col-span-2 col-span-1 space-y-3">
+          {/* Image & Design Column */}
+          <div className="col-span-1 lg:col-span-2 space-y-3">
             <h5 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-              Optimize & Image
+              Image & Design
             </h5>
             <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
               <li>
@@ -251,10 +259,10 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => setActiveToolId('compress-pdf')}
+                  onClick={() => setActiveToolId('image-background-changer')}
                   className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
                 >
-                  Compress PDF Size
+                  Change Background
                 </button>
               </li>
               <li>
@@ -267,10 +275,51 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => setActiveToolId('image-resizer')}
+                  onClick={() => setActiveToolId('image-cropper')}
                   className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
                 >
-                  Image Dimensions Resizer
+                  Resize & Crop Image
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => setActiveToolId('image-watermark')}
+                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
+                >
+                  Watermark Image
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => setActiveToolId('image-color-picker')}
+                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
+                >
+                  Color Palette Picker
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => setActiveToolId('image-text')}
+                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
+                >
+                  Add Text to Image
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          {/* Productivity & Whiteboard Column */}
+          <div className="col-span-1 lg:col-span-1 space-y-3">
+            <h5 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              Productivity
+            </h5>
+            <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+              <li>
+                <button
+                  onClick={() => setActiveToolId('whiteboard')}
+                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left font-semibold text-indigo-600 dark:text-indigo-400"
+                >
+                  Whiteboard PRO
                 </button>
               </li>
               <li>
@@ -278,32 +327,48 @@ export const Footer: React.FC = () => {
                   onClick={() => setActiveToolId('ocr-pdf')}
                   className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
                 >
-                  OCR Text Recognition
+                  OCR Text Scan
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => setActiveToolId('flatten-pdf')}
+                  onClick={() => setActiveToolId('assignment-pdf-maker')}
                   className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
                 >
-                  Flatten Fillable Forms
+                  Assignment Maker
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => setActiveToolId('clean-pdf')}
+                  onClick={() => setActiveToolId('notes-to-pdf')}
                   className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
                 >
-                  Clean & Repair PDF
+                  Notes to PDF
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => setActiveToolId('pdf-submission-compressor')}
+                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
+                >
+                  Portal Compressor
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => setActiveToolId('pdf-compare')}
+                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
+                >
+                  Compare PDFs
                 </button>
               </li>
             </ul>
           </div>
 
-          {/* Platform & Resources Column */}
-          <div className="lg:col-span-2 col-span-1 space-y-3">
+          {/* Legal & Platform Column */}
+          <div className="col-span-2 md:col-span-1 lg:col-span-2 space-y-3">
             <h5 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-              Legal & Support
+              Trust & Legal
             </h5>
             <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
               <li>
@@ -349,9 +414,9 @@ export const Footer: React.FC = () => {
               <li>
                 <button
                   onClick={navigateToDirectory}
-                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left"
+                  className="hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer text-left font-medium"
                 >
-                  All 20+ Tools Directory
+                  All 38+ Tools Directory
                 </button>
               </li>
               <li className="pt-2">
@@ -368,9 +433,9 @@ export const Footer: React.FC = () => {
         <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
           {/* Copyright & Core Statement */}
           <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-center md:text-left">
-            <span>© {new Date().getFullYear()} ToolTrack Document Suite.</span>
+            <span>© {new Date().getFullYear()} ToolTrack. All Your Files & Productivity Tools in One Place.</span>
             <span className="hidden sm:inline" aria-hidden="true">·</span>
-            <span>All document transformations run 100% client-side.</span>
+            <span>Files never leave your device. 100% private in-browser processing.</span>
           </div>
 
           {/* Actions & Designer Credit */}

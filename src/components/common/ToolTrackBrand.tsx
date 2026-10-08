@@ -167,8 +167,8 @@ export const ToolTrackBrand: React.FC<ToolTrackBrandProps> = ({
             Track
           </span>
         </div>
-        <span className="text-[9.5px] font-medium tracking-[0.22em] text-slate-500 dark:text-slate-400 uppercase leading-none mt-0.5">
-          Workspace
+        <span className="text-[9px] font-bold tracking-[0.16em] text-indigo-600 dark:text-indigo-400 uppercase leading-none mt-0.5">
+          Productivity Toolkit
         </span>
       </div>
     </div>
