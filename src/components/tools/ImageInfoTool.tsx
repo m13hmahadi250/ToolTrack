@@ -18,10 +18,10 @@ export const ImageInfoTool: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // Aspect ratio calculator state
-  const [calcW1, setCalcW1] = useState<number>(1920);
-  const [calcH1, setCalcH1] = useState<number>(1080);
-  const [calcTargetW, setCalcTargetW] = useState<number>(1280);
-  const [calcTargetH, setCalcTargetH] = useState<number>(720);
+  const [calcW1, setCalcW1] = useState<number>(0);
+  const [calcH1, setCalcH1] = useState<number>(0);
+  const [calcTargetW, setCalcTargetW] = useState<number>(0);
+  const [calcTargetH, setCalcTargetH] = useState<number>(0);
 
   const handleFileSelect = async (files: File[]) => {
     if (files.length === 0) return;
@@ -219,20 +219,22 @@ export const ImageInfoTool: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
-                      value={calcW1}
-                      onChange={(e) => setCalcW1(Number(e.target.value))}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono font-bold"
+                      value={calcW1 || ''}
+                      onChange={(e) => setCalcW1(Number(e.target.value) || 0)}
+                      placeholder="Width"
+                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 placeholder-slate-400 font-mono font-bold"
                     />
                     <span className="font-bold">:</span>
                     <input
                       type="number"
-                      value={calcH1}
-                      onChange={(e) => setCalcH1(Number(e.target.value))}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono font-bold"
+                      value={calcH1 || ''}
+                      onChange={(e) => setCalcH1(Number(e.target.value) || 0)}
+                      placeholder="Height"
+                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 placeholder-slate-400 font-mono font-bold"
                     />
                   </div>
                   <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-bold block mt-1">
-                    Simplified: {getSimplifiedAspectRatio(calcW1, calcH1)}
+                    Simplified: {calcW1 > 0 && calcH1 > 0 ? getSimplifiedAspectRatio(calcW1, calcH1) : '—'}
                   </span>
                 </div>
 
@@ -242,9 +244,10 @@ export const ImageInfoTool: React.FC = () => {
                     <label className="text-[11px] text-slate-500 block mb-1">Target Width:</label>
                     <input
                       type="number"
-                      value={calcTargetW}
-                      onChange={(e) => handleTargetWChange(Number(e.target.value))}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono font-bold"
+                      value={calcTargetW || ''}
+                      onChange={(e) => handleTargetWChange(Number(e.target.value) || 0)}
+                      placeholder="Target Width"
+                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 placeholder-slate-400 font-mono font-bold"
                     />
                   </div>
 
@@ -252,9 +255,10 @@ export const ImageInfoTool: React.FC = () => {
                     <label className="text-[11px] text-slate-500 block mb-1">Calculated Height:</label>
                     <input
                       type="number"
-                      value={calcTargetH}
-                      onChange={(e) => handleTargetHChange(Number(e.target.value))}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono font-bold text-indigo-600 dark:text-indigo-400"
+                      value={calcTargetH || ''}
+                      onChange={(e) => handleTargetHChange(Number(e.target.value) || 0)}
+                      placeholder="Calculated Height"
+                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 placeholder-slate-400 font-mono font-bold text-indigo-600 dark:text-indigo-400"
                     />
                   </div>
                 </div>

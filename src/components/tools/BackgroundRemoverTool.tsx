@@ -37,6 +37,7 @@ export const BackgroundRemoverTool: React.FC = () => {
   const [processing, setProcessing] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
   const [progressVal, setProgressVal] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [modelQuality, setModelQuality] = useState<'medium' | 'small' | 'large'>('medium');
   const [executionStats, setExecutionStats] = useState<{
     durationMs: number;
@@ -167,9 +168,14 @@ export const BackgroundRemoverTool: React.FC = () => {
       );
     } catch (err: unknown) {
       console.error('Segmentation error:', err);
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+      const msg = isOffline
+        ? 'Background removal neural models could not load while offline. Connect to the internet once to cache the model weights in your browser for offline use.'
+        : `Background removal failed: ${String(err)}`;
+      setErrorMessage(msg);
       updateJob(jobId, {
         status: 'failed',
-        errorMessage: String(err),
+        errorMessage: msg,
       });
     } finally {
       setProcessing(false);
@@ -465,6 +471,16 @@ export const BackgroundRemoverTool: React.FC = () => {
 
             {/* Interactive Canvas Viewport */}
             <div className="relative min-h-[460px] max-h-[640px] overflow-auto rounded-3xl border-2 border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 flex items-center justify-center p-4">
+              {errorMessage && !processing && (
+                <div className="absolute inset-x-6 top-6 z-20 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-3 backdrop-blur-md">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold text-amber-200">Processing Notice</p>
+                    <p className="leading-relaxed">{errorMessage}</p>
+                  </div>
+                </div>
+              )}
+
               {processing && (
                 <div className="absolute inset-0 z-30 bg-slate-900/70 backdrop-blur-xs flex flex-col items-center justify-center text-white space-y-3.5 px-6 text-center animate-in fade-in duration-200">
                   <div className="relative">

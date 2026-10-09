@@ -64,7 +64,10 @@ export const OcrPdfTool: React.FC = () => {
       addRecentActivity('ocr-pdf', `OCR (${language.toUpperCase()})`, file.name, 'completed');
     } catch (err: unknown) {
       console.error(err);
-      const msg = 'OCR recognition failed: ' + String(err);
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+      const msg = isOffline
+        ? `OCR language model (${language.toUpperCase()}) is not yet cached offline. Please connect to the internet once to load the language pack into your browser.`
+        : 'OCR recognition failed: ' + String(err);
       setErrorMessage(msg);
       updateJob(jobId, {
         status: 'failed',

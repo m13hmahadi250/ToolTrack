@@ -100,22 +100,27 @@ export const ProductivityUtilitiesTool: React.FC<ProductivityUtilitiesToolProps>
   // ----------------------------------------------------
   // 2. ASPECT RATIO CALCULATOR STATE
   // ----------------------------------------------------
-  const [ratioWidth, setRatioWidth] = useState<number>(1920);
-  const [ratioHeight, setRatioHeight] = useState<number>(1080);
-  const [targetWidth, setTargetWidth] = useState<number>(1280);
+  const [ratioWidth, setRatioWidth] = useState<string>('');
+  const [ratioHeight, setRatioHeight] = useState<string>('');
+  const [targetWidth, setTargetWidth] = useState<string>('');
 
   // GCD helper
   const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
 
   const simplifiedRatio = useMemo(() => {
-    if (!ratioWidth || !ratioHeight) return '1:1';
-    const divisor = gcd(ratioWidth, ratioHeight);
-    return `${ratioWidth / divisor}:${ratioHeight / divisor}`;
+    const w = parseInt(ratioWidth, 10);
+    const h = parseInt(ratioHeight, 10);
+    if (isNaN(w) || isNaN(h) || w <= 0 || h <= 0) return '—';
+    const divisor = gcd(w, h);
+    return `${w / divisor}:${h / divisor}`;
   }, [ratioWidth, ratioHeight]);
 
   const calculatedTargetHeight = useMemo(() => {
-    if (!ratioWidth || !ratioHeight || !targetWidth) return 0;
-    return Math.round((targetWidth / ratioWidth) * ratioHeight);
+    const w = parseInt(ratioWidth, 10);
+    const h = parseInt(ratioHeight, 10);
+    const tw = parseInt(targetWidth, 10);
+    if (isNaN(w) || isNaN(h) || isNaN(tw) || w <= 0 || h <= 0 || tw <= 0) return '—';
+    return `${Math.round((tw / w) * h)} px`;
   }, [ratioWidth, ratioHeight, targetWidth]);
 
   // ----------------------------------------------------
@@ -337,8 +342,8 @@ export const ProductivityUtilitiesTool: React.FC<ProductivityUtilitiesToolProps>
                   <button
                     key={p.label}
                     onClick={() => {
-                      setRatioWidth(p.w);
-                      setRatioHeight(p.h);
+                      setRatioWidth(String(p.w));
+                      setRatioHeight(String(p.h));
                     }}
                     className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition cursor-pointer"
                   >
@@ -355,8 +360,9 @@ export const ProductivityUtilitiesTool: React.FC<ProductivityUtilitiesToolProps>
                 <input
                   type="number"
                   value={ratioWidth}
-                  onChange={(e) => setRatioWidth(parseInt(e.target.value) || 0)}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono focus:outline-none"
+                  onChange={(e) => setRatioWidth(e.target.value)}
+                  placeholder="e.g. 1920"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono placeholder-slate-400 focus:outline-none"
                 />
               </div>
 
@@ -365,8 +371,9 @@ export const ProductivityUtilitiesTool: React.FC<ProductivityUtilitiesToolProps>
                 <input
                   type="number"
                   value={ratioHeight}
-                  onChange={(e) => setRatioHeight(parseInt(e.target.value) || 0)}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono focus:outline-none"
+                  onChange={(e) => setRatioHeight(e.target.value)}
+                  placeholder="e.g. 1080"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono placeholder-slate-400 focus:outline-none"
                 />
               </div>
             </div>
@@ -390,14 +397,15 @@ export const ProductivityUtilitiesTool: React.FC<ProductivityUtilitiesToolProps>
                   <input
                     type="number"
                     value={targetWidth}
-                    onChange={(e) => setTargetWidth(parseInt(e.target.value) || 0)}
-                    className="w-full p-2.5 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono focus:outline-none"
+                    onChange={(e) => setTargetWidth(e.target.value)}
+                    placeholder="e.g. 1280"
+                    className="w-full p-2.5 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono placeholder-slate-400 focus:outline-none"
                   />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-slate-500">Calculated Height</label>
                   <div className="w-full p-2.5 bg-slate-200/60 dark:bg-slate-800 rounded-xl text-xs font-mono font-bold text-slate-800 dark:text-slate-200">
-                    {calculatedTargetHeight} px
+                    {calculatedTargetHeight}
                   </div>
                 </div>
               </div>

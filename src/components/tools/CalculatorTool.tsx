@@ -200,7 +200,7 @@ export const CalculatorTool: React.FC<CalculatorToolProps> = ({ initialTab = 'ca
     | 'digital';
 
   const [unitCategory, setUnitCategory] = useState<UnitCategory>('length');
-  const [unitAmount, setUnitAmount] = useState<number>(100);
+  const [unitAmount, setUnitAmount] = useState<string>('');
   const [unitFrom, setUnitFrom] = useState('meters');
   const [unitTo, setUnitTo] = useState('feet');
 
@@ -308,42 +308,47 @@ export const CalculatorTool: React.FC<CalculatorToolProps> = ({ initialTab = 'ca
   }, [unitCategory]);
 
   const convertedUnitValue = useMemo(() => {
+    if (unitAmount.trim() === '') return '';
+    const num = parseFloat(unitAmount);
+    if (isNaN(num)) return '';
     const cat = unitDefinitions[unitCategory];
-    if (!cat || !cat.units[unitFrom] || !cat.units[unitTo]) return 0;
-    const base = cat.units[unitFrom].toBase(unitAmount);
+    if (!cat || !cat.units[unitFrom] || !cat.units[unitTo]) return '';
+    const base = cat.units[unitFrom].toBase(num);
     const converted = cat.units[unitTo].fromBase(base);
-    return Math.round(converted * 1e8) / 1e8;
+    return String(Math.round(converted * 1e8) / 1e8);
   }, [unitCategory, unitAmount, unitFrom, unitTo]);
 
   // ----------------------------------------------------
   // 3. PERCENTAGE CALCULATOR STATE
   // ----------------------------------------------------
-  const [pctVal1, setPctVal1] = useState<number>(20);
-  const [pctVal2, setPctVal2] = useState<number>(150);
+  const [pctVal1, setPctVal1] = useState<string>('');
+  const [pctVal2, setPctVal2] = useState<string>('');
 
-  const [pctA, setPctA] = useState<number>(45);
-  const [pctB, setPctB] = useState<number>(200);
+  const [pctA, setPctA] = useState<string>('');
+  const [pctB, setPctB] = useState<string>('');
 
-  const [pctOld, setPctOld] = useState<number>(80);
-  const [pctNew, setPctNew] = useState<number>(120);
+  const [pctOld, setPctOld] = useState<string>('');
+  const [pctNew, setPctNew] = useState<string>('');
 
   // ----------------------------------------------------
   // 4. DATE CALCULATOR STATE
   // ----------------------------------------------------
-  const [date1, setDate1] = useState(() => new Date().toISOString().split('T')[0]);
-  const [date2, setDate2] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return d.toISOString().split('T')[0];
-  });
+  const [date1, setDate1] = useState('');
+  const [date2, setDate2] = useState('');
 
-  const [dateBase, setDateBase] = useState(() => new Date().toISOString().split('T')[0]);
-  const [dateOffsetDays, setDateOffsetDays] = useState<number>(14);
+  const [dateBase, setDateBase] = useState('');
+  const [dateOffsetDays, setDateOffsetDays] = useState<string>('');
   const [dateOffsetOp, setDateOffsetOp] = useState<'add' | 'subtract'>('add');
 
   const dateDiffResult = useMemo(() => {
+    if (!date1 || !date2) {
+      return { totalDays: '—', weeks: '—', remDays: '—', workdays: '—', pctYear: '—' };
+    }
     const d1 = new Date(date1);
     const d2 = new Date(date2);
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) {
+      return { totalDays: '—', weeks: '—', remDays: '—', workdays: '—', pctYear: '—' };
+    }
     const diffTime = Math.abs(d2.getTime() - d1.getTime());
     const totalDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
     const weeks = Math.floor(totalDays / 7);
@@ -360,12 +365,23 @@ export const CalculatorTool: React.FC<CalculatorToolProps> = ({ initialTab = 'ca
       if (day !== 0 && day !== 6) workdays++;
     }
 
-    return { totalDays, weeks, remDays, workdays };
+    const pctYear = `${Math.round((totalDays / 365) * 100)}%`;
+    return {
+      totalDays: String(totalDays),
+      weeks: String(weeks),
+      remDays: String(remDays),
+      workdays: String(workdays),
+      pctYear,
+    };
   }, [date1, date2]);
 
   const dateOffsetResult = useMemo(() => {
+    if (!dateBase || dateOffsetDays.trim() === '') return '—';
+    const numDays = parseInt(dateOffsetDays, 10);
+    if (isNaN(numDays)) return '—';
     const d = new Date(dateBase);
-    const delta = dateOffsetOp === 'add' ? dateOffsetDays : -dateOffsetDays;
+    if (isNaN(d.getTime())) return '—';
+    const delta = dateOffsetOp === 'add' ? numDays : -numDays;
     d.setDate(d.getDate() + delta);
     return d.toLocaleDateString(undefined, {
       weekday: 'long',
@@ -691,8 +707,9 @@ export const CalculatorTool: React.FC<CalculatorToolProps> = ({ initialTab = 'ca
                 <input
                   type="number"
                   value={unitAmount}
-                  onChange={(e) => setUnitAmount(parseFloat(e.target.value) || 0)}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono text-slate-900 dark:text-white focus:outline-none"
+                  onChange={(e) => setUnitAmount(e.target.value)}
+                  placeholder="Enter amount..."
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
                 />
                 <select
                   value={unitFrom}
@@ -726,7 +743,7 @@ export const CalculatorTool: React.FC<CalculatorToolProps> = ({ initialTab = 'ca
               <div className="sm:col-span-5 space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">To</label>
                 <div className="w-full p-2.5 bg-indigo-50/70 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-900 rounded-xl text-sm font-mono font-bold text-indigo-700 dark:text-indigo-300 truncate">
-                  {convertedUnitValue}
+                  {convertedUnitValue || '—'}
                 </div>
                 <select
                   value={unitTo}
@@ -745,11 +762,14 @@ export const CalculatorTool: React.FC<CalculatorToolProps> = ({ initialTab = 'ca
             {/* Action & Result Summary */}
             <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 text-xs">
               <span className="text-slate-500">
-                Formula: {unitAmount} {unitDefinitions[unitCategory].units[unitFrom]?.name} = {convertedUnitValue} {unitDefinitions[unitCategory].units[unitTo]?.name}
+                {unitAmount && convertedUnitValue
+                  ? `Formula: ${unitAmount} ${unitDefinitions[unitCategory].units[unitFrom]?.name} = ${convertedUnitValue} ${unitDefinitions[unitCategory].units[unitTo]?.name}`
+                  : 'Enter an amount above to see instant conversion'}
               </span>
               <button
                 onClick={() => copyVal(String(convertedUnitValue))}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold transition cursor-pointer flex items-center gap-1.5"
+                disabled={!convertedUnitValue}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300 font-semibold transition cursor-pointer flex items-center gap-1.5"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copied ? 'Copied' : 'Copy'}</span>
@@ -772,19 +792,26 @@ export const CalculatorTool: React.FC<CalculatorToolProps> = ({ initialTab = 'ca
               <input
                 type="number"
                 value={pctVal1}
-                onChange={(e) => setPctVal1(parseFloat(e.target.value) || 0)}
-                className="w-24 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-sm focus:outline-none"
+                onChange={(e) => setPctVal1(e.target.value)}
+                placeholder="20"
+                className="w-24 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-sm placeholder-slate-400 focus:outline-none"
               />
               <span className="text-slate-500 text-xs">% of</span>
               <input
                 type="number"
                 value={pctVal2}
-                onChange={(e) => setPctVal2(parseFloat(e.target.value) || 0)}
-                className="w-28 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-sm focus:outline-none"
+                onChange={(e) => setPctVal2(e.target.value)}
+                placeholder="150"
+                className="w-28 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-sm placeholder-slate-400 focus:outline-none"
               />
               <span className="font-bold text-slate-500">=</span>
-              <div className="px-3 py-2 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 rounded-xl font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                {Math.round(((pctVal1 * pctVal2) / 100) * 1e6) / 1e6}
+              <div className="px-3 py-2 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 rounded-xl font-mono font-bold text-indigo-600 dark:text-indigo-400 min-w-16 text-center">
+                {(() => {
+                  const v1 = parseFloat(pctVal1);
+                  const v2 = parseFloat(pctVal2);
+                  if (isNaN(v1) || isNaN(v2)) return '—';
+                  return Math.round(((v1 * v2) / 100) * 1e6) / 1e6;
+                })()}
               </div>
             </div>
           </div>
@@ -798,19 +825,26 @@ export const CalculatorTool: React.FC<CalculatorToolProps> = ({ initialTab = 'ca
               <input
                 type="number"
                 value={pctA}
-                onChange={(e) => setPctA(parseFloat(e.target.value) || 0)}
-                className="w-24 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-sm focus:outline-none"
+                onChange={(e) => setPctA(e.target.value)}
+                placeholder="45"
+                className="w-24 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-sm placeholder-slate-400 focus:outline-none"
               />
               <span className="text-slate-500 text-xs">is what % of</span>
               <input
                 type="number"
                 value={pctB}
-                onChange={(e) => setPctB(parseFloat(e.target.value) || 0)}
-                className="w-28 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-sm focus:outline-none"
+                onChange={(e) => setPctB(e.target.value)}
+                placeholder="200"
+                className="w-28 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-sm placeholder-slate-400 focus:outline-none"
               />
               <span className="font-bold text-slate-500">=</span>
-              <div className="px-3 py-2 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 rounded-xl font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                {pctB !== 0 ? `${Math.round(((pctA / pctB) * 100) * 1e4) / 1e4}%` : '0%'}
+              <div className="px-3 py-2 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 rounded-xl font-mono font-bold text-indigo-600 dark:text-indigo-400 min-w-16 text-center">
+                {(() => {
+                  const a = parseFloat(pctA);
+                  const b = parseFloat(pctB);
+                  if (isNaN(a) || isNaN(b)) return '—';
+                  return b !== 0 ? `${Math.round(((a / b) * 100) * 1e4) / 1e4}%` : '0%';
+                })()}
               </div>
             </div>
           </div>
@@ -825,20 +859,31 @@ export const CalculatorTool: React.FC<CalculatorToolProps> = ({ initialTab = 'ca
               <input
                 type="number"
                 value={pctOld}
-                onChange={(e) => setPctOld(parseFloat(e.target.value) || 0)}
-                className="w-24 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-sm focus:outline-none"
+                onChange={(e) => setPctOld(e.target.value)}
+                placeholder="80"
+                className="w-24 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-sm placeholder-slate-400 focus:outline-none"
               />
               <span className="text-slate-500 text-xs">to</span>
               <input
                 type="number"
                 value={pctNew}
-                onChange={(e) => setPctNew(parseFloat(e.target.value) || 0)}
-                className="w-28 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-sm focus:outline-none"
+                onChange={(e) => setPctNew(e.target.value)}
+                placeholder="120"
+                className="w-28 p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono text-sm placeholder-slate-400 focus:outline-none"
               />
               <span className="font-bold text-slate-500">=</span>
               {(() => {
-                const diff = pctNew - pctOld;
-                const pct = pctOld !== 0 ? Math.round(((diff / pctOld) * 100) * 1e2) / 1e2 : 0;
+                const oldN = parseFloat(pctOld);
+                const newN = parseFloat(pctNew);
+                if (isNaN(oldN) || isNaN(newN)) {
+                  return (
+                    <div className="px-3 py-2 rounded-xl font-mono font-bold border border-slate-200 dark:border-slate-700 text-slate-400 text-sm min-w-16 text-center">
+                      —
+                    </div>
+                  );
+                }
+                const diff = newN - oldN;
+                const pct = oldN !== 0 ? Math.round(((diff / oldN) * 100) * 1e2) / 1e2 : 0;
                 const isIncrease = diff >= 0;
                 return (
                   <div
@@ -910,7 +955,7 @@ export const CalculatorTool: React.FC<CalculatorToolProps> = ({ initialTab = 'ca
               <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
                 <div className="text-[10px] font-bold text-slate-500 uppercase">% of Year</div>
                 <div className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">
-                  {Math.round((dateDiffResult.totalDays / 365) * 100)}%
+                  {dateDiffResult.pctYear}
                 </div>
               </div>
             </div>
@@ -963,8 +1008,9 @@ export const CalculatorTool: React.FC<CalculatorToolProps> = ({ initialTab = 'ca
                   min="1"
                   max="3650"
                   value={dateOffsetDays}
-                  onChange={(e) => setDateOffsetDays(parseInt(e.target.value) || 0)}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none"
+                  onChange={(e) => setDateOffsetDays(e.target.value)}
+                  placeholder="e.g. 14"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
                 />
               </div>
             </div>
@@ -976,7 +1022,8 @@ export const CalculatorTool: React.FC<CalculatorToolProps> = ({ initialTab = 'ca
               </div>
               <button
                 onClick={() => copyVal(dateOffsetResult)}
-                className="p-2 rounded-lg bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-indigo-600 border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+                disabled={dateOffsetResult === '—'}
+                className="p-2 rounded-lg bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-200 dark:border-slate-700 transition cursor-pointer"
                 title="Copy Result"
               >
                 <Copy className="w-3.5 h-3.5" />

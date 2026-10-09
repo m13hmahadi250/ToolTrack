@@ -227,22 +227,14 @@ export const DevDataUtilitiesTool: React.FC<DevDataUtilitiesToolProps> = ({ init
   // ----------------------------------------------------
   // 1. JSON FORMATTER & VALIDATOR
   // ----------------------------------------------------
-  const [jsonInput, setJsonInput] = useState(
-    JSON.stringify(
-      {
-        app: 'ToolTrack',
-        version: '2.5.0',
-        features: ['pdf', 'images', 'whiteboard', 'utilities'],
-        clientSide: true,
-        stats: { tools: 45, offlineReady: true },
-      },
-      null,
-      2
-    )
-  );
+  const [jsonInput, setJsonInput] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
 
   const formatJson = (spaces: number = 2) => {
+    if (!jsonInput.trim()) {
+      setJsonError('Please enter JSON text to format');
+      return;
+    }
     try {
       const parsed = JSON.parse(jsonInput);
       setJsonInput(JSON.stringify(parsed, null, spaces));
@@ -253,6 +245,10 @@ export const DevDataUtilitiesTool: React.FC<DevDataUtilitiesToolProps> = ({ init
   };
 
   const minifyJson = () => {
+    if (!jsonInput.trim()) {
+      setJsonError('Please enter JSON text to minify');
+      return;
+    }
     try {
       const parsed = JSON.parse(jsonInput);
       setJsonInput(JSON.stringify(parsed));
@@ -267,14 +263,17 @@ export const DevDataUtilitiesTool: React.FC<DevDataUtilitiesToolProps> = ({ init
   // ----------------------------------------------------
   const [csvDirection, setCsvDirection] = useState<'csv2json' | 'json2csv'>('csv2json');
   const [csvDelimiter, setCsvDelimiter] = useState<',' | ';' | '\t'>(',');
-  const [csvInput, setCsvInput] = useState(
-    'id,name,role,department\n1,Alice Johnson,Designer,Product\n2,Bob Smith,Engineer,Platform\n3,Carol Danvers,Manager,Operations'
-  );
+  const [csvInput, setCsvInput] = useState('');
   const [csvOutput, setCsvOutput] = useState('');
   const [csvError, setCsvError] = useState<string | null>(null);
 
   const convertCsvJson = () => {
     setCsvError(null);
+    if (!csvInput.trim()) {
+      setCsvError('Please enter CSV or JSON text to convert');
+      setCsvOutput('');
+      return;
+    }
     try {
       if (csvDirection === 'csv2json') {
         const lines = csvInput.trim().split(/\r\n|\r|\n/);
@@ -339,12 +338,17 @@ export const DevDataUtilitiesTool: React.FC<DevDataUtilitiesToolProps> = ({ init
   // 3. BASE64 ENCODER / DECODER
   // ----------------------------------------------------
   const [b64Mode, setB64Mode] = useState<'encode' | 'decode'>('encode');
-  const [b64Input, setB64Input] = useState('ToolTrack — All Your Files & Productivity Tools in One Place');
+  const [b64Input, setB64Input] = useState('');
   const [b64Output, setB64Output] = useState('');
   const [b64Error, setB64Error] = useState<string | null>(null);
 
   const processBase64 = () => {
     setB64Error(null);
+    if (!b64Input.trim()) {
+      setB64Error('Please enter text to encode or decode');
+      setB64Output('');
+      return;
+    }
     try {
       if (b64Mode === 'encode') {
         // UTF-8 safe encoding using TextEncoder
@@ -386,10 +390,14 @@ export const DevDataUtilitiesTool: React.FC<DevDataUtilitiesToolProps> = ({ init
   // ----------------------------------------------------
   const [urlMode, setUrlMode] = useState<'encode' | 'decode'>('encode');
   const [urlComponentOnly, setUrlComponentOnly] = useState(true);
-  const [urlInput, setUrlInput] = useState('https://example.com/search?q=ToolTrack PDF & Tools#top');
+  const [urlInput, setUrlInput] = useState('');
   const [urlOutput, setUrlOutput] = useState('');
 
   const processUrl = () => {
+    if (!urlInput.trim()) {
+      setUrlOutput('');
+      return;
+    }
     try {
       if (urlMode === 'encode') {
         setUrlOutput(urlComponentOnly ? encodeURIComponent(urlInput) : encodeURI(urlInput));
@@ -426,7 +434,7 @@ export const DevDataUtilitiesTool: React.FC<DevDataUtilitiesToolProps> = ({ init
   // ----------------------------------------------------
   // 6. HASH GENERATOR (SHA-1, SHA-256, SHA-384, SHA-512, MD5)
   // ----------------------------------------------------
-  const [hashInput, setHashInput] = useState('ToolTrack2026');
+  const [hashInput, setHashInput] = useState('');
   const [hashResults, setHashResults] = useState<{
     md5: string;
     sha1: string;
@@ -442,6 +450,16 @@ export const DevDataUtilitiesTool: React.FC<DevDataUtilitiesToolProps> = ({ init
   });
 
   const computeHashes = async (textToHash: string) => {
+    if (!textToHash) {
+      setHashResults({
+        md5: '',
+        sha1: '',
+        sha256: '',
+        sha384: '',
+        sha512: '',
+      });
+      return;
+    }
     const encoder = new TextEncoder();
     const data = encoder.encode(textToHash);
 
@@ -644,7 +662,8 @@ export const DevDataUtilitiesTool: React.FC<DevDataUtilitiesToolProps> = ({ init
                 value={csvInput}
                 onChange={(e) => setCsvInput(e.target.value)}
                 rows={12}
-                className="w-full p-3 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                placeholder={csvDirection === 'csv2json' ? 'Enter CSV data (e.g. id,name,role)...' : 'Enter JSON data array...'}
+                className="w-full p-3 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-500"
               />
             </div>
 
@@ -743,7 +762,8 @@ export const DevDataUtilitiesTool: React.FC<DevDataUtilitiesToolProps> = ({ init
                 value={b64Input}
                 onChange={(e) => setB64Input(e.target.value)}
                 rows={10}
-                className="w-full p-3 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none"
+                placeholder="Enter text to encode or Base64 string to decode..."
+                className="w-full p-3 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none"
               />
             </div>
 
@@ -825,7 +845,8 @@ export const DevDataUtilitiesTool: React.FC<DevDataUtilitiesToolProps> = ({ init
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
                 rows={8}
-                className="w-full p-3 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none"
+                placeholder="Enter URL or query string to encode or decode..."
+                className="w-full p-3 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none"
               />
             </div>
 
@@ -976,14 +997,15 @@ export const DevDataUtilitiesTool: React.FC<DevDataUtilitiesToolProps> = ({ init
                     <span>{h.label}</span>
                     <button
                       onClick={() => copyVal(h.val)}
-                      className="text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1 font-semibold"
+                      disabled={!h.val}
+                      className="text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-40 disabled:hover:no-underline disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 font-semibold"
                     >
                       <Copy className="w-3 h-3" />
                       <span>Copy</span>
                     </button>
                   </div>
                   <div className="font-mono text-xs text-slate-800 dark:text-slate-200 break-all select-all">
-                    {h.val || 'Computing...'}
+                    {h.val || (hashInput ? 'Computing...' : '—')}
                   </div>
                 </div>
               ))}

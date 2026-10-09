@@ -22,7 +22,7 @@ export const ImageWatermarkTool: React.FC = () => {
   const [watermarkType, setWatermarkType] = useState<'text' | 'image'>('text');
 
   // Text settings
-  const [watermarkText, setWatermarkText] = useState('CONFIDENTIAL');
+  const [watermarkText, setWatermarkText] = useState('');
   const [fontFamily, setFontFamily] = useState('Inter, sans-serif');
   const [fontSize, setFontSize] = useState(48);
   const [textColor, setTextColor] = useState('#ffffff');
@@ -323,7 +323,8 @@ export const ImageWatermarkTool: React.FC = () => {
                       type="text"
                       value={watermarkText}
                       onChange={(e) => setWatermarkText(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
+                      placeholder="Enter watermark text (e.g. CONFIDENTIAL)..."
+                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 placeholder-slate-400 font-bold"
                     />
                   </div>
 

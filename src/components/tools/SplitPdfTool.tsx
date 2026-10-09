@@ -12,7 +12,7 @@ export const SplitPdfTool: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [splitMode, setSplitMode] = useState<'every' | 'ranges'>('ranges');
-  const [rangeInput, setRangeInput] = useState('1-2, 3');
+  const [rangeInput, setRangeInput] = useState('');
 
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<{ name: string; bytes: Uint8Array }[]>([]);
@@ -33,11 +33,6 @@ export const SplitPdfTool: React.FC = () => {
       const buffer = await f.arrayBuffer();
       const info = await getPdfPagesInfo(buffer);
       setPageCount(info.length);
-      if (info.length > 2) {
-        setRangeInput(`1-${Math.ceil(info.length / 2)}, ${Math.ceil(info.length / 2) + 1}-${info.length}`);
-      } else {
-        setRangeInput('1, 2');
-      }
     } catch (e) {
       console.error(e);
     }
@@ -68,6 +63,14 @@ export const SplitPdfTool: React.FC = () => {
       if (splitMode === 'every') {
         generated = await splitEveryPage(buffer);
       } else {
+        if (!rangeInput.trim()) {
+          setProcessing(false);
+          updateJob(jobId, {
+            status: 'failed',
+            errorMessage: 'Please enter page ranges to extract (e.g. 1-3, 5-8)',
+          });
+          return;
+        }
         generated = await splitPdfByRanges(buffer, rangeInput);
       }
 

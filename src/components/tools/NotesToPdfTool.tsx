@@ -31,7 +31,7 @@ export const NotesToPdfTool: React.FC = () => {
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [enhancePaper, setEnhancePaper] = useState(true);
   const [colorMode, setColorMode] = useState<'clean-color' | 'high-contrast-bw' | 'original'>('clean-color');
-  const [documentTitle, setDocumentTitle] = useState('Lecture Notes');
+  const [documentTitle, setDocumentTitle] = useState('');
 
   const [processing, setProcessing] = useState(false);
   const [outputPdfBlob, setOutputPdfBlob] = useState<Blob | null>(null);
@@ -260,7 +260,8 @@ export const NotesToPdfTool: React.FC = () => {
                   type="text"
                   value={documentTitle}
                   onChange={(e) => setDocumentTitle(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
+                  placeholder="Enter document title (e.g. Lecture Notes)..."
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 placeholder-slate-400 font-bold"
                 />
               </div>
             </div>

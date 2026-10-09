@@ -98,7 +98,7 @@ export const SecurityUtilitiesTool: React.FC<SecurityUtilitiesToolProps> = ({ in
   // ----------------------------------------------------
   // 2. PASSWORD STRENGTH ANALYZER STATE
   // ----------------------------------------------------
-  const [evalPassword, setEvalPassword] = useState('ToolTrack$2026!Secure');
+  const [evalPassword, setEvalPassword] = useState('');
   const [evalVisible, setEvalVisible] = useState(true);
 
   const strengthAnalysis = useMemo(() => {

@@ -38,7 +38,7 @@ export const BatchImageProcessor: React.FC = () => {
   const [quality, setQuality] = useState<number>(0.85);
   const [resizePercent, setResizePercent] = useState<number>(75);
   const [targetFormat, setTargetFormat] = useState<SupportedImageFormat>('image/webp');
-  const [watermarkText, setWatermarkText] = useState('TOOLTRACK PRO');
+  const [watermarkText, setWatermarkText] = useState('');
 
   const [processing, setProcessing] = useState(false);
   const [zipBlob, setZipBlob] = useState<Blob | null>(null);
@@ -373,7 +373,8 @@ export const BatchImageProcessor: React.FC = () => {
                     type="text"
                     value={watermarkText}
                     onChange={(e) => setWatermarkText(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
+                    placeholder="Enter watermark text (e.g. COPYRIGHT, DRAFT)..."
+                    className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 placeholder-slate-400 font-bold"
                   />
                 </div>
               )}

@@ -33,29 +33,29 @@ export const QrCodeTool: React.FC<QrCodeToolProps> = ({ initialTab = 'generator'
 
   // Generator State
   const [contentType, setContentType] = useState<QrContentType>('url');
-  const [urlInput, setUrlInput] = useState('https://tooltracker.vercel.app');
-  const [textInput, setTextInput] = useState('Hello from ToolTrack!');
+  const [urlInput, setUrlInput] = useState('');
+  const [textInput, setTextInput] = useState('');
 
   // Wi-Fi inputs
-  const [wifiSsid, setWifiSsid] = useState('MyHomeNetwork');
-  const [wifiPassword, setWifiPassword] = useState('SecretPassword123');
+  const [wifiSsid, setWifiSsid] = useState('');
+  const [wifiPassword, setWifiPassword] = useState('');
   const [wifiAuth, setWifiAuth] = useState<'WPA' | 'WEP' | 'nopass'>('WPA');
   const [wifiHidden, setWifiHidden] = useState(false);
 
   // Email inputs
-  const [emailTo, setEmailTo] = useState('hello@example.com');
-  const [emailSubject, setEmailSubject] = useState('Inquiry');
-  const [emailBody, setEmailBody] = useState('Hi, I am contacting you regarding...');
+  const [emailTo, setEmailTo] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
 
   // Phone inputs
-  const [phoneNumber, setPhoneNumber] = useState('+1 555 123 4567');
+  const [phoneNumber, setPhoneNumber] = useState('');
 
   // Contact inputs (vCard)
-  const [contactName, setContactName] = useState('Jane Doe');
-  const [contactOrg, setContactOrg] = useState('Acme Corp');
-  const [contactPhone, setContactPhone] = useState('+1 555 987 6543');
-  const [contactEmail, setContactEmail] = useState('jane.doe@example.com');
-  const [contactUrl, setContactUrl] = useState('https://example.com');
+  const [contactName, setContactName] = useState('');
+  const [contactOrg, setContactOrg] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactUrl, setContactUrl] = useState('');
 
   // QR Customization
   const [fgColor, setFgColor] = useState('#000000');
@@ -84,28 +84,32 @@ export const QrCodeTool: React.FC<QrCodeToolProps> = ({ initialTab = 'generator'
   const qrPayload = React.useMemo(() => {
     switch (contentType) {
       case 'url':
-        return urlInput.trim() || 'https://';
+        return urlInput.trim();
       case 'text':
-        return textInput || '';
+        return textInput.trim();
       case 'wifi':
+        if (!wifiSsid.trim()) return '';
         return `WIFI:S:${wifiSsid};T:${wifiAuth};P:${wifiPassword};H:${wifiHidden ? 'true' : 'false'};;`;
       case 'email':
-        return `mailto:${emailTo}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+        if (!emailTo.trim()) return '';
+        return `mailto:${emailTo}${emailSubject ? `?subject=${encodeURIComponent(emailSubject)}` : ''}${emailBody ? `${emailSubject ? '&' : '?'}body=${encodeURIComponent(emailBody)}` : ''}`;
       case 'phone':
+        if (!phoneNumber.trim()) return '';
         return `tel:${phoneNumber.replace(/\s+/g, '')}`;
       case 'contact':
+        if (!contactName.trim() && !contactPhone.trim() && !contactEmail.trim()) return '';
         return [
           'BEGIN:VCARD',
           'VERSION:3.0',
-          `FN:${contactName}`,
-          `ORG:${contactOrg}`,
-          `TEL:${contactPhone}`,
-          `EMAIL:${contactEmail}`,
-          `URL:${contactUrl}`,
+          contactName ? `FN:${contactName}` : '',
+          contactOrg ? `ORG:${contactOrg}` : '',
+          contactPhone ? `TEL:${contactPhone}` : '',
+          contactEmail ? `EMAIL:${contactEmail}` : '',
+          contactUrl ? `URL:${contactUrl}` : '',
           'END:VCARD',
-        ].join('\n');
+        ].filter(Boolean).join('\n');
       default:
-        return urlInput;
+        return urlInput.trim();
     }
   }, [
     contentType,
@@ -128,7 +132,11 @@ export const QrCodeTool: React.FC<QrCodeToolProps> = ({ initialTab = 'generator'
 
   // Generate QR Code on any input change
   useEffect(() => {
-    if (!qrPayload) return;
+    if (!qrPayload) {
+      setQrDataUrl('');
+      setQrSvgString('');
+      return;
+    }
 
     let isMounted = true;
 
@@ -665,22 +673,29 @@ export const QrCodeTool: React.FC<QrCodeToolProps> = ({ initialTab = 'generator'
                   className="rounded-lg shadow-xs max-w-[240px] max-h-[240px] object-contain"
                 />
               ) : (
-                <div className="w-56 h-56 flex items-center justify-center text-slate-400 text-xs">
-                  Generating QR...
+                <div className="w-56 h-56 flex flex-col items-center justify-center text-slate-400 text-xs p-4 text-center gap-2">
+                  <QrCode className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                  <span>Enter details above to generate QR Code</span>
                 </div>
               )}
             </div>
 
-            <div className="text-[11px] text-slate-500 font-mono break-all line-clamp-2 px-2">
-              {qrPayload}
-            </div>
+            {qrPayload ? (
+              <div className="text-[11px] text-slate-500 font-mono break-all line-clamp-2 px-2">
+                {qrPayload}
+              </div>
+            ) : (
+              <div className="text-[11px] text-slate-400 italic px-2">
+                No content entered yet
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button
                 onClick={downloadPng}
                 disabled={!qrDataUrl}
-                className="w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                className="w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Download className="w-4 h-4" />
                 <span>Download PNG</span>
@@ -689,7 +704,7 @@ export const QrCodeTool: React.FC<QrCodeToolProps> = ({ initialTab = 'generator'
               <button
                 onClick={downloadSvg}
                 disabled={!qrSvgString}
-                className="w-full py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 text-slate-800 dark:text-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                className="w-full py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-800 dark:text-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
               >
                 <Download className="w-4 h-4" />
                 <span>Download SVG</span>
@@ -698,7 +713,8 @@ export const QrCodeTool: React.FC<QrCodeToolProps> = ({ initialTab = 'generator'
 
             <button
               onClick={() => copyToClipboard(qrPayload)}
-              className="w-full py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs text-slate-600 dark:text-slate-400 font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              disabled={!qrPayload}
+              className="w-full py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-xs text-slate-600 dark:text-slate-400 font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copied ? 'Copied to Clipboard!' : 'Copy Raw Data'}</span>

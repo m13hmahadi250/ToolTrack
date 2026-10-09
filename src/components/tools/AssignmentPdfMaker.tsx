@@ -35,8 +35,8 @@ export const AssignmentPdfMaker: React.FC = () => {
 
   // Academic Banner Metadata
   const [includeBanner, setIncludeBanner] = useState(true);
-  const [courseName, setCourseName] = useState('Computer Science 101');
-  const [assignmentTitle, setAssignmentTitle] = useState('Homework Assignment 2');
+  const [courseName, setCourseName] = useState('');
+  const [assignmentTitle, setAssignmentTitle] = useState('');
   const [studentName, setStudentName] = useState(() => {
     return typeof window !== 'undefined' ? localStorage.getItem('tt_assignment_student_name') || '' : '';
   });

@@ -2,11 +2,10 @@ import './pdfPolyfill';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { DetectedPageInfo } from '../types';
 
-// Set up PDF.js worker
+// Set up PDF.js worker (uses local bundled worker first for 100% offline support)
 if (typeof window !== 'undefined') {
   try {
-    // In modern bundlers, we point to the unpkg / cdnjs worker matching version or local
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
   } catch {
     // Fallback is non-blocking
   }

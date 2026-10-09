@@ -35,9 +35,7 @@ export const TextUtilitiesTool: React.FC<TextUtilitiesToolProps> = ({ initialTab
   const [copied, setCopied] = useState(false);
 
   // Common Text input
-  const [text, setText] = useState(
-    'ToolTrack provides fast, 100% private file and productivity tools directly in your browser. Work with documents, images, text, and everyday utilities with zero server uploads!'
-  );
+  const [text, setText] = useState('');
 
   // Text Cleaner & Transform options
   const [findText, setFindText] = useState('');
@@ -47,17 +45,11 @@ export const TextUtilitiesTool: React.FC<TextUtilitiesToolProps> = ({ initialTab
   const [replaceMessage, setReplaceMessage] = useState('');
 
   // Diff Checker state
-  const [diffOriginal, setDiffOriginal] = useState(
-    'The quick brown fox jumps over the lazy dog.\nToolTrack is simple and fast.\nClient-side file processing.'
-  );
-  const [diffModified, setDiffModified] = useState(
-    'The fast brown fox jumps over the sleepy dog.\nToolTrack is simple, private and fast.\nClient-side file and text processing.'
-  );
+  const [diffOriginal, setDiffOriginal] = useState('');
+  const [diffModified, setDiffModified] = useState('');
 
   // Markdown Editor state
-  const [markdownText, setMarkdownText] = useState(
-    `# Welcome to ToolTrack Markdown Editor\n\nEdit your notes and documents with **instant live preview**.\n\n### Features\n- 100% Client-side privacy\n- Fast rendering\n- Export to .md or copy formatted HTML\n\n> "Simplicity is prerequisite for reliability."\n\n\`\`\`js\nconst status = "Private & Fast";\nconsole.log(status);\n\`\`\``
-  );
+  const [markdownText, setMarkdownText] = useState('');
   const [markdownViewMode, setMarkdownViewMode] = useState<'split' | 'edit' | 'preview'>('split');
 
   const fileInputRef = useRef<HTMLInputElement>(null);

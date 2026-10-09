@@ -85,7 +85,7 @@ export const PdfEditTool: React.FC = () => {
 
   // Tool Specific Options
   // Text Options
-  const [inputText, setInputText] = useState('Approved');
+  const [inputText, setInputText] = useState('');
   const [fontSize, setFontSize] = useState(14);
   const [textColor, setTextColor] = useState('#2563eb');
 
@@ -97,7 +97,7 @@ export const PdfEditTool: React.FC = () => {
 
   // Watermark Options
   const [watermarkEnabled, setWatermarkEnabled] = useState(false);
-  const [watermarkText, setWatermarkText] = useState('CONFIDENTIAL');
+  const [watermarkText, setWatermarkText] = useState('');
   const [watermarkOpacity, setWatermarkOpacity] = useState(0.2);
   const [watermarkFontSize, setWatermarkFontSize] = useState(48);
 
@@ -845,7 +845,8 @@ export const PdfEditTool: React.FC = () => {
                             type="text"
                             value={watermarkText}
                             onChange={(e) => setWatermarkText(e.target.value)}
-                            className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold"
+                            placeholder="e.g. CONFIDENTIAL, DRAFT..."
+                            className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 placeholder-slate-400 text-slate-900 dark:text-white font-bold"
                           />
                         </div>
                         <div>

@@ -23,7 +23,7 @@ export const ImageTextTool: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [layers, setLayers] = useState<TextLayerOptions[]>([
     {
-      text: 'Add Your Title Here',
+      text: '',
       fontFamily: 'Inter, sans-serif',
       fontSize: 48,
       color: '#ffffff',
@@ -231,7 +231,8 @@ export const ImageTextTool: React.FC = () => {
                     rows={2}
                     value={activeLayer.text}
                     onChange={(e) => updateActiveLayer({ text: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-sm"
+                    placeholder="Enter text to overlay on image..."
+                    className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 placeholder-slate-400 font-bold text-sm"
                   />
                 </div>
 

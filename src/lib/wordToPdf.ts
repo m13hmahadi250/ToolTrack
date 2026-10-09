@@ -140,6 +140,10 @@ export async function convertWordToPdf(
     buffer = fileOrBuffer;
   }
 
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('Internet connection required: High-fidelity Word to PDF document conversion requires an active connection to the rendering server. Please reconnect to continue.');
+  }
+
   notify(0.25, 'Sending to native document rendering engine...');
 
   const response = await fetch('/api/convert-word-to-pdf', {
