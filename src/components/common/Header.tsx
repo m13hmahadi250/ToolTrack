@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Clock,
   Menu,
@@ -7,6 +7,7 @@ import {
   Layers,
   Sparkles,
   PenTool,
+  Search,
 } from 'lucide-react';
 import { useToolTrack } from '../../context/ToolTrackContext';
 import { MegaMenu, getIconComponent } from './MegaMenu';
@@ -31,6 +32,7 @@ export const Header: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeDropdownCatId, setActiveDropdownCatId] = useState<string | null>(null);
   const [expandedMobileCat, setExpandedMobileCat] = useState<string | null>(null);
+  const triggerButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const activeJobsCount = jobs.filter((j) => j.status === 'processing' || j.status === 'analyzing').length;
   const completedJobsCount = jobs.filter((j) => j.status === 'completed').length;
@@ -88,15 +90,15 @@ export const Header: React.FC = () => {
               <ToolTrackBrand iconClassName="w-9 h-9 sm:w-10 sm:h-10" />
             </button>
 
-            {/* Desktop Navigation Hierarchy: Home -> Whiteboard -> All ▾ -> Image ▾ -> Student ▾ -> Design ▾ -> PDF ▾ */}
-            <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1 relative flex-nowrap shrink-0 whitespace-nowrap" aria-label="Main Navigation">
+            {/* Desktop Navigation: Home -> Whiteboard PRO -> PDF ▾ -> Convert ▾ -> Images ▾ -> Student ▾ -> Design ▾ -> All Tools ▾ */}
+            <nav className="hidden xl:flex items-center gap-0.5 2xl:gap-1 relative flex-nowrap shrink-0 whitespace-nowrap" aria-label="Main Navigation">
               {/* 1. Home */}
               <button
                 onClick={() => {
                   setActiveToolId(null);
                   setActiveDropdownCatId(null);
                 }}
-                className={`px-2.5 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition cursor-pointer shrink-0 whitespace-nowrap ${
+                className={`px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs 2xl:text-sm font-medium transition cursor-pointer shrink-0 whitespace-nowrap ${
                   activeToolId === null && !activeDropdownCatId
                     ? 'bg-indigo-50/90 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold shadow-2xs'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
@@ -111,7 +113,7 @@ export const Header: React.FC = () => {
                   setActiveToolId('whiteboard');
                   setActiveDropdownCatId(null);
                 }}
-                className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm transition cursor-pointer shrink-0 whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs 2xl:text-sm transition cursor-pointer shrink-0 whitespace-nowrap ${
                   activeToolId === 'whiteboard'
                     ? 'bg-indigo-600 text-white font-semibold shadow-xs'
                     : 'text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40 font-medium'
@@ -129,7 +131,7 @@ export const Header: React.FC = () => {
                 </span>
               </button>
 
-              {/* 3. Category Dropdowns: All ▾, Image ▾, Student ▾, Design ▾, PDF ▾ */}
+              {/* 3. Category Dropdowns: PDF ▾, Convert ▾, Images ▾, Student ▾, Design ▾, Utilities ▾, All Tools ▾ */}
               {HEADER_CATEGORIES.map((cat) => {
                 const isOpen = activeDropdownCatId === cat.id;
                 const isActiveCat = isToolInCat(activeToolId, cat.id);
@@ -137,6 +139,9 @@ export const Header: React.FC = () => {
                 return (
                   <div key={cat.id} className="relative shrink-0">
                     <button
+                      ref={(el) => {
+                        triggerButtonRefs.current[cat.id] = el;
+                      }}
                       onClick={() => {
                         if (cat.id === 'all-tools') {
                           setIsMegaMenuOpen((prev) => !prev);
@@ -145,7 +150,7 @@ export const Header: React.FC = () => {
                           setActiveDropdownCatId((prev) => (prev === cat.id ? null : cat.id));
                         }
                       }}
-                      className={`flex items-center gap-1 px-2.5 xl:px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition cursor-pointer group shrink-0 whitespace-nowrap ${
+                      className={`flex items-center gap-1 px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs 2xl:text-sm font-medium transition cursor-pointer group shrink-0 whitespace-nowrap ${
                         isOpen || isActiveCat
                           ? 'bg-indigo-50/90 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold shadow-2xs'
                           : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
@@ -167,6 +172,7 @@ export const Header: React.FC = () => {
                       <HeaderCategoryDropdown
                         config={cat}
                         isOpen={isOpen}
+                        triggerElement={triggerButtonRefs.current[cat.id]}
                         onClose={() => setActiveDropdownCatId(null)}
                         onSelectTool={(toolId) => {
                           setActiveToolId(toolId);
@@ -188,6 +194,16 @@ export const Header: React.FC = () => {
 
           {/* Right Action Icons */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Mobile Search Icon Toggle */}
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition sm:hidden cursor-pointer"
+              title="Search Tools"
+              aria-label="Search Tools"
+            >
+              <Search className="w-5 h-5" />
+            </button>
+
             {/* In-App PWA Install Prompt */}
             <PWAInstallButton className="hidden sm:flex" />
 
@@ -223,25 +239,25 @@ export const Header: React.FC = () => {
               <Clock className="w-5 h-5" />
             </button>
 
-            {/* Mobile Menu Toggle Button */}
+            {/* Mobile / Tablet Menu Toggle Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition lg:hidden cursor-pointer"
-              aria-label="Toggle mobile menu"
+              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition xl:hidden cursor-pointer"
+              aria-label="Toggle navigation menu"
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
 
-        {/* Mobile Navigation Drawer */}
+        {/* Mobile / Tablet Navigation Drawer */}
         {isMobileMenuOpen && (
           <>
             <div
-              className="fixed inset-0 top-16 z-30 bg-slate-900/50 backdrop-blur-xs cursor-pointer lg:hidden animate-in fade-in duration-150"
+              className="fixed inset-0 top-16 z-30 bg-slate-900/50 backdrop-blur-xs cursor-pointer xl:hidden animate-in fade-in duration-150"
               onClick={() => setIsMobileMenuOpen(false)}
             />
-            <div className="relative z-40 lg:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4 space-y-3 animate-in slide-in-from-top-2 duration-200 shadow-xl max-h-[85vh] overflow-y-auto">
+            <div className="relative z-40 xl:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4 space-y-3 animate-in slide-in-from-top-2 duration-200 shadow-xl max-h-[85vh] overflow-y-auto">
               {/* Mobile Search */}
               <div className="w-full">
                 <GlobalToolSearch

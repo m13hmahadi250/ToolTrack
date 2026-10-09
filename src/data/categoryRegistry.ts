@@ -52,10 +52,18 @@ export const HEADER_CATEGORIES: CategoryHeaderConfig[] = [
     categories: ['design-tools'],
   },
   {
+    id: 'utilities-tools',
+    name: 'Everyday Utilities',
+    shortName: 'Utilities',
+    description: 'Calculators, QR codes, password generators, unit converters, text counters & dev tools.',
+    homepageCategoryId: 'utilities',
+    categories: ['utilities'],
+  },
+  {
     id: 'all-tools',
     name: 'All Tools',
     shortName: 'All Tools',
-    description: 'Complete directory of 38+ file, document, image, and productivity utilities.',
+    description: 'Complete directory of 60+ file, document, image, and productivity utilities.',
     homepageCategoryId: 'all',
     categories: [
       'page-tools',
@@ -69,6 +77,7 @@ export const HEADER_CATEGORIES: CategoryHeaderConfig[] = [
       'security',
       'ocr',
       'inspector',
+      'utilities',
     ],
   },
 ];
@@ -77,11 +86,15 @@ export const POPULAR_TOOL_IDS = [
   'pdf-to-word',
   'image-background-remover',
   'whiteboard',
+  'qr-code-generator',
   'compress-pdf',
+  'word-counter',
+  'password-generator',
+  'calculator',
   'normalize-pdf-page-size',
   'excel-to-pdf',
   'ocr-pdf',
-  'assignment-pdf-maker',
+  'unit-converter',
 ];
 
 export function getToolsForHeaderCategory(config: CategoryHeaderConfig): ToolItem[] {

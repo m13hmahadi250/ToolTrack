@@ -1,5 +1,4 @@
-import React, { useEffect, useRef } from 'react';
-import { ArrowRight, Sparkles, Layers } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { CategoryHeaderConfig } from '../../data/categoryRegistry';
 import { getToolsForHeaderCategory } from '../../data/categoryRegistry';
 import { getIconComponent } from './MegaMenu';
@@ -10,6 +9,7 @@ interface HeaderCategoryDropdownProps {
   onClose: () => void;
   onSelectTool: (toolId: string) => void;
   onViewAllCategory: (homepageCatId: string) => void;
+  triggerElement?: HTMLElement | null;
 }
 
 export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
@@ -18,16 +18,67 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
   onClose,
   onSelectTool,
   onViewAllCategory,
+  triggerElement,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const tools = getToolsForHeaderCategory(config);
+
+  const [position, setPosition] = useState<{ top: number; left: number; width: number }>({
+    top: 64,
+    left: 16,
+    width: 580,
+  });
+
+  // Calculate clamped viewport position whenever opened, resized, or scrolled
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const updatePosition = () => {
+      const dropdownWidth = Math.min(580, window.innerWidth - 32);
+      let top = 64;
+      let left = 16;
+
+      if (triggerElement) {
+        const rect = triggerElement.getBoundingClientRect();
+        top = rect.bottom + 8;
+        left = rect.left;
+
+        // Prevent extending outside right edge of the viewport
+        if (left + dropdownWidth > window.innerWidth - 16) {
+          left = window.innerWidth - dropdownWidth - 16;
+        }
+        // Prevent extending outside left edge of the viewport
+        if (left < 16) {
+          left = 16;
+        }
+      } else {
+        left = Math.max(16, (window.innerWidth - dropdownWidth) / 2);
+      }
+
+      setPosition({ top, left, width: dropdownWidth });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition);
+
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition);
+    };
+  }, [isOpen, triggerElement]);
 
   // Close on outside click & Escape
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node) &&
+        triggerElement &&
+        !triggerElement.contains(e.target as Node)
+      ) {
         onClose();
       }
     };
@@ -45,23 +96,31 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, triggerElement]);
 
   if (!isOpen) return null;
 
   return (
     <>
-      {/* Backdrop overlay for closing when clicking on blank side space or blurred area */}
+      {/* Backdrop overlay for closing when clicking on blank side space */}
       <div
-        className="fixed inset-0 z-40 bg-slate-900/10 dark:bg-slate-900/25 backdrop-blur-[1px] animate-in fade-in duration-100 cursor-pointer"
+        className="fixed inset-0 z-40 bg-slate-900/10 dark:bg-slate-900/30 backdrop-blur-[1px] animate-in fade-in duration-100 cursor-pointer"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       <div
         ref={containerRef}
         role="menu"
         aria-label={`${config.name} category dropdown`}
-        className="absolute top-full mt-2 left-0 w-[520px] sm:w-[580px] md:w-[620px] max-w-[95vw] bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl shadow-slate-900/15 dark:shadow-black/60 p-4 sm:p-5 z-50 animate-in fade-in slide-in-from-top-2 duration-150 cursor-default"
+        style={{
+          position: 'fixed',
+          top: `${position.top}px`,
+          left: `${position.left}px`,
+          width: `${position.width}px`,
+          maxWidth: 'calc(100vw - 32px)',
+        }}
+        className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl shadow-slate-900/20 dark:shadow-black/70 p-4 sm:p-5 z-50 animate-in fade-in slide-in-from-top-2 duration-150 cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Category Header */}
@@ -82,7 +141,7 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
         </div>
 
         {/* Tools Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 max-h-[min(440px,calc(100vh-140px))] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
           {tools.map((tool) => {
             const Icon = getIconComponent(tool.iconName);
 
@@ -94,24 +153,24 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
                   onClose();
                 }}
                 role="menuitem"
-                className="p-2.5 rounded-xl flex items-start gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all group text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="p-2.5 sm:p-3 rounded-xl flex items-start gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all group text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 border border-transparent hover:border-slate-200 dark:hover:border-slate-700/60"
               >
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white dark:group-hover:bg-indigo-600 dark:group-hover:text-white flex items-center justify-center shrink-0 transition-colors mt-0.5">
-                  <Icon className="w-4 h-4" />
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white dark:group-hover:bg-indigo-600 dark:group-hover:text-white flex items-center justify-center shrink-0 transition-colors mt-0.5 shadow-2xs">
+                  <Icon className="w-4.5 h-4.5" />
                 </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-semibold text-xs text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
+                    <span className="font-semibold text-sm text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug break-words">
                       {tool.name}
                     </span>
                     {tool.badge && (
-                      <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 shrink-0">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 shrink-0">
                         {tool.badge}
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5 leading-tight">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1 leading-relaxed">
                     {tool.description}
                   </p>
                 </div>
@@ -138,6 +197,6 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
           </button>
         </div>
       </div>
-  </>
-);
+    </>
+  );
 };

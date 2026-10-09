@@ -10,7 +10,8 @@ export type ToolCategory =
   | 'document-tools'
   | 'security'
   | 'ocr'
-  | 'inspector';
+  | 'inspector'
+  | 'utilities';
 
 export type ToolOfflineCapability = 'offline' | 'partial' | 'online_only';
 

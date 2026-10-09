@@ -41,6 +41,12 @@ import { PdfCompareTool } from './components/tools/PdfCompareTool';
 import { WhiteboardView } from './components/whiteboard/WhiteboardView';
 import { BatchProcessingDashboard } from './components/batch/BatchProcessingDashboard';
 import { OfflineIndicator } from './components/common/OfflineIndicator';
+import { TextUtilitiesTool } from './components/tools/TextUtilitiesTool';
+import { QrCodeTool } from './components/tools/QrCodeTool';
+import { CalculatorTool } from './components/tools/CalculatorTool';
+import { DevDataUtilitiesTool } from './components/tools/DevDataUtilitiesTool';
+import { SecurityUtilitiesTool } from './components/tools/SecurityUtilitiesTool';
+import { ProductivityUtilitiesTool } from './components/tools/ProductivityUtilitiesTool';
 import { ChevronRight, Home, Star, Wifi, Cloud } from 'lucide-react';
 import { TOOLS_LIST, getToolOfflineCapability } from './data/toolsList';
 
@@ -66,7 +72,7 @@ function MainContent() {
   // Dynamic document title and meta tag update for SEO and browser tabs
   useEffect(() => {
     if (currentTool) {
-      document.title = `${currentTool.name} — Free Online ToolTrack Suite`;
+      document.title = `${currentTool.name} – ToolTrack`;
       window.scrollTo({ top: 0, behavior: 'instant' });
     } else if (activeCategoryKey && CATEGORIES_SEO[activeCategoryKey]) {
       document.title = CATEGORIES_SEO[activeCategoryKey].seoTitle;
@@ -184,6 +190,83 @@ function MainContent() {
         break;
       case 'whiteboard':
         toolComponent = <WhiteboardView />;
+        break;
+      // Everyday Utilities Routing
+      case 'text-utilities':
+        toolComponent = <TextUtilitiesTool />;
+        break;
+      case 'word-counter':
+      case 'character-counter':
+        toolComponent = <TextUtilitiesTool initialTab="counter" />;
+        break;
+      case 'text-case-converter':
+        toolComponent = <TextUtilitiesTool initialTab="case" />;
+        break;
+      case 'text-diff-checker':
+        toolComponent = <TextUtilitiesTool initialTab="diff" />;
+        break;
+      case 'markdown-editor':
+        toolComponent = <TextUtilitiesTool initialTab="markdown" />;
+        break;
+      case 'url-slug-generator':
+        toolComponent = <TextUtilitiesTool initialTab="slug" />;
+        break;
+      case 'qr-code-generator':
+        toolComponent = <QrCodeTool initialTab="generator" />;
+        break;
+      case 'qr-code-scanner':
+        toolComponent = <QrCodeTool initialTab="scanner" />;
+        break;
+      case 'calculator':
+        toolComponent = <CalculatorTool initialTab="calc" />;
+        break;
+      case 'unit-converter':
+        toolComponent = <CalculatorTool initialTab="unit" />;
+        break;
+      case 'percentage-calculator':
+        toolComponent = <CalculatorTool initialTab="percent" />;
+        break;
+      case 'date-calculator':
+        toolComponent = <CalculatorTool initialTab="date" />;
+        break;
+      case 'timer-stopwatch':
+        toolComponent = <CalculatorTool initialTab="stopwatch" />;
+        break;
+      case 'json-formatter':
+        toolComponent = <DevDataUtilitiesTool initialTab="json" />;
+        break;
+      case 'csv-json-converter':
+        toolComponent = <DevDataUtilitiesTool initialTab="csv-json" />;
+        break;
+      case 'base64-converter':
+        toolComponent = <DevDataUtilitiesTool initialTab="base64" />;
+        break;
+      case 'url-encoder':
+        toolComponent = <DevDataUtilitiesTool initialTab="url" />;
+        break;
+      case 'uuid-generator':
+        toolComponent = <DevDataUtilitiesTool initialTab="uuid" />;
+        break;
+      case 'hash-generator':
+        toolComponent = <DevDataUtilitiesTool initialTab="hash" />;
+        break;
+      case 'password-generator':
+        toolComponent = <SecurityUtilitiesTool initialTab="password" />;
+        break;
+      case 'password-strength':
+        toolComponent = <SecurityUtilitiesTool initialTab="strength" />;
+        break;
+      case 'random-number-generator':
+        toolComponent = <SecurityUtilitiesTool initialTab="random" />;
+        break;
+      case 'file-info-inspector':
+        toolComponent = <ProductivityUtilitiesTool initialTab="file-info" />;
+        break;
+      case 'aspect-ratio-calculator':
+        toolComponent = <ProductivityUtilitiesTool initialTab="aspect-ratio" />;
+        break;
+      case 'color-converter':
+        toolComponent = <ProductivityUtilitiesTool initialTab="color-converter" />;
         break;
       case 'batch-dashboard':
       case 'batch-processing':

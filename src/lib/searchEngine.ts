@@ -54,8 +54,34 @@ const SYNONYM_MAP: Record<string, string[]> = {
   alpha: ['transparent', 'remove background'],
   homework: ['assignment'],
   study: ['notes'],
-  pass: ['password', 'security'],
+  pass: ['password', 'security', 'password generator'],
+  pwd: ['password', 'security', 'password generator'],
   lock: ['security', 'protect'],
+  qr: ['qr code', 'qr generator', 'qr scanner'],
+  qrcode: ['qr code', 'qr generator', 'qr scanner'],
+  calc: ['calculator', 'percentage', 'unit converter'],
+  calculator: ['standard calculator', 'percentage', 'unit converter'],
+  math: ['calculator', 'percentage'],
+  timer: ['timer', 'stopwatch', 'countdown'],
+  stopwatch: ['timer', 'stopwatch'],
+  clock: ['timer', 'stopwatch'],
+  json: ['json formatter', 'csv json converter'],
+  csv: ['csv json converter', 'excel to pdf'],
+  b64: ['base64 converter'],
+  base64: ['base64 converter'],
+  hash: ['hash generator', 'sha256', 'md5'],
+  sha: ['hash generator', 'sha256'],
+  uuid: ['uuid generator', 'guid'],
+  guid: ['uuid generator'],
+  count: ['word counter', 'character counter'],
+  counter: ['word counter', 'character counter'],
+  words: ['word counter', 'text utilities'],
+  chars: ['character counter', 'word counter'],
+  diff: ['text diff checker', 'compare'],
+  markdown: ['markdown editor', 'notes'],
+  md: ['markdown editor'],
+  case: ['text case converter', 'uppercase', 'lowercase'],
+  slug: ['url slug generator', 'kebab case'],
 };
 
 // Levenshtein distance for fuzzy matching
@@ -420,6 +446,8 @@ export function getCategoryLabel(category: string): string {
       return 'OCR Recognition';
     case 'inspector':
       return 'Inspection & Compare';
+    case 'utilities':
+      return 'Everyday Utilities';
     default:
       return 'Tools';
   }

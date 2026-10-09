@@ -30,6 +30,23 @@ import {
   GraduationCap,
   Pipette,
   Type,
+  QrCode,
+  ScanLine,
+  Calculator,
+  ArrowRightLeft,
+  Percent,
+  Calendar,
+  Clock,
+  Timer,
+  Code2,
+  FileCode,
+  Binary,
+  Fingerprint,
+  Hash,
+  KeyRound,
+  Dices,
+  FileSearch,
+  PenTool,
   X
 } from 'lucide-react';
 import { TOOLS_LIST } from '../../data/toolsList';
@@ -42,14 +59,15 @@ interface MegaMenuProps {
 }
 
 const CATEGORY_LABELS: Record<ToolCategory, string> = {
+  'utilities': 'Everyday Utilities',
+  'image-tools': 'Advanced Image Tools',
+  'design-tools': 'Design Utilities',
+  'student-tools': 'Student & Academic Tools',
   'page-tools': 'Page Tools & Sizing',
   'organize': 'Organize PDF',
   'optimize': 'PDF Optimization',
   'convert-to-pdf': 'Convert to PDF',
   'convert-from-pdf': 'Convert from PDF',
-  'image-tools': 'Advanced Image Tools',
-  'design-tools': 'Design Utilities',
-  'student-tools': 'Student & Academic Tools',
   'document-tools': 'Document Tools',
   'security': 'Security & Privacy',
   'ocr': 'OCR Recognition',
@@ -57,6 +75,7 @@ const CATEGORY_LABELS: Record<ToolCategory, string> = {
 };
 
 const CATEGORY_ORDER: ToolCategory[] = [
+  'utilities',
   'image-tools',
   'design-tools',
   'student-tools',
@@ -102,6 +121,23 @@ export const getIconComponent = (iconName: string) => {
     case 'GraduationCap': return GraduationCap;
     case 'Pipette': return Pipette;
     case 'Type': return Type;
+    case 'QrCode': return QrCode;
+    case 'ScanLine': return ScanLine;
+    case 'Calculator': return Calculator;
+    case 'ArrowRightLeft': return ArrowRightLeft;
+    case 'Percent': return Percent;
+    case 'Calendar': return Calendar;
+    case 'Clock': return Clock;
+    case 'Timer': return Timer;
+    case 'Code2': return Code2;
+    case 'FileCode': return FileCode;
+    case 'Binary': return Binary;
+    case 'Fingerprint': return Fingerprint;
+    case 'Hash': return Hash;
+    case 'KeyRound': return KeyRound;
+    case 'Dices': return Dices;
+    case 'FileSearch': return FileSearch;
+    case 'PenTool': return PenTool;
     default: return FileText;
   }
 };
@@ -174,8 +210,8 @@ export const MegaMenu: React.FC<MegaMenuProps> = ({ isOpen, onClose }) => {
                           <Icon className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition leading-snug break-words">
                               {tool.name}
                             </span>
                             {tool.badge && (
@@ -184,7 +220,7 @@ export const MegaMenu: React.FC<MegaMenuProps> = ({ isOpen, onClose }) => {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-1 mt-0.5">
+                          <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 mt-0.5 leading-relaxed">
                             {tool.description}
                           </p>
                         </div>

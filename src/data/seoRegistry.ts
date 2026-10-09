@@ -39,7 +39,7 @@ export interface ToolSeoData {
   name: string;
   route: string; // Clean primary route e.g. /tools/pdf-merge
   aliases: string[]; // Supported aliases e.g. /merge-pdf, /tools/merge-pdf, #merge-pdf
-  categoryKey: 'pdf' | 'image' | 'document' | 'ocr' | 'student' | 'design';
+  categoryKey: 'pdf' | 'image' | 'document' | 'ocr' | 'student' | 'design' | 'utilities';
   categoryName: string;
   categoryRoute: string; // e.g. /tools/pdf
   seoTitle: string;
@@ -58,7 +58,7 @@ export interface ToolSeoData {
 }
 
 export interface CategorySeoData {
-  key: 'pdf' | 'image' | 'document' | 'ocr' | 'student' | 'design';
+  key: 'pdf' | 'image' | 'document' | 'ocr' | 'student' | 'design' | 'utilities';
   route: string;
   name: string;
   seoTitle: string;
@@ -175,6 +175,42 @@ export const CATEGORIES_SEO: Record<string, CategorySeoData> = {
       'image-text',
       'image-color-picker',
       'image-info',
+    ],
+  },
+  utilities: {
+    key: 'utilities',
+    route: '/tools/utilities',
+    name: 'Everyday Utilities',
+    seoTitle: 'Everyday Utilities Online – Calculator, QR, Passwords & Units | ToolTrack',
+    seoDescription:
+      'Free in-browser everyday utilities: standard calculator, QR code generator and scanner, cryptographically secure password generator, unit converter, JSON formatter, and word counter.',
+    h1: 'Free Everyday Online Utilities',
+    tagline: 'Practical day-to-day tools for calculations, text processing, QR codes, and developer tasks.',
+    toolIds: [
+      'text-utilities',
+      'word-counter',
+      'text-case-converter',
+      'text-diff-checker',
+      'markdown-editor',
+      'qr-code-generator',
+      'qr-code-scanner',
+      'calculator',
+      'unit-converter',
+      'percentage-calculator',
+      'date-calculator',
+      'timer-stopwatch',
+      'json-formatter',
+      'csv-json-converter',
+      'base64-converter',
+      'url-encoder',
+      'uuid-generator',
+      'hash-generator',
+      'password-generator',
+      'password-strength',
+      'random-number-generator',
+      'file-info-inspector',
+      'aspect-ratio-calculator',
+      'color-converter',
     ],
   },
 };
@@ -1705,7 +1741,7 @@ export const TOOLS_SEO: Record<string, ToolSeoData> = {
  * Category key mapper for any existing or future tool category
  */
 export function mapToolCategoryToSeoCategory(category: string): {
-  categoryKey: 'pdf' | 'image' | 'document' | 'ocr' | 'student' | 'design';
+  categoryKey: 'pdf' | 'image' | 'document' | 'ocr' | 'student' | 'design' | 'utilities';
   categoryName: string;
   categoryRoute: string;
 } {
@@ -1727,6 +1763,8 @@ export function mapToolCategoryToSeoCategory(category: string): {
       return { categoryKey: 'student', categoryName: 'Student & Academic Utilities', categoryRoute: '/tools/student' };
     case 'ocr':
       return { categoryKey: 'ocr', categoryName: 'OCR & Text Recognition', categoryRoute: '/tools/ocr' };
+    case 'utilities':
+      return { categoryKey: 'utilities', categoryName: 'Everyday Utilities', categoryRoute: '/tools/utilities' };
     default:
       return { categoryKey: 'pdf', categoryName: 'PDF & File Tools', categoryRoute: '/tools/pdf' };
   }

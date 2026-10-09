@@ -45,7 +45,7 @@ export const CategoryLandingPage: React.FC<CategoryLandingPageProps> = ({ catego
       <header className="p-6 sm:p-8 rounded-3xl bg-linear-to-br from-indigo-50/80 via-white to-slate-50 dark:from-slate-850 dark:via-slate-850 dark:to-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-100/80 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold">
           <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-          <span>ToolTrack Suite Category</span>
+          <span>ToolTrack Category Directory</span>
         </div>
 
         <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
