@@ -120,7 +120,7 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
           width: `${position.width}px`,
           maxWidth: 'calc(100vw - 32px)',
         }}
-        className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl shadow-slate-900/20 dark:shadow-black/70 p-4 sm:p-5 z-50 animate-in fade-in slide-in-from-top-2 duration-150 cursor-default"
+        className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl shadow-slate-900/20 dark:shadow-black/70 p-4 sm:p-5 z-50 animate-popover cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Category Header */}

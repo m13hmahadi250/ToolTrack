@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { ToolTrackProvider, useToolTrack } from './context/ToolTrackContext';
 import { Header } from './components/common/Header';
 import { Footer } from './components/common/Footer';
@@ -9,6 +9,7 @@ import { ToolGuideSection } from './components/common/ToolGuideSection';
 import { NotFoundPage } from './components/common/NotFoundPage';
 import { CategoryLandingPage } from './components/category/CategoryLandingPage';
 import { CATEGORIES_SEO } from './data/seoRegistry';
+import { ToolContentSkeleton } from './components/common/SkeletonLoader';
 
 // Specialized tool components
 import { PageSizeNormalizer } from './components/tools/PageSizeNormalizer';
@@ -68,6 +69,26 @@ function MainContent() {
       (activeToolId === 'convert-from-pdf' ? TOOLS_LIST.find((t) => t.id === 'pdf-to-word') : null) ||
       (activeToolId === 'image-tools' ? TOOLS_LIST.find((t) => t.id === 'image-compressor') : null)
     : null;
+
+  const [toolTransitioning, setToolTransitioning] = useState(false);
+  const prevToolIdRef = useRef<string | null>(activeToolId);
+
+  useEffect(() => {
+    if (activeToolId && activeToolId !== prevToolIdRef.current && activeToolId !== 'whiteboard') {
+      const prefersReducedMotion =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!prefersReducedMotion) {
+        setToolTransitioning(true);
+        const timer = setTimeout(() => {
+          setToolTransitioning(false);
+        }, 140);
+        prevToolIdRef.current = activeToolId;
+        return () => clearTimeout(timer);
+      }
+    }
+    prevToolIdRef.current = activeToolId;
+  }, [activeToolId]);
 
   // Dynamic document title and meta tag update for SEO and browser tabs
   useEffect(() => {
@@ -282,8 +303,17 @@ function MainContent() {
         return <NotFoundPage />;
     }
 
+    if (toolTransitioning) {
+      return (
+        <ToolContentSkeleton
+          toolName={currentTool?.name}
+          categoryName={currentTool?.category}
+        />
+      );
+    }
+
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-in">
         {toolComponent}
         {currentTool && (
           <ToolGuideSection

@@ -79,21 +79,22 @@ export const CategoryLandingPage: React.FC<CategoryLandingPageProps> = ({ catego
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {categoryTools.map((tool) => {
+        <div key={categoryKey} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {categoryTools.map((tool, index) => {
             const Icon = getIconComponent(tool.iconName);
             const seo = TOOLS_SEO[tool.id];
             const cleanUrl = seo ? seo.route : `/tools/${tool.id}`;
+            const staggerDelayClass = `stagger-delay-${Math.min(index, 15)}`;
 
             return (
               <a
-                key={tool.id}
+                key={`${categoryKey}-${tool.id}`}
                 href={cleanUrl}
                 onClick={(e) => {
                   e.preventDefault();
                   setActiveToolId(tool.id);
                 }}
-                className="group p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 hover:shadow-md transition flex flex-col justify-between space-y-4 cursor-pointer"
+                className={`group p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 hover:shadow-md transition flex flex-col justify-between space-y-4 cursor-pointer tool-card-interactive stagger-card-enter ${staggerDelayClass}`}
               >
                 <div className="space-y-3">
                   <div className="flex items-start justify-between">

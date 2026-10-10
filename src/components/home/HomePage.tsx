@@ -39,6 +39,7 @@ import { POPULAR_TOOL_IDS } from '../../data/categoryRegistry';
 import { getIconComponent } from '../common/MegaMenu';
 import { GlobalToolSearch } from '../common/GlobalToolSearch';
 import { searchTools, getCategoryLabel } from '../../lib/searchEngine';
+import { ToolCardSkeletonGrid } from '../common/SkeletonLoader';
 
 export const HomePage: React.FC = () => {
   const {
@@ -53,6 +54,7 @@ export const HomePage: React.FC = () => {
   } = useToolTrack();
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [isSwitchingCategory, setIsSwitchingCategory] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
@@ -70,12 +72,36 @@ export const HomePage: React.FC = () => {
       .filter(Boolean) as typeof TOOLS_LIST;
   }, [favoriteToolIds]);
 
+  const handleCategorySelect = (categoryId: string) => {
+    if (categoryId === activeCategory) return;
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!prefersReducedMotion) {
+      setIsSwitchingCategory(true);
+      setTimeout(() => {
+        setIsSwitchingCategory(false);
+      }, 150);
+    }
+    setActiveCategory(categoryId);
+  };
+
   // Listen for category selection events (e.g. from header dropdown "View All")
   useEffect(() => {
     const handleSelectCategory = (e: Event) => {
       const customEvent = e as CustomEvent<{ categoryId: string }>;
       if (customEvent.detail && customEvent.detail.categoryId) {
-        setActiveCategory(customEvent.detail.categoryId);
+        const catId = customEvent.detail.categoryId;
+        const prefersReducedMotion =
+          typeof window !== 'undefined' &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (!prefersReducedMotion) {
+          setIsSwitchingCategory(true);
+          setTimeout(() => {
+            setIsSwitchingCategory(false);
+          }, 150);
+        }
+        setActiveCategory(catId);
       }
     };
 
@@ -167,11 +193,11 @@ export const HomePage: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-12 py-6 sm:py-8 animate-in fade-in duration-300">
+    <div className="space-y-12 py-6 sm:py-8 animate-fade-in">
       {/* 1. COMPACT HERO SECTION & VALUE PROPOSITION */}
       <section className="text-center max-w-4xl mx-auto space-y-4 px-4">
         {/* Anti-Slop Unboxed Trust Header */}
-        <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+        <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium animate-fade-in">
           <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
             <ShieldCheck className="w-3.5 h-3.5" />
             100% In-Browser Privacy
@@ -184,16 +210,16 @@ export const HomePage: React.FC = () => {
           <span>Free & Offline Ready</span>
         </div>
 
-        <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
+        <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight animate-fade-slide-up">
           All Your Files & Productivity Tools in One Place
         </h1>
 
-        <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
+        <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed animate-fade-slide-up">
           PDF, Word, Excel, Images, OCR, Whiteboard, Everyday Calculators & Developer Utilities. Fast, client-side, and simple to use.
         </p>
 
         {/* 2. PROMINENT SEARCH BAR */}
-        <div className="max-w-xl mx-auto pt-2 space-y-2.5">
+        <div className="max-w-xl mx-auto pt-2 space-y-2.5 animate-fade-slide-up">
           <GlobalToolSearch
             variant="home"
             initialQuery={searchQuery}
@@ -267,7 +293,7 @@ export const HomePage: React.FC = () => {
                       setActiveToolId(tool.id);
                     }
                   }}
-                  className="p-4 sm:p-4.5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all text-left group cursor-pointer flex flex-col justify-between min-h-[148px] relative"
+                  className="p-4 sm:p-4.5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md tool-card-interactive text-left group cursor-pointer flex flex-col justify-between min-h-[148px] relative"
                 >
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -562,7 +588,7 @@ export const HomePage: React.FC = () => {
             {categories.map((cat) => (
               <button
                 key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
+                onClick={() => handleCategorySelect(cat.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                   activeCategory === cat.id
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold'
@@ -578,7 +604,9 @@ export const HomePage: React.FC = () => {
         )}
 
         {/* Tools Grid */}
-        {displayedTools.length === 0 ? (
+        {isSwitchingCategory ? (
+          <ToolCardSkeletonGrid count={8} />
+        ) : displayedTools.length === 0 ? (
           <div className="p-12 text-center rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto">
               <FileQuestion className="w-5 h-5" />
@@ -599,14 +627,15 @@ export const HomePage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
-            {displayedTools.map((tool) => {
+          <div key={activeCategory} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+            {displayedTools.map((tool, index) => {
               const Icon = getIconComponent(tool.iconName);
               const isFav = isFavoriteTool(tool.id);
+              const staggerDelayClass = `stagger-delay-${Math.min(index, 15)}`;
 
               return (
                 <div
-                  key={tool.id}
+                  key={`${activeCategory}-${tool.id}`}
                   onClick={() => setActiveToolId(tool.id)}
                   role="button"
                   tabIndex={0}
@@ -616,7 +645,7 @@ export const HomePage: React.FC = () => {
                       setActiveToolId(tool.id);
                     }
                   }}
-                  className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all text-left group flex flex-col justify-between h-40 cursor-pointer relative"
+                  className={`p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md tool-card-interactive text-left group flex flex-col justify-between h-40 cursor-pointer relative stagger-card-enter ${staggerDelayClass}`}
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">

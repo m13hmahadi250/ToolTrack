@@ -163,7 +163,7 @@ export const MegaMenu: React.FC<MegaMenuProps> = ({ isOpen, onClose }) => {
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-6xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 my-auto max-h-[92vh] overflow-y-auto cursor-default"
+        className="relative w-full max-w-6xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 my-auto max-h-[92vh] overflow-y-auto cursor-default animate-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between pb-5 border-b border-slate-200 dark:border-slate-800">

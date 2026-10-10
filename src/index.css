@@ -21,6 +21,13 @@
     --ring: #6366f1;
     --destructive: #dc2626;
     --destructive-foreground: #ffffff;
+
+    /* Unified Animation Design Tokens */
+    --ease-out-subtle: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out-subtle: cubic-bezier(0.4, 0, 0.2, 1);
+    --duration-fast: 120ms;
+    --duration-normal: 180ms;
+    --duration-panel: 220ms;
   }
 
   .dark {
@@ -169,4 +176,234 @@
 .animate-spin-slow {
   animation: spin-slow 10s linear infinite;
 }
+
+/* ------------------------------------------------------------- */
+/* Unified Premium Animation System (Fast, GPU-optimized, Restrained) */
+/* ------------------------------------------------------------- */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes popover-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.985) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes brand-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.94) translateY(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes brand-shimmer {
+  0%, 100% {
+    filter: drop-shadow(0 0 0 rgba(99, 102, 241, 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.35));
+  }
+}
+
+/* Utility animation classes */
+.animate-fade-in {
+  animation: fade-in var(--duration-fast, 120ms) var(--ease-out-subtle, ease-out) forwards;
+}
+
+.animate-fade-slide-up {
+  animation: fade-slide-up var(--duration-normal, 180ms) var(--ease-out-subtle, ease-out) forwards;
+}
+
+.animate-fade-slide-down {
+  animation: fade-slide-down var(--duration-normal, 180ms) var(--ease-out-subtle, ease-out) forwards;
+}
+
+.animate-popover {
+  animation: popover-enter var(--duration-fast, 140ms) var(--ease-out-subtle, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
+  transform-origin: top center;
+}
+
+.animate-modal {
+  animation: modal-enter var(--duration-normal, 180ms) var(--ease-out-subtle, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
+}
+
+.animate-brand-reveal {
+  animation: brand-reveal 320ms var(--ease-out-subtle, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
+}
+
+.animate-brand-shimmer {
+  animation: brand-shimmer 2.4s ease-in-out infinite;
+}
+
+/* Tool card interactive hover & press transitions */
+.tool-card-interactive {
+  transition: transform 160ms var(--ease-out-subtle),
+              border-color 160ms var(--ease-out-subtle),
+              box-shadow 160ms var(--ease-out-subtle),
+              background-color 160ms var(--ease-out-subtle);
+  will-change: transform;
+}
+.tool-card-interactive:hover {
+  transform: translateY(-2px);
+}
+.tool-card-interactive:active {
+  transform: translateY(0) scale(0.99);
+}
+
+/* Button micro-press */
+.interactive-press {
+  transition: transform 100ms var(--ease-out-subtle);
+}
+.interactive-press:active {
+  transform: scale(0.97);
+}
+
+/* ------------------------------------------------------------- */
+/* Staggered Card Entrance Animations (Category Landing & Grids) */
+/* ------------------------------------------------------------- */
+@keyframes stagger-card-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stagger-card-enter {
+  animation: stagger-card-enter 220ms var(--ease-out-subtle, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  will-change: transform, opacity;
+}
+
+.stagger-delay-0 { animation-delay: 0ms; }
+.stagger-delay-1 { animation-delay: 30ms; }
+.stagger-delay-2 { animation-delay: 60ms; }
+.stagger-delay-3 { animation-delay: 90ms; }
+.stagger-delay-4 { animation-delay: 120ms; }
+.stagger-delay-5 { animation-delay: 150ms; }
+.stagger-delay-6 { animation-delay: 180ms; }
+.stagger-delay-7 { animation-delay: 210ms; }
+.stagger-delay-8 { animation-delay: 240ms; }
+.stagger-delay-9 { animation-delay: 270ms; }
+.stagger-delay-10 { animation-delay: 300ms; }
+.stagger-delay-11 { animation-delay: 330ms; }
+.stagger-delay-12 { animation-delay: 360ms; }
+.stagger-delay-13 { animation-delay: 390ms; }
+.stagger-delay-14 { animation-delay: 420ms; }
+.stagger-delay-15 { animation-delay: 450ms; }
+
+/* ------------------------------------------------------------- */
+/* Lightweight Shimmer Skeleton Loaders (Non-blocking interaction) */
+/* ------------------------------------------------------------- */
+@keyframes shimmer-sweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(226, 232, 240, 0.55) 0%,
+    rgba(241, 245, 249, 0.95) 50%,
+    rgba(226, 232, 240, 0.55) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-sweep 1.8s ease-in-out infinite;
+  will-change: background-position;
+}
+
+.dark .animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(30, 41, 59, 0.55) 0%,
+    rgba(51, 65, 85, 0.85) 50%,
+    rgba(30, 41, 59, 0.55) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-sweep 1.8s ease-in-out infinite;
+  will-change: background-position;
+}
+
+/* Respect system prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .stagger-card-enter {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .animate-shimmer {
+    animation: none !important;
+    background: rgba(226, 232, 240, 0.6) !important;
+  }
+
+  .dark .animate-shimmer {
+    background: rgba(30, 41, 59, 0.6) !important;
+  }
+}
+
 

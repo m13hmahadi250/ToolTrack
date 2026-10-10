@@ -373,12 +373,14 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     };
   }, []);
 
-  // Resize both canvases according to devicePixelRatio
+  // Resize both canvases according to devicePixelRatio with ResizeObserver
   useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
     const handleResize = () => {
       const baseCanvas = baseCanvasRef.current;
       const activeCanvas = activeCanvasRef.current;
-      const container = containerRef.current;
       if (!baseCanvas || !activeCanvas || !container) return;
 
       const rect = container.getBoundingClientRect();
@@ -386,18 +388,39 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       const w = Math.round(rect.width * dpr);
       const h = Math.round(rect.height * dpr);
 
-      baseCanvas.width = w;
-      baseCanvas.height = h;
-      activeCanvas.width = w;
-      activeCanvas.height = h;
+      let changed = false;
+      if (baseCanvas.width !== w || baseCanvas.height !== h) {
+        baseCanvas.width = w;
+        baseCanvas.height = h;
+        changed = true;
+      }
+      if (activeCanvas.width !== w || activeCanvas.height !== h) {
+        activeCanvas.width = w;
+        activeCanvas.height = h;
+        changed = true;
+      }
 
-      renderBaseCanvas();
-      renderActiveCanvas();
+      if (changed) {
+        renderBaseCanvas();
+        renderActiveCanvas();
+      }
     };
 
     handleResize();
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        handleResize();
+      });
+      resizeObserver.observe(container);
+    }
+
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      if (resizeObserver) resizeObserver.disconnect();
+      window.removeEventListener('resize', handleResize);
+    };
   }, [renderBaseCanvas, renderActiveCanvas]);
 
   useEffect(() => {

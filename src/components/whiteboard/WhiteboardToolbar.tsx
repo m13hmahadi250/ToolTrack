@@ -322,43 +322,29 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
     );
   }
 
-  // Minimized compact floating toolbar pill
+  // Minimized compact floating toolbar micro-pill
   if (isMinimized) {
     return (
       <aside
         aria-label="Whiteboard Toolbar"
-        className={`fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 transition-all duration-300 ease-out ${
+        className={`fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 transition-all duration-150 ease-out ${
           isDrawingActive
             ? 'opacity-0 translate-y-6 pointer-events-none'
             : 'opacity-100 translate-y-0'
         }`}
       >
-        <div
+        <button
+          type="button"
           onClick={toggleMinimized}
-          className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-2xl text-slate-800 dark:text-slate-100 hover:border-indigo-500 hover:shadow-indigo-500/10 transition-all cursor-pointer group select-none"
-          title="Expand Toolbar (M)"
+          className="flex items-center gap-1 px-1.5 py-1 rounded-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-lg text-slate-700 dark:text-slate-200 hover:border-indigo-500/70 hover:shadow-indigo-500/10 hover:scale-105 active:scale-95 transition-all duration-150 cursor-pointer group select-none"
+          title={`Expand Toolbar (M) • Active: ${activeTool.replace('_', ' ')}`}
+          aria-label="Expand Toolbar"
         >
-          <span className="p-1 rounded-full bg-indigo-600 text-white shadow-xs flex items-center justify-center">
+          <span className="w-4.5 h-4.5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs [&>svg]:w-2.5 [&>svg]:h-2.5">
             {getActiveToolIcon(activeTool)}
           </span>
-          <span className="text-xs font-semibold capitalize text-slate-700 dark:text-slate-200">
-            {activeTool.replace('_', ' ')}
-          </span>
-          <span className="text-[10px] text-slate-400 dark:text-slate-500 hidden sm:inline">
-            (Click to expand)
-          </span>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleMinimized();
-            }}
-            className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition"
-            title="Expand Toolbar (M)"
-          >
-            <ChevronUp className="w-3.5 h-3.5 transition-transform group-hover:-translate-y-0.5" />
-          </button>
-        </div>
+          <ChevronUp className="w-3 h-3 text-slate-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-transform group-hover:-translate-y-0.5 mr-0.5" />
+        </button>
       </aside>
     );
   }
@@ -366,7 +352,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   return (
     <aside
       aria-label="Whiteboard Toolbar"
-      className={`fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[98vw] overflow-visible transition-all duration-300 ease-out ${
+      className={`fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[98vw] overflow-visible transition-all duration-150 ease-out ${
         isDrawingActive
           ? 'opacity-0 translate-y-6 pointer-events-none'
           : 'opacity-100 translate-y-0'
@@ -461,7 +447,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
           {/* Draw Submenu */}
           {drawMenuOpen && (
-            <div className="absolute bottom-full mb-3 left-0 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3.5 min-w-[280px] max-w-[340px] z-50 text-slate-800 dark:text-slate-100">
+            <div className="absolute bottom-full mb-3 left-0 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3.5 min-w-[280px] max-w-[340px] z-50 text-slate-800 dark:text-slate-100 animate-popover">
               {/* Pen Styles Grid */}
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1.5">
@@ -691,7 +677,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
           {/* Eraser Submenu Popover */}
           {eraserMenuOpen && (
-            <div className="absolute bottom-full mb-3 left-0 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3 min-w-[260px] z-50 text-slate-800 dark:text-slate-100">
+            <div className="absolute bottom-full mb-3 left-0 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3 min-w-[260px] z-50 text-slate-800 dark:text-slate-100 animate-popover">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
@@ -837,7 +823,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
           {/* Shapes Submenu */}
           {shapesMenuOpen && (
-            <div className="absolute bottom-full mb-3 left-0 p-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl grid grid-cols-5 gap-1.5 w-[235px] z-50 text-slate-800 dark:text-slate-100">
+            <div className="absolute bottom-full mb-3 left-0 p-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl grid grid-cols-5 gap-1.5 w-[235px] z-50 text-slate-800 dark:text-slate-100 animate-popover">
               <button
                 type="button"
                 onClick={() => {

@@ -23,7 +23,7 @@ export const ProcessingQueueModal: React.FC = () => {
       onClick={() => setIsQueueOpen(false)}
     >
       <div
-        className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[92vh] flex flex-col cursor-default"
+        className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[92vh] flex flex-col cursor-default animate-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <BatchProcessingDashboard isModal={true} onClose={() => setIsQueueOpen(false)} />

@@ -254,10 +254,10 @@ export const Header: React.FC = () => {
         {isMobileMenuOpen && (
           <>
             <div
-              className="fixed inset-0 top-16 z-30 bg-slate-900/50 backdrop-blur-xs cursor-pointer xl:hidden animate-in fade-in duration-150"
+              className="fixed inset-0 top-16 z-30 bg-slate-900/50 backdrop-blur-xs cursor-pointer xl:hidden animate-fade-in"
               onClick={() => setIsMobileMenuOpen(false)}
             />
-            <div className="relative z-40 xl:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4 space-y-3 animate-in slide-in-from-top-2 duration-200 shadow-xl max-h-[85vh] overflow-y-auto">
+            <div className="relative z-40 xl:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4 space-y-3 animate-fade-slide-down shadow-xl max-h-[85vh] overflow-y-auto">
               {/* Mobile Search */}
               <div className="w-full">
                 <GlobalToolSearch

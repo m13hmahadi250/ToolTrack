@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   WhiteboardElement,
   WhiteboardTool,
@@ -173,7 +174,23 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
   const fillColor = singleElement ? (singleElement.fillColor || 'transparent') : currentFillColor;
   const opacity = singleElement ? (singleElement.opacity ?? 1) : currentOpacity;
   const isLocked = singleElement?.locked || false;
-  const [isCollapsed, setIsCollapsed] = React.useState(false);
+  const [isCollapsed, setIsCollapsed] = React.useState<boolean>(() => {
+    try {
+      return localStorage.getItem('tooltrack_whiteboard_panel_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleCollapsed = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('tooltrack_whiteboard_panel_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   const isTextElement = singleElement?.type === 'text';
   const isStickyElement = singleElement?.type === 'sticky';
@@ -237,18 +254,61 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
   };
 
   return (
-    <aside
-      aria-label="Whiteboard Properties"
-      className={`fixed top-20 left-4 z-30 max-h-[82vh] overflow-y-auto w-64 p-3.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-2xl text-slate-800 dark:text-slate-100 space-y-4 text-xs select-none transition-all duration-300 ease-out ${
+    <motion.aside
+      layout
+      transition={{
+        layout: { duration: 0.16, ease: [0.16, 1, 0.3, 1] },
+      }}
+      aria-label="Whiteboard Control Panel"
+      className={`fixed top-16 sm:top-20 left-3 sm:left-4 z-30 select-none overflow-hidden backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 transition-opacity duration-150 ${
         isDrawingActive
-          ? 'opacity-0 -translate-x-6 pointer-events-none'
-          : 'opacity-100 translate-x-0'
+          ? 'opacity-0 pointer-events-none'
+          : 'opacity-100 pointer-events-auto'
       } ${
-        isCollapsed ? 'space-y-0' : ''
+        isCollapsed
+          ? 'rounded-full shadow-md'
+          : 'rounded-2xl shadow-2xl w-64 max-h-[82vh]'
       }`}
     >
-      {/* Header bar / Title */}
-      <div className={`flex items-center justify-between ${isCollapsed ? '' : 'pb-2 border-b border-slate-200 dark:border-slate-800'}`}>
+      <AnimatePresence mode="wait" initial={false}>
+        {isCollapsed ? (
+          <motion.button
+            key="collapsed"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.08 }}
+            type="button"
+            onClick={toggleCollapsed}
+            className="flex items-center gap-1.5 h-6.5 sm:h-7 px-1.5 sm:px-2 rounded-full text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 active:scale-95 cursor-pointer group select-none whitespace-nowrap"
+            title="Expand control panel"
+            aria-label="Expand Whiteboard control panel"
+          >
+            {/* Tiny color or tool preview indicator */}
+            <span
+              className="w-2 h-2 rounded-full border border-slate-300 dark:border-slate-600 shrink-0 shadow-2xs group-hover:ring-1 group-hover:ring-indigo-500/50 transition-all"
+              style={{ backgroundColor: strokeColor !== 'transparent' ? strokeColor : '#6366f1' }}
+            />
+            <span className="text-[10px] sm:text-[11px] font-semibold capitalize text-slate-800 dark:text-slate-100 truncate max-w-[65px] sm:max-w-[75px]">
+              {hasSelection
+                ? selectedElements.length > 1
+                  ? `${selectedElements.length} items`
+                  : `${singleElement?.type?.replace('_', ' ') || 'Object'}`
+                : `${activeTool.replace('_', ' ')}`}
+            </span>
+            <ChevronRight className="w-3 h-3 text-slate-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-transform group-hover:translate-x-0.5 shrink-0" />
+          </motion.button>
+        ) : (
+          <motion.div
+            key="expanded"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.1 }}
+            className="p-3.5 space-y-4 text-xs max-h-[82vh] overflow-y-auto"
+          >
+            {/* Header bar / Title */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
         <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
           <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
           {hasSelection
@@ -290,17 +350,17 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
           )}
           <button
             type="button"
-            onClick={() => setIsCollapsed((p) => !p)}
+            onClick={toggleCollapsed}
             className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition cursor-pointer"
-            title={isCollapsed ? 'Expand properties' : 'Minimize properties'}
+            title="Minimize to floating pill"
+            aria-label="Minimize control panel"
           >
-            {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+            <ChevronLeft className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {!isCollapsed && (
-        <>
+      <>
           {/* PDF Document & Page Controls */}
           {singleElement?.type === 'image' && Boolean(singleElement.pdfDocumentId) && (
             <div className="space-y-3 pb-3 border-b border-slate-200 dark:border-slate-800">
@@ -1007,7 +1067,9 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
             </>
           )}
         </>
-      )}
-    </aside>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.aside>
   );
 };

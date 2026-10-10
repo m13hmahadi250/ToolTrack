@@ -118,18 +118,20 @@ export const ToolTrackIcon: React.FC<ToolTrackIconProps> = ({
         />
 
         {/* Precision Geometric File-Track Chevrons / Fast Track Dots */}
-        <path
-          d="M 330 252
-             L 358 280
-             L 330 308"
-          stroke="#38bdf8"
-          strokeWidth="16"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <g className="transition-transform duration-200 ease-out group-hover:translate-x-2">
+          <path
+            d="M 330 252
+               L 358 280
+               L 330 308"
+            stroke="#38bdf8"
+            strokeWidth="16"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
 
         {/* Left Companion Precision Dot */}
-        <circle cx="168" cy="280" r="10" fill="#6366f1" />
+        <circle cx="168" cy="280" r="10" fill="#6366f1" className="transition-transform duration-200 ease-out group-hover:scale-125" style={{ transformOrigin: '168px 280px' }} />
       </g>
     </svg>
   );
@@ -143,7 +145,7 @@ interface ToolTrackBrandProps {
 
 /**
  * Official ToolTrack Brand Logo & Wordmark
- * Clean, minimalistic, and professional SaaS typography
+ * Clean, minimalistic, and professional SaaS typography with subtle reveal & hover micro-interactions
  */
 export const ToolTrackBrand: React.FC<ToolTrackBrandProps> = ({
   className = '',
@@ -152,22 +154,22 @@ export const ToolTrackBrand: React.FC<ToolTrackBrandProps> = ({
 }) => {
   return (
     <div className={`flex items-center gap-2.5 select-none ${className}`}>
-      {/* Minimalist Brand Icon */}
-      <div className="shrink-0 transition-transform duration-200 group-hover:scale-105">
+      {/* Minimalist Brand Icon with initial reveal & hover micro-lift */}
+      <div className="shrink-0 animate-brand-reveal transition-all duration-200 ease-out group-hover:scale-105 group-hover:drop-shadow-[0_4px_12px_rgba(99,102,241,0.25)]">
         <ToolTrackIcon className={iconClassName} />
       </div>
 
       {/* Brand Wordmark (ToolTrack + Minimal Tag) */}
-      <div className={`flex-col justify-center ${showTextOnMobile ? 'flex' : 'hidden sm:flex'}`}>
+      <div className={`flex-col justify-center animate-brand-reveal ${showTextOnMobile ? 'flex' : 'hidden sm:flex'}`}>
         <div className="flex items-center text-[20px] tracking-tight leading-tight">
-          <span className="font-bold text-slate-900 dark:text-white">
+          <span className="font-bold text-slate-900 dark:text-white transition-colors duration-200">
             Tool
           </span>
-          <span className="font-extrabold text-indigo-600 dark:text-indigo-400 ml-0.5">
+          <span className="font-extrabold text-indigo-600 dark:text-indigo-400 ml-0.5 transition-colors duration-200 group-hover:text-indigo-500 dark:group-hover:text-indigo-300">
             Track
           </span>
         </div>
-        <span className="text-[9px] font-bold tracking-[0.16em] text-indigo-600 dark:text-indigo-400 uppercase leading-none mt-0.5">
+        <span className="text-[9px] font-bold tracking-[0.16em] group-hover:tracking-[0.19em] text-indigo-600 dark:text-indigo-400 uppercase leading-none mt-0.5 transition-all duration-200">
           Productivity Toolkit
         </span>
       </div>

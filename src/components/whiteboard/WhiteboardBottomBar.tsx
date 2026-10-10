@@ -116,7 +116,7 @@ export const WhiteboardBottomBar: React.FC<WhiteboardBottomBarProps> = ({
                   ? 'bg-indigo-600 text-white'
                   : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400'
               }`}
-              title="Focus Mode — Fullscreen distraction-free drawing (F)"
+              title="Focus Mode — Distraction-free drawing (Shift + F / F11)"
             >
               <Maximize className="w-4 h-4" />
             </button>

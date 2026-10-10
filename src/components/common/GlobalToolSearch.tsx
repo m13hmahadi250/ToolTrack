@@ -279,7 +279,7 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
                 ? { transform: `translateX(${panelShift}px)` }
                 : undefined
             }
-            className={`absolute top-full mt-2 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-700/80 overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150 flex flex-col ${
+            className={`absolute top-full mt-2 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-700/80 overflow-hidden z-50 animate-popover flex flex-col ${
               isHeader
                 ? 'w-[calc(100vw-2rem)] sm:w-[480px] md:w-[540px] right-0 left-auto max-w-[calc(100vw-2rem)]'
                 : 'w-full left-0 right-0'

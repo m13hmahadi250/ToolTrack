@@ -80,7 +80,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     <div
       ref={menuRef}
       style={{ left: adjustedX, top: adjustedY }}
-      className="fixed z-50 w-52 p-1.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-2xl text-xs space-y-1 animate-in fade-in zoom-in-95 duration-100 select-none text-slate-700 dark:text-slate-200"
+      className="fixed z-50 w-52 p-1.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-2xl text-xs space-y-1 animate-popover select-none text-slate-700 dark:text-slate-200"
     >
       {hasSelection ? (
         <>

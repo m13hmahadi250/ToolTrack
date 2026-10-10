@@ -27,7 +27,7 @@ export const RecentActivityModal: React.FC = () => {
       onClick={() => setIsActivityOpen(false)}
     >
       <div
-        className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 max-h-[85vh] flex flex-col cursor-default"
+        className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 max-h-[85vh] flex flex-col cursor-default animate-modal"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

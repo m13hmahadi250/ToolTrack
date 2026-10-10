@@ -23,6 +23,11 @@ import {
   deleteBoardFromStorage,
   getActiveBoardId,
   setActiveBoardId,
+  requestPersistentStorage,
+  createFullWhiteboardBackup,
+  restoreWhiteboardBackup,
+  saveWorkspacePreference,
+  getWorkspacePreference,
 } from '../../lib/whiteboardStorage';
 import { WhiteboardRenderer, isDarkColor } from '../../lib/whiteboardRenderer';
 import { exportWhiteboard, triggerFileDownload, ExportFormat, ExportQuality } from '../../lib/whiteboardExport';
@@ -37,7 +42,7 @@ import { WhiteboardTemplatesModal } from './WhiteboardTemplatesModal';
 import { WhiteboardSearchModal } from './WhiteboardSearchModal';
 import { WhiteboardContextMenu } from './WhiteboardContextMenu';
 import { useToolTrack } from '../../context/ToolTrackContext';
-import { Minimize2, Maximize2, Sparkles } from 'lucide-react';
+import { Minimize2, Maximize2, Maximize, Sparkles } from 'lucide-react';
 
 export const WhiteboardView: React.FC = () => {
   const { setActiveToolId } = useToolTrack();
@@ -131,7 +136,26 @@ export const WhiteboardView: React.FC = () => {
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isPresentationMode, setIsPresentationMode] = useState(false);
-  const [isFocusMode, setIsFocusMode] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('tt_pref_whiteboard_focus_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Check persistent storage on mount
+  useEffect(() => {
+    let active = true;
+    getWorkspacePreference<boolean>('whiteboard_focus_mode', false).then((val) => {
+      if (active && typeof val === 'boolean') {
+        setIsFocusMode(val);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   const rootContainerRef = useRef<HTMLDivElement>(null);
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
 
@@ -139,6 +163,11 @@ export const WhiteboardView: React.FC = () => {
   const toggleFocusMode = useCallback(async () => {
     const nextMode = !isFocusMode;
     setIsFocusMode(nextMode);
+    try {
+      saveWorkspacePreference('whiteboard_focus_mode', nextMode);
+    } catch {
+      // safe fallback
+    }
 
     try {
       if (nextMode) {
@@ -183,6 +212,11 @@ export const WhiteboardView: React.FC = () => {
       if (!isCurrentlyFullscreen && isFocusMode) {
         // User exited fullscreen via Escape or browser button -> cleanly update focus mode state
         setIsFocusMode(false);
+        try {
+          saveWorkspacePreference('whiteboard_focus_mode', false);
+        } catch {
+          // safe fallback
+        }
         setTimeout(() => {
           window.dispatchEvent(new Event('resize'));
         }, 50);
@@ -207,10 +241,12 @@ export const WhiteboardView: React.FC = () => {
   // Autosave State
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
+  const [storageQuota, setStorageQuota] = useState<{ usage: number; quota: number; percentUsed: number } | undefined>(undefined);
   const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Hidden file input for image upload
+  // Hidden file inputs
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const backupFileInputRef = useRef<HTMLInputElement>(null);
 
   // -------------------------------------------------------------
   // History Record Helper (Fast, Low-Memory Cloning)
@@ -245,12 +281,18 @@ export const WhiteboardView: React.FC = () => {
   }, [board.backgroundColor, isAutoContrastColor]);
 
   // -------------------------------------------------------------
-  // Load Saved Boards on Mount
+  // Load Saved Boards and Request Storage Persistence on Mount
   // -------------------------------------------------------------
   useEffect(() => {
     let isMounted = true;
     async function initBoards() {
       try {
+        // Request persistent browser storage protection
+        const storageStatus = await requestPersistentStorage();
+        if (isMounted && storageStatus.quota) {
+          setStorageQuota(storageStatus.quota);
+        }
+
         const storedBoards = await getAllBoards();
         if (!isMounted) return;
 
@@ -1375,11 +1417,17 @@ export const WhiteboardView: React.FC = () => {
   ]);
 
   // -------------------------------------------------------------
-  // Image Upload File Input Handler
+  // Image & PDF Upload File Input Handler
   // -------------------------------------------------------------
   const handleImageFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      handlePdfUpload(file);
+      e.target.value = '';
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (loadEvt) => {
@@ -1454,11 +1502,11 @@ export const WhiteboardView: React.FC = () => {
       ref={rootContainerRef}
       className="fixed inset-0 w-full h-full overflow-hidden bg-slate-900 select-none"
     >
-      {/* Hidden File Input for Image Upload */}
+      {/* Hidden File Input for Image & PDF Document Upload */}
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,application/pdf,.pdf"
         onChange={handleImageFileSelected}
         className="hidden"
       />
@@ -1495,18 +1543,29 @@ export const WhiteboardView: React.FC = () => {
       <div className="fixed top-3 right-3 sm:top-4 sm:right-4 z-50 pointer-events-auto">
         <button
           onClick={toggleFocusMode}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl backdrop-blur-md border shadow-2xl transition-all duration-300 ease-out cursor-pointer group select-none ${
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl backdrop-blur-md border shadow-lg transition-all duration-200 cursor-pointer group select-none ${
             isFocusMode
               ? 'bg-slate-900/90 hover:bg-slate-800 text-indigo-400 border-indigo-500/50 hover:border-indigo-400 ring-2 ring-indigo-500/20 shadow-indigo-500/10'
-              : 'hidden'
+              : 'bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 border-slate-200/90 dark:border-slate-800/90 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
-          title="Exit Focus Mode (Shift + F / Esc)"
-          aria-label="Exit Focus Mode"
+          title={isFocusMode ? 'Exit Focus Mode (Shift + F / Esc)' : 'Focus Mode — Distraction-free drawing (Shift + F / F11)'}
+          aria-label={isFocusMode ? 'Exit Focus Mode' : 'Enter Focus Mode'}
         >
-          <Minimize2 className="w-4 h-4 transition-transform group-hover:scale-110" />
-          <span className="text-xs font-semibold text-slate-200 group-hover:text-white hidden sm:inline">
-            Exit Focus
-          </span>
+          {isFocusMode ? (
+            <>
+              <Minimize2 className="w-4 h-4 text-indigo-400 transition-transform group-hover:scale-110" />
+              <span className="text-xs font-semibold text-slate-200 group-hover:text-white hidden sm:inline">
+                Exit Focus
+              </span>
+            </>
+          ) : (
+            <>
+              <Maximize className="w-4 h-4 text-indigo-500 dark:text-indigo-400 transition-transform group-hover:scale-110" />
+              <span className="text-xs font-semibold hidden sm:inline">
+                Focus
+              </span>
+            </>
+          )}
         </button>
       </div>
 

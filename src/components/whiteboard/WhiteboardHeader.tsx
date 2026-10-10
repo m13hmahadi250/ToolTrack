@@ -22,6 +22,9 @@ import {
   ArrowLeft,
   Maximize,
   Minimize,
+  Archive,
+  Upload,
+  HardDrive,
 } from 'lucide-react';
 import { WhiteboardBoard, GridType } from '../../types/whiteboard';
 import { ExportFormat, ExportQuality } from '../../lib/whiteboardExport';
@@ -38,6 +41,9 @@ interface WhiteboardHeaderProps {
   onToggleGridSnap: () => void;
   onChangeBackgroundColor: (color: string) => void;
   onExport: (format: ExportFormat, quality: ExportQuality, includeBg: boolean) => void;
+  onBackupAll?: () => void;
+  onRestoreBackup?: () => void;
+  storageQuota?: { usage: number; quota: number; percentUsed: number };
   onOpenTemplates: () => void;
   onOpenSearch: () => void;
   onOpenHelp: () => void;
@@ -65,6 +71,9 @@ export const WhiteboardHeader: React.FC<WhiteboardHeaderProps> = ({
   onToggleGridSnap,
   onChangeBackgroundColor,
   onExport,
+  onBackupAll,
+  onRestoreBackup,
+  storageQuota,
   onOpenTemplates,
   onOpenSearch,
   onOpenHelp,
@@ -136,21 +145,22 @@ export const WhiteboardHeader: React.FC<WhiteboardHeaderProps> = ({
 
   return (
     <header
-      className={`fixed top-3 left-4 right-4 z-40 flex items-center justify-between gap-3 pointer-events-none transition-all duration-300 ease-out ${
+      className={`fixed top-3 left-3 sm:left-4 right-16 sm:right-28 z-40 flex items-center justify-between gap-2 sm:gap-3 pointer-events-none transition-all duration-300 ease-out ${
         isDrawingActive
           ? 'opacity-0 -translate-y-4 pointer-events-none'
           : 'opacity-100 translate-y-0'
       }`}
     >
       {/* Left Block: Back, Brand, Title & Board Manager */}
-      <div className="flex items-center gap-2 pointer-events-auto">
+      <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
         <button
           onClick={onBackToHome}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-md text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-md text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
           title="Back to ToolTrack"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to ToolTrack</span>
+          <ArrowLeft className="w-4 h-4 shrink-0" />
+          <span className="hidden sm:inline">Back to ToolTrack</span>
+          <span className="sm:hidden font-medium">Back</span>
         </button>
 
         {/* Board Title & Switcher Dropdown */}
@@ -193,7 +203,7 @@ export const WhiteboardHeader: React.FC<WhiteboardHeaderProps> = ({
 
           {/* Boards Dropdown */}
           {boardsDropdownOpen && (
-            <div className="absolute top-full mt-2 left-0 w-64 p-2 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl text-xs space-y-2 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute top-full mt-2 left-0 w-64 p-2 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl text-xs space-y-2 animate-popover">
               <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800 px-1">
                 <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider">
                   My Boards ({allBoards.length})
@@ -260,11 +270,35 @@ export const WhiteboardHeader: React.FC<WhiteboardHeaderProps> = ({
           )}
         </div>
 
-        {/* Subtle Save Error Indicator (only shown if an actual storage error occurs) */}
-        {saveStatus === 'error' && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-red-500/10 border border-red-500/30 text-[11px] text-red-400 font-semibold shadow-md">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-            <span>Save error</span>
+        {/* Subtle Save Status Pill */}
+        {saveStatus === 'error' ? (
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-[11px] text-rose-400 font-semibold shadow-md">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+            <span>Save error — Retaining in-memory</span>
+          </div>
+        ) : saveStatus === 'saving' ? (
+          <div className="hidden lg:flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-800/60 border border-slate-700/60 text-[10px] text-slate-400 font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span>Saving...</span>
+          </div>
+        ) : lastSavedTime ? (
+          <div
+            className="hidden xl:flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400"
+            title={`Last autosaved to IndexedDB at ${lastSavedTime}`}
+          >
+            <Check className="w-3 h-3 text-emerald-400" />
+            <span>Saved {lastSavedTime}</span>
+          </div>
+        ) : null}
+
+        {/* Storage Quota Warning if usage > 85% */}
+        {storageQuota && storageQuota.percentUsed >= 85 && (
+          <div
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-[10px] text-amber-300 font-semibold shadow-md"
+            title={`Browser storage is ${storageQuota.percentUsed}% full (${Math.round(storageQuota.usage / (1024 * 1024))}MB used). Please consider downloading an archive backup.`}
+          >
+            <HardDrive className="w-3 h-3 text-amber-400 shrink-0" />
+            <span>Storage {storageQuota.percentUsed}% full</span>
           </div>
         )}
       </div>
@@ -303,7 +337,7 @@ export const WhiteboardHeader: React.FC<WhiteboardHeaderProps> = ({
           </button>
 
           {canvasMenuOpen && (
-            <div className="absolute top-full mt-2 right-0 w-60 p-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl text-xs space-y-3 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute top-full mt-2 right-0 w-60 p-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl text-xs space-y-3 animate-popover">
               {/* Grid Types */}
               <div className="space-y-1.5">
                 <label className="font-semibold text-slate-600 dark:text-slate-400 block">Grid Style</label>
@@ -377,7 +411,7 @@ export const WhiteboardHeader: React.FC<WhiteboardHeaderProps> = ({
           </button>
 
           {exportMenuOpen && (
-            <div className="absolute top-full mt-2 right-0 w-64 p-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl text-xs space-y-3 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute top-full mt-2 right-0 w-64 p-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 shadow-2xl text-xs space-y-3 animate-popover">
               {/* Quality selector */}
               <div className="space-y-1.5">
                 <label className="font-semibold text-slate-600 dark:text-slate-400 block">Export Quality</label>
@@ -476,28 +510,38 @@ export const WhiteboardHeader: React.FC<WhiteboardHeaderProps> = ({
                   className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition cursor-pointer"
                 >
                   <FolderOpen className="w-4 h-4 text-indigo-500" />
-                  <span className="font-medium">Save Editable Project (.json)</span>
+                  <span className="font-medium">Save Single Board (.json)</span>
                 </button>
+
+                {onBackupAll && (
+                  <button
+                    onClick={() => {
+                      onBackupAll();
+                      setExportMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition cursor-pointer"
+                  >
+                    <Archive className="w-4 h-4 text-emerald-500" />
+                    <span className="font-medium">Export All Boards Backup</span>
+                  </button>
+                )}
+
+                {onRestoreBackup && (
+                  <button
+                    onClick={() => {
+                      onRestoreBackup();
+                      setExportMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition cursor-pointer"
+                  >
+                    <Upload className="w-4 h-4 text-blue-500" />
+                    <span className="font-medium">Restore from Backup</span>
+                  </button>
+                )}
               </div>
             </div>
           )}
         </div>
-
-        {/* Focus Mode Button */}
-        {onToggleFocusMode && (
-          <button
-            onClick={onToggleFocusMode}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border shadow-md text-xs font-semibold transition cursor-pointer ${
-              isFocusMode
-                ? 'bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-700'
-                : 'bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 border-slate-200/90 dark:border-slate-800/90 hover:text-indigo-600 dark:hover:text-indigo-400'
-            }`}
-            title="Focus Mode — Fullscreen distraction-free drawing (F)"
-          >
-            <Maximize className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-            <span className="hidden sm:inline">Focus</span>
-          </button>
-        )}
 
         {/* Presentation Mode Button */}
         <button
