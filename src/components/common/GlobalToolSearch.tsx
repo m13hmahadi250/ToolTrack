@@ -67,21 +67,43 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
 
   // Keyboard shortcut listener: Ctrl+K / Cmd+K
   useEffect(() => {
-    if (variant !== 'header') return;
-
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        inputRef.current?.focus();
-        inputRef.current?.select();
-        setIsOpen(true);
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        // If on homepage, variant === 'home' should handle the search
+        const hasHomeSearchOnPage = Boolean(
+          document.querySelector('input[data-tooltrack-search="home"]')
+        );
+
+        if (variant === 'home') {
+          e.preventDefault();
+          e.stopPropagation();
+          inputRef.current?.focus();
+          inputRef.current?.select();
+          setIsOpen(true);
+        } else if (variant === 'header' && !hasHomeSearchOnPage) {
+          e.preventDefault();
+          e.stopPropagation();
+          inputRef.current?.focus();
+          inputRef.current?.select();
+          setIsOpen(true);
+        }
       }
     };
 
     const handleCustomTrigger = () => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-      setIsOpen(true);
+      const hasHomeSearchOnPage = Boolean(
+        document.querySelector('input[data-tooltrack-search="home"]')
+      );
+
+      if (variant === 'home') {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+        setIsOpen(true);
+      } else if (variant === 'header' && !hasHomeSearchOnPage) {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+        setIsOpen(true);
+      }
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -92,11 +114,11 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
     };
   }, [variant]);
 
-  // Viewport bounds clamping for the results panel in header variant
+  // Viewport bounds clamping for the results panel in all variants
   const [panelShift, setPanelShift] = useState<number>(0);
 
   useEffect(() => {
-    if (!isOpen || !panelRef.current || variant !== 'header') return;
+    if (!isOpen || !panelRef.current) return;
 
     const clampPanelToViewport = () => {
       const el = panelRef.current;
@@ -105,7 +127,7 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
       // Reset shift first to measure natural position
       el.style.transform = 'none';
       const rect = el.getBoundingClientRect();
-      const margin = 16;
+      const margin = 12;
 
       let shift = 0;
       if (rect.left < margin) {
@@ -120,12 +142,30 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
 
     clampPanelToViewport();
     window.addEventListener('resize', clampPanelToViewport);
-    return () => window.removeEventListener('resize', clampPanelToViewport);
+    window.addEventListener('scroll', clampPanelToViewport, { passive: true });
+    return () => {
+      window.removeEventListener('resize', clampPanelToViewport);
+      window.removeEventListener('scroll', clampPanelToViewport);
+    };
   }, [isOpen, variant, searchResults.length]);
+
+  // Auto-scroll active item into view during keyboard navigation
+  useEffect(() => {
+    if (selectedIndex >= 0 && panelRef.current) {
+      const activeEl = panelRef.current.querySelector(
+        `#tooltrack-search-item-${searchResults[selectedIndex]?.tool.id}`
+      );
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [selectedIndex, searchResults]);
 
   const handleSelect = (tool: ToolItem) => {
     setIsOpen(false);
     setSelectedIndex(-1);
+    setQuery('');
+    onQueryChange?.('');
     if (onSelectTool) {
       onSelectTool(tool.id);
     } else {
@@ -195,7 +235,7 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full ${isHeader ? 'max-w-xs md:max-w-sm' : ''} ${className}`}
+      className={`relative w-full text-left ${isOpen ? 'z-50' : 'z-20'} ${isHeader ? 'max-w-xs md:max-w-sm' : ''} ${className}`}
     >
       {/* Search Input Container */}
       <div className="relative flex items-center">
@@ -208,6 +248,7 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
         <input
           ref={inputRef}
           type="text"
+          data-tooltrack-search={variant}
           autoFocus={autoFocus}
           value={query}
           onChange={handleChange}
@@ -261,28 +302,26 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
       {/* Autocomplete Suggestions Dropdown Panel */}
       {isOpen && (
         <>
-          {/* Subtle backdrop overlay for header variant so click outside is immediate */}
-          {isHeader && (
-            <div
-              className="fixed inset-0 z-40 bg-slate-900/10 dark:bg-slate-900/25 backdrop-blur-[1px] animate-in fade-in duration-100 cursor-pointer"
-              onClick={() => setIsOpen(false)}
-              aria-hidden="true"
-            />
-          )}
+          {/* Subtle backdrop overlay so click outside is immediate and non-interfering */}
+          <div
+            className="fixed inset-0 z-40 bg-slate-900/10 dark:bg-slate-900/25 backdrop-blur-[0.5px] animate-in fade-in duration-100 cursor-pointer"
+            onClick={() => setIsOpen(false)}
+            aria-hidden="true"
+          />
 
           <div
             ref={panelRef}
             id={listboxId}
             role="listbox"
             style={
-              isHeader && panelShift !== 0
+              panelShift !== 0
                 ? { transform: `translateX(${panelShift}px)` }
                 : undefined
             }
             className={`absolute top-full mt-2 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-700/80 overflow-hidden z-50 animate-popover flex flex-col ${
               isHeader
                 ? 'w-[calc(100vw-2rem)] sm:w-[480px] md:w-[540px] right-0 left-auto max-w-[calc(100vw-2rem)]'
-                : 'w-full left-0 right-0'
+                : 'w-full left-0 right-0 max-w-[calc(100vw-2rem)]'
             } ${
               isHome
                 ? 'max-h-[min(480px,calc(100vh-140px))]'
@@ -324,6 +363,13 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
                       role="option"
                       aria-selected={isSelected}
                       type="button"
+                      onMouseDown={(e) => {
+                        // Prevent blur before click executes
+                        e.preventDefault();
+                      }}
+                      onTouchStart={(e) => {
+                        e.stopPropagation();
+                      }}
                       onClick={() => handleSelect(tool)}
                       onMouseEnter={() => setSelectedIndex(idx)}
                       className={`w-full flex items-start justify-between p-3 sm:p-3.5 rounded-xl text-left transition group cursor-pointer border ${

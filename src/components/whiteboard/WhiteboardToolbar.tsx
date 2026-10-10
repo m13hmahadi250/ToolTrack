@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   MousePointer,
   LassoSelect,
@@ -161,7 +162,11 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
     }
   });
 
+  const lastToggleTimeRef = useRef(0);
   const toggleMinimized = () => {
+    const now = Date.now();
+    if (now - lastToggleTimeRef.current < 260) return;
+    lastToggleTimeRef.current = now;
     setIsMinimized((prev) => {
       const next = !prev;
       try {
@@ -322,43 +327,47 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
     );
   }
 
-  // Minimized compact floating toolbar micro-pill
-  if (isMinimized) {
-    return (
-      <aside
-        aria-label="Whiteboard Toolbar"
-        className={`fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 transition-all duration-150 ease-out ${
-          isDrawingActive
-            ? 'opacity-0 translate-y-6 pointer-events-none'
-            : 'opacity-100 translate-y-0'
-        }`}
-      >
-        <button
-          type="button"
-          onClick={toggleMinimized}
-          className="flex items-center gap-1 px-1.5 py-1 rounded-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-lg text-slate-700 dark:text-slate-200 hover:border-indigo-500/70 hover:shadow-indigo-500/10 hover:scale-105 active:scale-95 transition-all duration-150 cursor-pointer group select-none"
-          title={`Expand Toolbar (M) • Active: ${activeTool.replace('_', ' ')}`}
-          aria-label="Expand Toolbar"
-        >
-          <span className="w-4.5 h-4.5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs [&>svg]:w-2.5 [&>svg]:h-2.5">
-            {getActiveToolIcon(activeTool)}
-          </span>
-          <ChevronUp className="w-3 h-3 text-slate-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-transform group-hover:-translate-y-0.5 mr-0.5" />
-        </button>
-      </aside>
-    );
-  }
-
   return (
-    <aside
+    <motion.aside
+      layout
+      transition={{
+        layout: { duration: 0.28, ease: [0.16, 1, 0.3, 1] },
+      }}
       aria-label="Whiteboard Toolbar"
-      className={`fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[98vw] overflow-visible transition-all duration-150 ease-out ${
+      className={`fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-[98vw] overflow-visible transition-opacity duration-200 ${
         isDrawingActive
           ? 'opacity-0 translate-y-6 pointer-events-none'
           : 'opacity-100 translate-y-0'
       }`}
     >
-      <div className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-2xl text-slate-800 dark:text-slate-100">
+      <AnimatePresence mode="wait" initial={false}>
+        {isMinimized ? (
+          <motion.button
+            key="toolbar-minimized"
+            initial={{ opacity: 0, y: 12, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.95 }}
+            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+            type="button"
+            onClick={toggleMinimized}
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-lg text-slate-700 dark:text-slate-200 hover:border-indigo-500/70 hover:shadow-indigo-500/10 active:scale-95 cursor-pointer group select-none"
+            title={`Expand Toolbar (M) • Active: ${activeTool.replace('_', ' ')}`}
+            aria-label="Expand Toolbar"
+          >
+            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs [&>svg]:w-3 [&>svg]:h-3">
+              {getActiveToolIcon(activeTool)}
+            </span>
+            <ChevronUp className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-transform group-hover:-translate-y-0.5 mr-0.5" />
+          </motion.button>
+        ) : (
+          <motion.div
+            key="toolbar-expanded"
+            initial={{ opacity: 0, y: 14, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 14, scale: 0.98 }}
+            transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 shadow-2xl text-slate-800 dark:text-slate-100 relative"
+          >
         {/* 1. Selection & Pan */}
         <button
           onClick={() => onSelectTool('select')}
@@ -1115,7 +1124,9 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
           <ChevronDown className="w-4 h-4" />
           <span className="sr-only">Minimize Toolbar (M)</span>
         </button>
-      </div>
-    </aside>
-  );
+      </motion.div>
+      )}
+    </AnimatePresence>
+  </motion.aside>
+);
 };

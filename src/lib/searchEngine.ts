@@ -251,9 +251,10 @@ export function searchTools(query: string, maxResults = 10): SearchResult[] {
         tokenMatched = true;
       }
 
-      // Category match
-      if (catLower.includes(token)) {
-        score += 80;
+      // Category match (technical ID and human-readable label)
+      const catLabel = getCategoryLabel(tool.category).toLowerCase();
+      if (catLower.includes(token) || catLabel.includes(token)) {
+        score += 100;
         tokenMatched = true;
       }
 

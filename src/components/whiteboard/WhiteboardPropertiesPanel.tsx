@@ -182,7 +182,11 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
     }
   });
 
+  const lastToggleTimeRef = React.useRef(0);
   const toggleCollapsed = () => {
+    const now = Date.now();
+    if (now - lastToggleTimeRef.current < 260) return; // Prevent double transition
+    lastToggleTimeRef.current = now;
     setIsCollapsed((prev) => {
       const next = !prev;
       try {
@@ -257,54 +261,54 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
     <motion.aside
       layout
       transition={{
-        layout: { duration: 0.16, ease: [0.16, 1, 0.3, 1] },
+        layout: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
       }}
       aria-label="Whiteboard Control Panel"
-      className={`fixed top-16 sm:top-20 left-3 sm:left-4 z-30 select-none overflow-hidden backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 transition-opacity duration-150 ${
+      className={`fixed top-16 sm:top-20 z-30 select-none overflow-hidden backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 transition-opacity duration-200 ${
         isDrawingActive
           ? 'opacity-0 pointer-events-none'
           : 'opacity-100 pointer-events-auto'
       } ${
         isCollapsed
-          ? 'rounded-full shadow-md'
-          : 'rounded-2xl shadow-2xl w-64 max-h-[82vh]'
+          ? 'left-0 rounded-r-2xl border-l-0 shadow-lg'
+          : 'left-3 sm:left-4 rounded-2xl shadow-2xl w-64 sm:w-72 max-h-[82vh]'
       }`}
     >
       <AnimatePresence mode="wait" initial={false}>
         {isCollapsed ? (
           <motion.button
             key="collapsed"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.08 }}
+            initial={{ opacity: 0, x: -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             type="button"
             onClick={toggleCollapsed}
-            className="flex items-center gap-1.5 h-6.5 sm:h-7 px-1.5 sm:px-2 rounded-full text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 active:scale-95 cursor-pointer group select-none whitespace-nowrap"
+            className="flex items-center gap-1.5 h-8 pl-2 pr-2.5 rounded-r-2xl text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100/90 dark:hover:bg-slate-800/90 active:scale-95 cursor-pointer group select-none whitespace-nowrap"
             title="Expand control panel"
             aria-label="Expand Whiteboard control panel"
           >
             {/* Tiny color or tool preview indicator */}
             <span
-              className="w-2 h-2 rounded-full border border-slate-300 dark:border-slate-600 shrink-0 shadow-2xs group-hover:ring-1 group-hover:ring-indigo-500/50 transition-all"
+              className="w-2.5 h-2.5 rounded-full border border-slate-300 dark:border-slate-600 shrink-0 shadow-2xs group-hover:ring-1 group-hover:ring-indigo-500/50 transition-all"
               style={{ backgroundColor: strokeColor !== 'transparent' ? strokeColor : '#6366f1' }}
             />
-            <span className="text-[10px] sm:text-[11px] font-semibold capitalize text-slate-800 dark:text-slate-100 truncate max-w-[65px] sm:max-w-[75px]">
+            <span className="text-[11px] font-semibold capitalize text-slate-800 dark:text-slate-100 truncate max-w-[70px] sm:max-w-[85px]">
               {hasSelection
                 ? selectedElements.length > 1
                   ? `${selectedElements.length} items`
                   : `${singleElement?.type?.replace('_', ' ') || 'Object'}`
                 : `${activeTool.replace('_', ' ')}`}
             </span>
-            <ChevronRight className="w-3 h-3 text-slate-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-transform group-hover:translate-x-0.5 shrink-0" />
+            <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-transform group-hover:translate-x-0.5 shrink-0" />
           </motion.button>
         ) : (
           <motion.div
             key="expanded"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.1 }}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
             className="p-3.5 space-y-4 text-xs max-h-[82vh] overflow-y-auto"
           >
             {/* Header bar / Title */}
@@ -352,7 +356,7 @@ export const WhiteboardPropertiesPanel: React.FC<WhiteboardPropertiesPanelProps>
             type="button"
             onClick={toggleCollapsed}
             className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition cursor-pointer"
-            title="Minimize to floating pill"
+            title="Minimize to side edge"
             aria-label="Minimize control panel"
           >
             <ChevronLeft className="w-3.5 h-3.5" />

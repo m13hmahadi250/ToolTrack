@@ -25,9 +25,15 @@
     /* Unified Animation Design Tokens */
     --ease-out-subtle: cubic-bezier(0.16, 1, 0.3, 1);
     --ease-in-out-subtle: cubic-bezier(0.4, 0, 0.2, 1);
-    --duration-fast: 120ms;
-    --duration-normal: 180ms;
-    --duration-panel: 220ms;
+    --duration-fast: 160ms;
+    --duration-normal: 240ms;
+    --duration-panel: 300ms;
+    --wb-duration-icon: 180ms;
+    --wb-duration-toolbar: 280ms;
+    --wb-duration-panel: 300ms;
+    --wb-duration-sidebar: 320ms;
+    --wb-ease-default: cubic-bezier(0.16, 1, 0.3, 1);
+    --wb-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark {
@@ -305,6 +311,30 @@
 }
 .interactive-press:active {
   transform: scale(0.97);
+}
+
+/* Whiteboard Premium Animation Classes */
+.wb-panel-transition {
+  transition: transform var(--wb-duration-panel, 300ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              opacity var(--wb-duration-panel, 300ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              width var(--wb-duration-panel, 300ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              height var(--wb-duration-panel, 300ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              border-radius var(--wb-duration-panel, 300ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              box-shadow var(--wb-duration-panel, 300ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.wb-toolbar-transition {
+  transition: transform var(--wb-duration-toolbar, 280ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              opacity var(--wb-duration-toolbar, 280ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.wb-button-press {
+  transition: transform var(--wb-duration-icon, 180ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              background-color var(--wb-duration-icon, 180ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              color var(--wb-duration-icon, 180ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.wb-button-press:active {
+  transform: scale(0.94);
 }
 
 /* ------------------------------------------------------------- */
