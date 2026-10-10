@@ -37,6 +37,7 @@ import { WhiteboardTemplatesModal } from './WhiteboardTemplatesModal';
 import { WhiteboardSearchModal } from './WhiteboardSearchModal';
 import { WhiteboardContextMenu } from './WhiteboardContextMenu';
 import { useToolTrack } from '../../context/ToolTrackContext';
+import { Minimize2, Maximize2, Sparkles } from 'lucide-react';
 
 export const WhiteboardView: React.FC = () => {
   const { setActiveToolId } = useToolTrack();
@@ -130,7 +131,71 @@ export const WhiteboardView: React.FC = () => {
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const rootContainerRef = useRef<HTMLDivElement>(null);
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
+
+  // Synchronize browser Fullscreen API with Focus Mode
+  const toggleFocusMode = useCallback(async () => {
+    const nextMode = !isFocusMode;
+    setIsFocusMode(nextMode);
+
+    try {
+      if (nextMode) {
+        // Request fullscreen on the root container if supported and not already in fullscreen
+        const elem = rootContainerRef.current || document.documentElement;
+        if (!document.fullscreenElement) {
+          if (elem.requestFullscreen) {
+            await elem.requestFullscreen();
+          } else if ((elem as any).webkitRequestFullscreen) {
+            await (elem as any).webkitRequestFullscreen();
+          } else if ((elem as any).msRequestFullscreen) {
+            await (elem as any).msRequestFullscreen();
+          }
+        }
+      } else {
+        // Exit fullscreen if currently in fullscreen
+        if (document.fullscreenElement) {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if ((document as any).webkitExitFullscreen) {
+            await (document as any).webkitExitFullscreen();
+          } else if ((document as any).msExitFullscreen) {
+            await (document as any).msExitFullscreen();
+          }
+        }
+      }
+    } catch {
+      // Fullscreen API may be blocked by iframe permissions or denied;
+      // focus mode fallback remains 100% active and distraction-free in-viewport!
+    }
+
+    // Trigger canvas size recheck smoothly
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 50);
+  }, [isFocusMode]);
+
+  // Listen to browser native fullscreen change (e.g. user pressed Escape or F11)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      if (!isCurrentlyFullscreen && isFocusMode) {
+        // User exited fullscreen via Escape or browser button -> cleanly update focus mode state
+        setIsFocusMode(false);
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+        }, 50);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, [isFocusMode]);
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -1257,7 +1322,16 @@ export const WhiteboardView: React.FC = () => {
           setActiveTool('connector');
           break;
         case 'f':
-          setActiveTool('frame');
+          if (e.shiftKey) {
+            e.preventDefault();
+            toggleFocusMode();
+          } else {
+            setActiveTool('frame');
+          }
+          break;
+        case 'f11':
+          e.preventDefault();
+          toggleFocusMode();
           break;
         case 'delete':
         case 'backspace':
@@ -1267,6 +1341,12 @@ export const WhiteboardView: React.FC = () => {
           }
           break;
         case 'escape':
+          if (isFocusMode) {
+            setIsFocusMode(false);
+            if (document.fullscreenElement) {
+              document.exitFullscreen?.().catch(() => {});
+            }
+          }
           setSelectedElementIds([]);
           setContextMenu(null);
           setIsShortcutsOpen(false);
@@ -1290,6 +1370,8 @@ export const WhiteboardView: React.FC = () => {
     handleDuplicateSelected,
     handleDeleteElements,
     isPresentationMode,
+    isFocusMode,
+    toggleFocusMode,
   ]);
 
   // -------------------------------------------------------------
@@ -1368,7 +1450,10 @@ export const WhiteboardView: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 w-full h-full overflow-hidden bg-slate-900 select-none">
+    <div
+      ref={rootContainerRef}
+      className="fixed inset-0 w-full h-full overflow-hidden bg-slate-900 select-none"
+    >
       {/* Hidden File Input for Image Upload */}
       <input
         ref={fileInputRef}
@@ -1378,29 +1463,52 @@ export const WhiteboardView: React.FC = () => {
         className="hidden"
       />
 
-      {/* Top Header Floating Controls */}
-      <WhiteboardHeader
-        board={board}
-        allBoards={allBoards}
-        onRenameBoard={handleRenameBoard}
-        onSelectBoard={handleSelectBoard}
-        onCreateNewBoard={handleCreateNewBoard}
-        onDuplicateBoard={handleDuplicateBoard}
-        onDeleteBoard={handleDeleteBoard}
-        onChangeGridType={(gridType) => setBoard((prev) => ({ ...prev, gridType }))}
-        onToggleGridSnap={() => setBoard((prev) => ({ ...prev, gridSnap: !prev.gridSnap }))}
-        onChangeBackgroundColor={(color) => setBoard((prev) => ({ ...prev, backgroundColor: color }))}
-        onExport={handleExport}
-        onOpenTemplates={() => setIsTemplatesOpen(true)}
-        onOpenSearch={() => setIsSearchOpen(true)}
-        onOpenHelp={() => setIsShortcutsOpen(true)}
-        onTogglePresentationMode={() => setIsPresentationMode((p) => !p)}
-        onBackToHome={handleBackToToolTrack}
-        saveStatus={saveStatus}
-        lastSavedTime={lastSavedTime}
-        isPresentationMode={isPresentationMode}
-        isDrawingActive={isDrawingActive}
-      />
+      {/* Top Header Floating Controls (Hidden in Focus Mode) */}
+      {!isFocusMode && (
+        <WhiteboardHeader
+          board={board}
+          allBoards={allBoards}
+          onRenameBoard={handleRenameBoard}
+          onSelectBoard={handleSelectBoard}
+          onCreateNewBoard={handleCreateNewBoard}
+          onDuplicateBoard={handleDuplicateBoard}
+          onDeleteBoard={handleDeleteBoard}
+          onChangeGridType={(gridType) => setBoard((prev) => ({ ...prev, gridType }))}
+          onToggleGridSnap={() => setBoard((prev) => ({ ...prev, gridSnap: !prev.gridSnap }))}
+          onChangeBackgroundColor={(color) => setBoard((prev) => ({ ...prev, backgroundColor: color }))}
+          onExport={handleExport}
+          onOpenTemplates={() => setIsTemplatesOpen(true)}
+          onOpenSearch={() => setIsSearchOpen(true)}
+          onOpenHelp={() => setIsShortcutsOpen(true)}
+          onTogglePresentationMode={() => setIsPresentationMode((p) => !p)}
+          onBackToHome={handleBackToToolTrack}
+          saveStatus={saveStatus}
+          lastSavedTime={lastSavedTime}
+          isPresentationMode={isPresentationMode}
+          isFocusMode={isFocusMode}
+          onToggleFocusMode={toggleFocusMode}
+          isDrawingActive={isDrawingActive}
+        />
+      )}
+
+      {/* Always-Accessible Floating Focus Mode Toggle Button in Corner */}
+      <div className="fixed top-3 right-3 sm:top-4 sm:right-4 z-50 pointer-events-auto">
+        <button
+          onClick={toggleFocusMode}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl backdrop-blur-md border shadow-2xl transition-all duration-300 ease-out cursor-pointer group select-none ${
+            isFocusMode
+              ? 'bg-slate-900/90 hover:bg-slate-800 text-indigo-400 border-indigo-500/50 hover:border-indigo-400 ring-2 ring-indigo-500/20 shadow-indigo-500/10'
+              : 'hidden'
+          }`}
+          title="Exit Focus Mode (Shift + F / Esc)"
+          aria-label="Exit Focus Mode"
+        >
+          <Minimize2 className="w-4 h-4 transition-transform group-hover:scale-110" />
+          <span className="text-xs font-semibold text-slate-200 group-hover:text-white hidden sm:inline">
+            Exit Focus
+          </span>
+        </button>
+      </div>
 
       {/* Main Interactive Canvas Area */}
       <WhiteboardCanvas
@@ -1443,8 +1551,8 @@ export const WhiteboardView: React.FC = () => {
         onDrawingActiveChange={handleDrawingActiveChange}
       />
 
-      {/* Left-Side Contextual Properties Panel */}
-      {!isPresentationMode && (
+      {/* Left-Side Contextual Properties Panel (Hidden in Presentation or Focus Mode) */}
+      {!isPresentationMode && !isFocusMode && (
         <WhiteboardPropertiesPanel
           activeTool={activeTool}
           selectedElements={board.elements.filter((el) => selectedElementIds.includes(el.id))}
@@ -1483,37 +1591,39 @@ export const WhiteboardView: React.FC = () => {
         />
       )}
 
-      {/* Bottom Floating Primary Toolbar */}
-      <WhiteboardToolbar
-        activeTool={activeTool}
-        onSelectTool={(tool) => setActiveTool(tool)}
-        onUploadImageClick={() => fileInputRef.current?.click()}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        isPresentationMode={isPresentationMode}
-        currentStrokeWidth={currentStrokeWidth}
-        onChangeStrokeWidth={setCurrentStrokeWidth}
-        currentPenStyle={currentPenStyle}
-        onChangePenStyle={setCurrentPenStyle}
-        penCursorChoice={penCursorChoice}
-        onChangePenCursorChoice={setPenCursorChoice}
-        smoothingMode={smoothingMode}
-        onChangeSmoothingMode={setSmoothingMode}
-        isBeautifyEnabled={isBeautifyEnabled}
-        onToggleBeautify={() => setIsBeautifyEnabled((p) => !p)}
-        isSmartShapeEnabled={isSmartShapeEnabled}
-        onToggleSmartShape={() => setIsSmartShapeEnabled((p) => !p)}
-        eraserSize={eraserSize}
-        onChangeEraserSize={setEraserSize}
-        eraserMode={eraserMode}
-        onChangeEraserMode={setEraserMode}
-        isDrawingActive={isDrawingActive}
-      />
+      {/* Bottom Floating Primary Toolbar (Hidden in Focus Mode) */}
+      {!isFocusMode && (
+        <WhiteboardToolbar
+          activeTool={activeTool}
+          onSelectTool={(tool) => setActiveTool(tool)}
+          onUploadImageClick={() => fileInputRef.current?.click()}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          isPresentationMode={isPresentationMode}
+          currentStrokeWidth={currentStrokeWidth}
+          onChangeStrokeWidth={setCurrentStrokeWidth}
+          currentPenStyle={currentPenStyle}
+          onChangePenStyle={setCurrentPenStyle}
+          penCursorChoice={penCursorChoice}
+          onChangePenCursorChoice={setPenCursorChoice}
+          smoothingMode={smoothingMode}
+          onChangeSmoothingMode={setSmoothingMode}
+          isBeautifyEnabled={isBeautifyEnabled}
+          onToggleBeautify={() => setIsBeautifyEnabled((p) => !p)}
+          isSmartShapeEnabled={isSmartShapeEnabled}
+          onToggleSmartShape={() => setIsSmartShapeEnabled((p) => !p)}
+          eraserSize={eraserSize}
+          onChangeEraserSize={setEraserSize}
+          eraserMode={eraserMode}
+          onChangeEraserMode={setEraserMode}
+          isDrawingActive={isDrawingActive}
+        />
+      )}
 
-      {/* Bottom-Right Zoom & Frame Navigation Bar */}
-      {!isPresentationMode && (
+      {/* Bottom-Right Zoom & Frame Navigation Bar (Hidden in Presentation or Focus Mode) */}
+      {!isPresentationMode && !isFocusMode && (
         <WhiteboardBottomBar
           zoom={board.viewport.zoom}
           onZoomIn={handleZoomIn}
@@ -1529,6 +1639,8 @@ export const WhiteboardView: React.FC = () => {
             if (frameEl) handleFocusElement(frameEl);
           }}
           isDrawingActive={isDrawingActive}
+          isFocusMode={isFocusMode}
+          onToggleFocusMode={toggleFocusMode}
         />
       )}
 

@@ -35,6 +35,7 @@ export const WhiteboardShortcutsModal: React.FC<WhiteboardShortcutsModalProps> =
     {
       title: 'Navigation & Viewport',
       shortcuts: [
+        { key: 'Shift + F / F11', desc: 'Toggle Fullscreen Focus Mode' },
         { key: 'Space + Drag', desc: 'Pan canvas smoothly' },
         { key: 'Scroll Wheel', desc: 'Zoom in / out at cursor' },
         { key: 'Ctrl + / -', desc: 'Zoom in / out' },

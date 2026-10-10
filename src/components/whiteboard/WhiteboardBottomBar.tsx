@@ -1,5 +1,5 @@
 import React from 'react';
-import { ZoomIn, ZoomOut, Maximize2, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, ChevronLeft, ChevronRight, Layers, Maximize } from 'lucide-react';
 import { FrameItem } from '../../types/whiteboard';
 
 interface WhiteboardBottomBarProps {
@@ -13,6 +13,8 @@ interface WhiteboardBottomBarProps {
   onNavigateFrame: (direction: 'prev' | 'next') => void;
   onSelectFrame: (index: number) => void;
   isDrawingActive?: boolean;
+  isFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
 }
 
 export const WhiteboardBottomBar: React.FC<WhiteboardBottomBarProps> = ({
@@ -26,6 +28,8 @@ export const WhiteboardBottomBar: React.FC<WhiteboardBottomBarProps> = ({
   onNavigateFrame,
   onSelectFrame,
   isDrawingActive = false,
+  isFocusMode = false,
+  onToggleFocusMode,
 }) => {
   const zoomPct = Math.round(zoom * 100);
 
@@ -97,10 +101,27 @@ export const WhiteboardBottomBar: React.FC<WhiteboardBottomBarProps> = ({
         <button
           onClick={onFitToContent}
           className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition cursor-pointer"
-          title="Fit All Content to Screen"
+          title="Fit All Content to Screen (Shift + 1)"
         >
           <Maximize2 className="w-4 h-4" />
         </button>
+
+        {onToggleFocusMode && (
+          <>
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-800 mx-0.5" />
+            <button
+              onClick={onToggleFocusMode}
+              className={`p-1.5 rounded-xl transition cursor-pointer ${
+                isFocusMode
+                  ? 'bg-indigo-600 text-white'
+                  : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+              title="Focus Mode — Fullscreen distraction-free drawing (F)"
+            >
+              <Maximize className="w-4 h-4" />
+            </button>
+          </>
+        )}
       </div>
     </aside>
   );

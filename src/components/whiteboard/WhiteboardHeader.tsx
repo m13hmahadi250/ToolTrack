@@ -20,6 +20,8 @@ import {
   Clock,
   Sparkles,
   ArrowLeft,
+  Maximize,
+  Minimize,
 } from 'lucide-react';
 import { WhiteboardBoard, GridType } from '../../types/whiteboard';
 import { ExportFormat, ExportQuality } from '../../lib/whiteboardExport';
@@ -44,6 +46,8 @@ interface WhiteboardHeaderProps {
   saveStatus: 'saved' | 'saving' | 'error';
   lastSavedTime: string | null;
   isPresentationMode?: boolean;
+  isFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
   isDrawingActive?: boolean;
   hasPdfDocuments?: boolean;
   onExportAnnotatedPdf?: () => void;
@@ -69,6 +73,8 @@ export const WhiteboardHeader: React.FC<WhiteboardHeaderProps> = ({
   saveStatus,
   lastSavedTime,
   isPresentationMode = false,
+  isFocusMode = false,
+  onToggleFocusMode,
   isDrawingActive = false,
   hasPdfDocuments = false,
   onExportAnnotatedPdf,
@@ -476,6 +482,22 @@ export const WhiteboardHeader: React.FC<WhiteboardHeaderProps> = ({
             </div>
           )}
         </div>
+
+        {/* Focus Mode Button */}
+        {onToggleFocusMode && (
+          <button
+            onClick={onToggleFocusMode}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border shadow-md text-xs font-semibold transition cursor-pointer ${
+              isFocusMode
+                ? 'bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-700'
+                : 'bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 border-slate-200/90 dark:border-slate-800/90 hover:text-indigo-600 dark:hover:text-indigo-400'
+            }`}
+            title="Focus Mode — Fullscreen distraction-free drawing (F)"
+          >
+            <Maximize className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+            <span className="hidden sm:inline">Focus</span>
+          </button>
+        )}
 
         {/* Presentation Mode Button */}
         <button
