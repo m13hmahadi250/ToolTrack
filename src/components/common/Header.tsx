@@ -315,7 +315,7 @@ export const Header: React.FC = () => {
                   className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 text-left text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center justify-between cursor-pointer transition"
                 >
                   <span>All Tools Directory</span>
-                  <span className="text-[10px] font-semibold text-slate-400">38+ tools →</span>
+                  <span className="text-[10px] font-semibold text-slate-400">60+ tools →</span>
                 </button>
 
                 <div className="pt-1">

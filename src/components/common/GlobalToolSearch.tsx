@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useId } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, ArrowRight, CornerDownLeft, Sparkles, AlertCircle } from 'lucide-react';
 import { searchTools, getHighlightedText, getCategoryLabel, SearchResult } from '../../lib/searchEngine';
 import { getIconComponent } from './MegaMenu';
@@ -35,6 +36,14 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const listboxId = useId();
 
+  // Floating coordinates for portal overlay
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  }>({ top: 0, left: 0, width: 320, maxHeight: 400 });
+
   // Compute search results live on every keystroke
   const searchResults: SearchResult[] = searchTools(query, variant === 'home' ? 12 : 8);
 
@@ -53,10 +62,13 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
     }
   }, [initialQuery]);
 
-  // Click outside listener
+  // Click outside listener that checks both container and portal panel
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const clickedInsideContainer = containerRef.current && containerRef.current.contains(target);
+      const clickedInsidePanel = panelRef.current && panelRef.current.contains(target);
+      if (!clickedInsideContainer && !clickedInsidePanel) {
         setIsOpen(false);
         setSelectedIndex(-1);
       }
@@ -68,6 +80,16 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
   // Keyboard shortcut listener: Ctrl+K / Cmd+K
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept typing if user is typing inside a text editor / textarea
+      const targetEl = e.target as HTMLElement;
+      if (
+        targetEl &&
+        (targetEl.tagName === 'TEXTAREA' ||
+          (targetEl.tagName === 'INPUT' && targetEl.getAttribute('data-tooltrack-search') !== variant))
+      ) {
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
         // If on homepage, variant === 'home' should handle the search
         const hasHomeSearchOnPage = Boolean(
@@ -114,40 +136,75 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
     };
   }, [variant]);
 
-  // Viewport bounds clamping for the results panel in all variants
-  const [panelShift, setPanelShift] = useState<number>(0);
+  // Recalculate portal coordinates directly below active search input
+  const updateCoords = useCallback(() => {
+    if (!inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    const margin = 12;
+
+    const spaceBelow = window.innerHeight - rect.bottom - 16;
+    const spaceAbove = rect.top - 16;
+    let computedTop: number;
+    let computedMaxHeight: number;
+
+    if (spaceBelow < 200 && spaceAbove > spaceBelow) {
+      computedMaxHeight = Math.max(160, Math.min(460, spaceAbove - 8));
+      computedTop = Math.max(margin, rect.top - computedMaxHeight - 8);
+    } else {
+      computedTop = rect.bottom + 8;
+      computedMaxHeight = Math.max(160, Math.min(480, spaceBelow));
+    }
+
+    if (variant === 'home') {
+      const w = Math.min(rect.width, window.innerWidth - margin * 2);
+      let l = rect.left;
+      if (l < margin) l = margin;
+      if (l + w > window.innerWidth - margin) l = window.innerWidth - w - margin;
+      setCoords({
+        top: computedTop,
+        left: l,
+        width: w,
+        maxHeight: computedMaxHeight,
+      });
+    } else if (variant === 'header') {
+      const w = Math.min(520, window.innerWidth - margin * 2);
+      let l = rect.right - w;
+      if (l < margin) l = margin;
+      if (l + w > window.innerWidth - margin) l = window.innerWidth - w - margin;
+      setCoords({
+        top: computedTop,
+        left: l,
+        width: w,
+        maxHeight: computedMaxHeight,
+      });
+    } else {
+      // mobile drawer
+      const w = window.innerWidth - margin * 2;
+      const l = margin;
+      setCoords({
+        top: computedTop,
+        left: l,
+        width: w,
+        maxHeight: Math.min(computedMaxHeight, 400),
+      });
+    }
+  }, [variant]);
 
   useEffect(() => {
-    if (!isOpen || !panelRef.current) return;
+    if (!isOpen) return;
+    updateCoords();
 
-    const clampPanelToViewport = () => {
-      const el = panelRef.current;
-      if (!el) return;
-
-      // Reset shift first to measure natural position
-      el.style.transform = 'none';
-      const rect = el.getBoundingClientRect();
-      const margin = 12;
-
-      let shift = 0;
-      if (rect.left < margin) {
-        shift = margin - rect.left;
-      } else if (rect.right > window.innerWidth - margin) {
-        shift = window.innerWidth - margin - rect.right;
-      }
-
-      setPanelShift(shift);
-      el.style.transform = shift !== 0 ? `translateX(${shift}px)` : 'none';
+    const handleResizeOrScroll = () => {
+      updateCoords();
     };
 
-    clampPanelToViewport();
-    window.addEventListener('resize', clampPanelToViewport);
-    window.addEventListener('scroll', clampPanelToViewport, { passive: true });
+    window.addEventListener('resize', handleResizeOrScroll);
+    window.addEventListener('scroll', handleResizeOrScroll, { passive: true });
     return () => {
-      window.removeEventListener('resize', clampPanelToViewport);
-      window.removeEventListener('scroll', clampPanelToViewport);
+      window.removeEventListener('resize', handleResizeOrScroll);
+      window.removeEventListener('scroll', handleResizeOrScroll);
     };
-  }, [isOpen, variant, searchResults.length]);
+  }, [isOpen, updateCoords, searchResults.length]);
 
   // Auto-scroll active item into view during keyboard navigation
   useEffect(() => {
@@ -300,34 +357,30 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
       </div>
 
       {/* Autocomplete Suggestions Dropdown Panel */}
-      {isOpen && (
-        <>
-          {/* Subtle backdrop overlay so click outside is immediate and non-interfering */}
-          <div
-            className="fixed inset-0 z-40 bg-slate-900/10 dark:bg-slate-900/25 backdrop-blur-[0.5px] animate-in fade-in duration-100 cursor-pointer"
-            onClick={() => setIsOpen(false)}
-            aria-hidden="true"
-          />
+      {isOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <>
+            {/* Subtle backdrop overlay so click outside is immediate and non-interfering */}
+            <div
+              className="fixed inset-0 z-[9998] bg-slate-900/10 dark:bg-slate-900/25 backdrop-blur-[0.5px] cursor-pointer"
+              onClick={() => setIsOpen(false)}
+              aria-hidden="true"
+            />
 
-          <div
-            ref={panelRef}
-            id={listboxId}
-            role="listbox"
-            style={
-              panelShift !== 0
-                ? { transform: `translateX(${panelShift}px)` }
-                : undefined
-            }
-            className={`absolute top-full mt-2 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-700/80 overflow-hidden z-50 animate-popover flex flex-col ${
-              isHeader
-                ? 'w-[calc(100vw-2rem)] sm:w-[480px] md:w-[540px] right-0 left-auto max-w-[calc(100vw-2rem)]'
-                : 'w-full left-0 right-0 max-w-[calc(100vw-2rem)]'
-            } ${
-              isHome
-                ? 'max-h-[min(480px,calc(100vh-140px))]'
-                : 'max-h-[min(440px,calc(100vh-140px))]'
-            }`}
-          >
+            <div
+              ref={panelRef}
+              id={listboxId}
+              role="listbox"
+              style={{
+                position: 'fixed',
+                top: `${coords.top}px`,
+                left: `${coords.left}px`,
+                width: `${coords.width}px`,
+                maxHeight: `${coords.maxHeight}px`,
+              }}
+              className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-700/80 overflow-hidden z-[9999] animate-popover flex flex-col"
+            >
             {/* Header indicator bar */}
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-850/70 text-xs font-bold text-slate-600 dark:text-slate-300">
               <span className="flex items-center gap-1.5">
@@ -489,7 +542,8 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
               <span>Press Escape to close</span>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

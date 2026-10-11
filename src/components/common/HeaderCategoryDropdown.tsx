@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { CategoryHeaderConfig } from '../../data/categoryRegistry';
 import { getToolsForHeaderCategory } from '../../data/categoryRegistry';
 import { getIconComponent } from './MegaMenu';
@@ -98,13 +99,13 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
     };
   }, [isOpen, onClose, triggerElement]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop overlay for closing when clicking on blank side space */}
       <div
-        className="fixed inset-0 z-40 bg-slate-900/10 dark:bg-slate-900/30 backdrop-blur-[1px] animate-in fade-in duration-100 cursor-pointer"
+        className="fixed inset-0 z-[9998] bg-slate-900/10 dark:bg-slate-900/30 backdrop-blur-[1px] animate-in fade-in duration-100 cursor-pointer"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -120,7 +121,7 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
           width: `${position.width}px`,
           maxWidth: 'calc(100vw - 32px)',
         }}
-        className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl shadow-slate-900/20 dark:shadow-black/70 p-4 sm:p-5 z-50 animate-popover cursor-default"
+        className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl shadow-slate-900/20 dark:shadow-black/70 p-4 sm:p-5 z-[9999] animate-popover cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Category Header */}
@@ -197,6 +198,7 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
           </button>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 };
