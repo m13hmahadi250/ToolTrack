@@ -114,27 +114,27 @@ export const HomePage: React.FC = () => {
 
   const categories: { id: string; label: string }[] = [
     { id: 'all', label: 'All Tools' },
-    { id: 'utilities', label: 'Everyday Utilities' },
     { id: 'pdf', label: 'PDF Tools' },
     { id: 'convert', label: 'Convert & Office' },
     { id: 'image-tools', label: 'Image Studio' },
     { id: 'ocr', label: 'OCR & Scanner' },
     { id: 'student-tools', label: 'Student Suite' },
     { id: 'design-tools', label: 'Design & Canvas' },
+    { id: 'utilities', label: 'Everyday Utilities' },
     { id: 'security', label: 'Security' },
   ];
 
-  // Frequently used quick actions (curated to 8 high-value, commonly used tools)
+  // Frequently used quick actions (curated to 8 high-value tools prioritizing core productivity tasks)
   const quickActionTools = useMemo(() => {
     const curatedIds = [
       'compress-pdf',
-      'pdf-to-word',
       'merge-pdf',
+      'pdf-to-word',
+      'images-to-pdf',
+      'image-compressor',
+      'image-resizer',
       'image-background-remover',
       'whiteboard',
-      'word-counter',
-      'qr-code-generator',
-      'calculator',
     ];
     return curatedIds.map((id) => TOOLS_LIST.find((t) => t.id === id)).filter(Boolean) as typeof TOOLS_LIST;
   }, []);
@@ -314,6 +314,11 @@ export const HomePage: React.FC = () => {
                     </div>
 
                     <div>
+                      {tool.id === 'whiteboard' && (
+                        <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 mb-0.5">
+                          Flagship Canvas
+                        </div>
+                      )}
                       <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition leading-snug break-words">
                         {tool.name}
                       </h3>
@@ -333,233 +338,7 @@ export const HomePage: React.FC = () => {
           </div>
         </section>
 
-        {/* 4. EVERYDAY UTILITIES SHOWCASE SECTION */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                <Sliders className="w-3.5 h-3.5" />
-                <span>Everyday Utilities Category</span>
-              </div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight mt-0.5">
-                Practical Daily Digital Tools
-              </h2>
-            </div>
-            <button
-              onClick={() => {
-                setActiveCategory('utilities');
-                const el = document.getElementById('tools-directory');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <span>Explore All Utilities →</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-            {/* 1. Text Tools */}
-            <div
-              onClick={() => setActiveToolId('text-utilities')}
-              className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 transition-all text-left cursor-pointer group flex flex-col justify-between"
-            >
-              <div className="space-y-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">
-                    Text Tools
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                    Word counter, case changer, text diff checker & markdown preview.
-                  </p>
-                </div>
-              </div>
-              <div className="pt-3 text-[11px] font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                <span>Word & Diff Studio</span>
-                <ArrowRight className="w-3 h-3" />
-              </div>
-            </div>
-
-            {/* 2. QR Code Tools */}
-            <div
-              onClick={() => setActiveToolId('qr-code-generator')}
-              className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/90 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500 transition-all text-left cursor-pointer group flex flex-col justify-between"
-            >
-              <div className="space-y-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <QrCode className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition">
-                    QR Code Studio
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                    Generate color QR codes for Wi-Fi & URLs, or scan with camera.
-                  </p>
-                </div>
-              </div>
-              <div className="pt-3 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                <span>Create & Scan QR</span>
-                <ArrowRight className="w-3 h-3" />
-              </div>
-            </div>
-
-            {/* 3. Calculators & Date */}
-            <div
-              onClick={() => setActiveToolId('calculator')}
-              className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/90 dark:border-slate-800 hover:border-purple-400 dark:hover:border-purple-500 transition-all text-left cursor-pointer group flex flex-col justify-between"
-            >
-              <div className="space-y-2.5">
-                <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/70 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Calculator className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition">
-                    Calculators & Units
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                    Standard calculator, 8-category unit converter, percentages & dates.
-                  </p>
-                </div>
-              </div>
-              <div className="pt-3 text-[11px] font-semibold text-purple-600 dark:text-purple-400 flex items-center gap-1">
-                <span>Calc & Convert</span>
-                <ArrowRight className="w-3 h-3" />
-              </div>
-            </div>
-
-            {/* 4. Developer & Data */}
-            <div
-              onClick={() => setActiveToolId('json-formatter')}
-              className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 transition-all text-left cursor-pointer group flex flex-col justify-between"
-            >
-              <div className="space-y-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Code2 className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">
-                    Developer & Data
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                    Prettify JSON, convert CSV, encode Base64, generate UUIDs & hashes.
-                  </p>
-                </div>
-              </div>
-              <div className="pt-3 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                <span>JSON & Data Tools</span>
-                <ArrowRight className="w-3 h-3" />
-              </div>
-            </div>
-
-            {/* 5. Privacy & Security */}
-            <div
-              onClick={() => setActiveToolId('password-generator')}
-              className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/90 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500 transition-all text-left cursor-pointer group flex flex-col justify-between"
-            >
-              <div className="space-y-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/70 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <KeyRound className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition">
-                    Privacy & Passwords
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                    Crypto-random password generator, entropy meter & dice picker.
-                  </p>
-                </div>
-              </div>
-              <div className="pt-3 text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                <span>Secure Passwords</span>
-                <ArrowRight className="w-3 h-3" />
-              </div>
-            </div>
-          </div>
-        </section>
-
-      {/* 5. FAVORITES & RECENTLY USED (PROGRESSIVE DISCLOSURE) */}
-      {(favoriteTools.length > 0 || recentTools.length > 0) && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          {/* Favorite Tools */}
-          {favoriteTools.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
-                  <span>Favorite Shortcuts ({favoriteTools.length})</span>
-                </h3>
-                <button
-                  onClick={clearFavoriteTools}
-                  className="text-[11px] text-slate-400 hover:text-red-500 cursor-pointer flex items-center gap-1"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  <span>Clear</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
-                {favoriteTools.map((t) => {
-                  const Icon = getIconComponent(t.iconName);
-                  return (
-                    <div
-                      key={t.id}
-                      onClick={() => setActiveToolId(t.id)}
-                      className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 hover:border-amber-400 transition flex items-center gap-2 cursor-pointer"
-                    >
-                      <Icon className="w-4 h-4 text-amber-500 shrink-0" />
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
-                        {t.name}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Recent Tools */}
-          {recentTools.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-indigo-500" />
-                  <span>Recently Used ({recentTools.length})</span>
-                </h3>
-                <button
-                  onClick={clearRecentTools}
-                  className="text-[11px] text-slate-400 hover:text-red-500 cursor-pointer flex items-center gap-1"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  <span>Clear History</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
-                {recentTools.map((t) => {
-                  const Icon = getIconComponent(t.iconName);
-                  return (
-                    <div
-                      key={t.id}
-                      onClick={() => setActiveToolId(t.id)}
-                      className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-400 transition flex items-center gap-2 cursor-pointer"
-                    >
-                      <Icon className="w-4 h-4 text-indigo-500 shrink-0" />
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
-                        {t.name}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* 6. MAIN TOOL CATEGORIES DIRECTORY (WITH CLEAN SEGMENTED CONTROL) */}
+      {/* 4. MAIN TOOL CATEGORIES DIRECTORY & SEARCH RESULTS */}
       <section id="tools-directory" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
           <div>
@@ -708,7 +487,86 @@ export const HomePage: React.FC = () => {
         )}
       </section>
 
-      {/* 7. COMPACT FAQ ACCORDION */}
+      {/* 5. FAVORITES & RECENTLY USED (PROGRESSIVE DISCLOSURE) */}
+      {(favoriteTools.length > 0 || recentTools.length > 0) && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          {/* Favorite Tools */}
+          {favoriteTools.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
+                  <span>Favorite Shortcuts ({favoriteTools.length})</span>
+                </h3>
+                <button
+                  onClick={clearFavoriteTools}
+                  className="text-[11px] text-slate-400 hover:text-red-500 cursor-pointer flex items-center gap-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Clear</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
+                {favoriteTools.map((t) => {
+                  const Icon = getIconComponent(t.iconName);
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => setActiveToolId(t.id)}
+                      className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 hover:border-amber-400 transition flex items-center gap-2 cursor-pointer"
+                    >
+                      <Icon className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                        {t.name}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Tools */}
+          {recentTools.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-indigo-500" />
+                  <span>Recently Used ({recentTools.length})</span>
+                </h3>
+                <button
+                  onClick={clearRecentTools}
+                  className="text-[11px] text-slate-400 hover:text-red-500 cursor-pointer flex items-center gap-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Clear History</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
+                {recentTools.map((t) => {
+                  const Icon = getIconComponent(t.iconName);
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => setActiveToolId(t.id)}
+                      className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-400 transition flex items-center gap-2 cursor-pointer"
+                    >
+                      <Icon className="w-4 h-4 text-indigo-500 shrink-0" />
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                        {t.name}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* 6. COMPACT FAQ ACCORDION */}
       <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 pt-4">
           <div className="text-center space-y-1">
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">

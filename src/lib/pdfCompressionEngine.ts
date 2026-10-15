@@ -11,7 +11,7 @@ if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
   }
 }
 
-export type PdfCompressionPreset = 'maximum' | 'strong' | 'balanced' | 'high' | 'target';
+export type PdfCompressionPreset = 'maximum' | 'strong' | 'balanced' | 'high' | 'low' | 'smart' | 'target';
 
 export interface PdfCompressionProgressDetails {
   page?: number;
@@ -71,13 +71,16 @@ function getCompressionSettings(
 
   switch (preset) {
     case 'maximum':
-      return { dpi: 100, quality: 0.52 };
+      return { dpi: 90, quality: 0.50 };
     case 'strong':
       return { dpi: 120, quality: 0.62 };
     case 'balanced':
       return { dpi: 144, quality: 0.72 };
     case 'high':
-      return { dpi: 180, quality: 0.82 };
+    case 'low':
+      return { dpi: 200, quality: 0.85 };
+    case 'smart':
+      return { dpi: 150, quality: 0.75 };
     case 'target':
       return { dpi: 120, quality: 0.60 };
     default:
@@ -167,8 +170,8 @@ async function loadSafePdfJsDoc(inputBytes: Uint8Array): Promise<pdfjsLib.PDFDoc
 /**
  * Format-Aware, Anti-Bloat PDF Compression Engine
  * Dual-stage pipeline:
- *  - Pass 1: Lossless structure compaction & metadata stripping
- *  - Pass 2: Adaptive raster re-encoding & downsampling for scanned / image-heavy PDFs
+ *  - Primary: Ghostscript / Libvips Server Stream & Image Downsampling Engine
+ *  - Fallback: Pure Client-Side Lossless & Adaptive Raster Pass
  *  - Strict Anti-Bloat: Output size is never permitted to exceed input size.
  */
 export async function compressPdfEngine(
@@ -177,19 +180,14 @@ export async function compressPdfEngine(
 ): Promise<PdfCompressionResult> {
   const inputBytes = pdfInput instanceof Uint8Array ? pdfInput : new Uint8Array(pdfInput);
   const originalSizeBytes = inputBytes.length;
-
   const preset = options.preset || 'balanced';
-  const hasDom =
-    typeof window !== 'undefined' &&
-    typeof document !== 'undefined' &&
-    typeof document.createElement === 'function';
 
   if (options.signal?.aborted) {
     throw new DOMException('PDF compression cancelled by user', 'AbortError');
   }
 
   if (options.onProgress) {
-    options.onProgress(0.1, 'Analyzing PDF document structure...', {
+    options.onProgress(0.1, 'Analyzing document streams & embedded resources...', {
       page: 0,
       totalPages: 1,
       phase: 'structure',
@@ -197,8 +195,94 @@ export async function compressPdfEngine(
   }
 
   // -------------------------------------------------------------------------
-  // PASS 1: Lossless Vector & Structure Stream Compaction
+  // STAGE 1: Primary High-Performance Server Engine (Ghostscript Stream Compaction)
   // -------------------------------------------------------------------------
+  if (typeof fetch === 'function') {
+    try {
+      if (options.onProgress) {
+        options.onProgress(0.3, 'Optimizing PDF streams & downsampling embedded images...', {
+          page: 0,
+          totalPages: 1,
+          phase: 'structure',
+        });
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/octet-stream',
+        'X-Preset': preset,
+      };
+      if (options.targetSizeKb && options.targetSizeKb > 0) {
+        headers['X-Target-Size-KB'] = String(options.targetSizeKb);
+      }
+      if (options.removeMetadata !== undefined) {
+        headers['X-Remove-Metadata'] = String(options.removeMetadata);
+      }
+
+      const res = await fetch('/api/compress-pdf', {
+        method: 'POST',
+        headers,
+        body: new Blob([new Uint8Array(inputBytes)]),
+        signal: options.signal,
+      });
+
+      if (res.ok) {
+        const arr = await res.arrayBuffer();
+        const pdfBytes = new Uint8Array(arr);
+        const wasCompressed = res.headers.get('x-was-compressed') === 'true';
+        const isAlreadyOptimized = res.headers.get('x-already-optimized') === 'true';
+        const savedBytes = Number(res.headers.get('x-saved-bytes') || 0);
+        const savedPercent = Number(res.headers.get('x-saved-percent') || 0);
+        const outputSizeBytes = pdfBytes.length;
+
+        let statusMessage = '';
+        if (wasCompressed) {
+          statusMessage = `Optimized file size by ${savedPercent}% (${formatBytesReadable(savedBytes)} saved) while preserving searchable text and vector layouts.`;
+        } else if (isAlreadyOptimized) {
+          statusMessage = 'This PDF is already highly optimized. Document streams cannot be reduced further without loss of fidelity.';
+        } else {
+          statusMessage = 'PDF processed successfully with verified structural integrity.';
+        }
+
+        let docPageCount = 1;
+        try {
+          const doc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+          docPageCount = doc.getPageCount();
+        } catch {}
+
+        if (options.onProgress) {
+          options.onProgress(1.0, 'Optimization complete!', {
+            page: docPageCount,
+            totalPages: docPageCount,
+            phase: 'finalizing',
+          });
+        }
+
+        return {
+          pdfBytes,
+          originalSizeBytes,
+          outputSizeBytes,
+          savedBytes,
+          savedPercent,
+          pageCount: docPageCount,
+          wasCompressed,
+          isAlreadyOptimized,
+          statusMessage,
+        };
+      }
+    } catch (serverErr: any) {
+      if (serverErr?.name === 'AbortError') throw serverErr;
+      console.warn('[PDF Compression] Server engine unavailable, running local client pass:', serverErr);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // STAGE 2: Client-Side Fallback (Lossless Vector Compaction & Adaptive Pass)
+  // -------------------------------------------------------------------------
+  const hasDom =
+    typeof window !== 'undefined' &&
+    typeof document !== 'undefined' &&
+    typeof document.createElement === 'function';
+
   let pass1Doc: PDFDocument;
   let pageCount = 1;
   try {

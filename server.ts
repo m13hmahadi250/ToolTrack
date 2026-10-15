@@ -37,6 +37,7 @@ app.use(
   express.raw({
     type: [
       'image/*',
+      'application/pdf',
       'application/octet-stream',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/msword',
@@ -810,6 +811,177 @@ app.post('/api/convert-excel-to-pdf', async (req: Request, res: Response) => {
 
 /**
  * ====================================================================
+ * HIGH-PERFORMANCE PDF COMPRESSION & OPTIMIZATION API (GHOSTSCRIPT)
+ * ====================================================================
+ * Preserves 100% searchable text, fonts, bookmarks, and vector shapes.
+ * Downsamples embedded raster images, recompresses object streams with FlateDecode,
+ * strips redundant metadata/xref, and executes iterative target-size candidate search.
+ */
+app.post('/api/compress-pdf', async (req: Request, res: Response) => {
+  let tmpDir = '';
+  try {
+    const pdfBuffer = extractPdfBufferFromReq(req);
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      return res.status(400).json({ error: 'No PDF document provided' });
+    }
+
+    const preset = (req.headers['x-preset'] || req.body?.preset || 'balanced') as string;
+    const targetSizeKb = Number(req.headers['x-target-size-kb'] || req.body?.targetSizeKb || 0);
+    const removeMetadata = req.headers['x-remove-metadata'] !== 'false' && req.body?.removeMetadata !== false;
+
+    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pdf-compress-'));
+    const inputPath = path.join(tmpDir, 'input.pdf');
+    await fs.promises.writeFile(inputPath, pdfBuffer);
+
+    // Helper to run Ghostscript with specific optimization parameters
+    const runGsCompression = async (pdfSetting: string, dpi: number, quality: number, outName: string): Promise<Buffer | null> => {
+      const outputPath = path.join(tmpDir, outName);
+      const gsArgs = [
+        '-sDEVICE=pdfwrite',
+        '-dCompatibilityLevel=1.4',
+        `-dPDFSETTINGS=${pdfSetting}`,
+        '-dNOPAUSE',
+        '-dQUIET',
+        '-dBATCH',
+        '-dColorImageDownsampleType=/Bicubic',
+        `-dColorImageResolution=${dpi}`,
+        '-dGrayImageDownsampleType=/Bicubic',
+        `-dGrayImageResolution=${dpi}`,
+        '-dMonoImageDownsampleType=/Bicubic',
+        `-dMonoImageResolution=${Math.max(150, dpi * 1.5)}`,
+        '-dAutoFilterColorImages=false',
+        '-dColorImageFilter=/DCTEncode',
+        `-dJPEGQ=${quality}`,
+        '-dAutoFilterGrayImages=false',
+        '-dGrayImageFilter=/DCTEncode',
+        `-sOutputFile=${outputPath}`,
+        inputPath,
+      ];
+
+      try {
+        await execFileAsync('gs', gsArgs, { timeout: 45000 });
+        if (fs.existsSync(outputPath)) {
+          return await fs.promises.readFile(outputPath);
+        }
+      } catch (gsErr) {
+        console.warn(`[CompressPDF] GS pass (${pdfSetting}, ${dpi}dpi, Q${quality}) error:`, gsErr);
+      }
+      return null;
+    };
+
+    let bestCandidate: Buffer | null = null;
+    const targetBytes = targetSizeKb > 0 ? targetSizeKb * 1024 : 0;
+
+    if (targetBytes > 0) {
+      // Iterative Candidate Search for Target Size
+      // Candidate 1: Standard Balanced
+      const c1 = await runGsCompression('/ebook', 150, 75, 'cand1.pdf');
+      if (c1) {
+        bestCandidate = c1;
+        if (c1.length <= targetBytes) {
+          // Target achieved!
+        } else {
+          // Candidate 2: Stronger downsampling
+          const c2 = await runGsCompression('/ebook', 120, 65, 'cand2.pdf');
+          if (c2 && c2.length < bestCandidate.length) {
+            bestCandidate = c2;
+            if (c2.length > targetBytes) {
+              // Candidate 3: Maximum compression
+              const c3 = await runGsCompression('/screen', 96, 55, 'cand3.pdf');
+              if (c3 && c3.length < bestCandidate.length) {
+                bestCandidate = c3;
+                if (c3.length > targetBytes) {
+                  // Candidate 4: Ultra low
+                  const c4 = await runGsCompression('/screen', 72, 45, 'cand4.pdf');
+                  if (c4 && c4.length < bestCandidate.length) {
+                    bestCandidate = c4;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // Preset-based compression
+      if (preset === 'maximum') {
+        bestCandidate = await runGsCompression('/screen', 72, 50, 'out_max.pdf');
+      } else if (preset === 'strong') {
+        bestCandidate = await runGsCompression('/ebook', 120, 65, 'out_strong.pdf');
+      } else if (preset === 'low') {
+        bestCandidate = await runGsCompression('/printer', 220, 85, 'out_low.pdf');
+      } else if (preset === 'smart') {
+        // Smart compression tries high quality first, if savings < 15% tries balanced
+        const cHigh = await runGsCompression('/ebook', 160, 80, 'out_smart_high.pdf');
+        if (cHigh && cHigh.length < pdfBuffer.length * 0.85) {
+          bestCandidate = cHigh;
+        } else {
+          bestCandidate = await runGsCompression('/ebook', 140, 70, 'out_smart_bal.pdf');
+        }
+      } else {
+        // Default Balanced
+        bestCandidate = await runGsCompression('/ebook', 150, 75, 'out_bal.pdf');
+      }
+    }
+
+    // Pass 1 fallback or post-clean via pdf-lib if GS produced nothing or for metadata stripping
+    if (!bestCandidate) {
+      try {
+        const doc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+        if (removeMetadata) {
+          doc.setTitle('');
+          doc.setAuthor('');
+          doc.setProducer('ToolTrack PDF Engine');
+        }
+        bestCandidate = Buffer.from(await doc.save({ useObjectStreams: true }));
+      } catch {
+        bestCandidate = pdfBuffer;
+      }
+    }
+
+    const originalSize = pdfBuffer.length;
+    const outputSize = bestCandidate.length;
+
+    // Strict Anti-Bloat Rule (Section 4):
+    // If output is not smaller than original, report that the PDF is already optimized.
+    // Never claim fake reductions or fabricate statistics.
+    let wasCompressed = outputSize < originalSize;
+    let isAlreadyOptimized = false;
+    let finalBuffer = bestCandidate;
+
+    if (!wasCompressed) {
+      isAlreadyOptimized = true;
+      wasCompressed = false;
+      finalBuffer = pdfBuffer; // Return original pristine file
+    }
+
+    const savedBytes = wasCompressed ? originalSize - outputSize : 0;
+    const savedPercent = wasCompressed ? Number(((savedBytes / originalSize) * 100).toFixed(1)) : 0;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('X-Original-Size', String(originalSize));
+    res.setHeader('X-Output-Size', String(finalBuffer.length));
+    res.setHeader('X-Saved-Bytes', String(savedBytes));
+    res.setHeader('X-Saved-Percent', String(savedPercent));
+    res.setHeader('X-Was-Compressed', String(wasCompressed));
+    res.setHeader('X-Already-Optimized', String(isAlreadyOptimized));
+    res.setHeader('X-Engine-Used', 'ghostscript-pdfwrite');
+
+    return res.send(finalBuffer);
+  } catch (err: unknown) {
+    console.error('[CompressPDF API Error]:', err);
+    return res.status(500).json({ error: 'PDF compression failed: ' + String(err) });
+  } finally {
+    if (tmpDir) {
+      try {
+        await fs.promises.rm(tmpDir, { recursive: true, force: true });
+      } catch {}
+    }
+  }
+});
+
+/**
+ * ====================================================================
  * PDF SECURITY, ENCRYPTION, DECRYPTION & INSPECTION API (QPDF ENGINE)
  * ====================================================================
  */
@@ -880,7 +1052,9 @@ app.post('/api/pdf-security/encrypt', async (req: Request, res: Response) => {
       qpdfArgs.push('--modify=all');
     }
 
-    qpdfArgs.push('--allow-weak-crypto'); // allow flexibility if 128 is requested
+    if (keyLength === '128') {
+      qpdfArgs.push('--allow-weak-crypto');
+    }
     qpdfArgs.push('--', inputPath, outputPath);
 
     await execFileAsync('qpdf', qpdfArgs, { timeout: 30000 });

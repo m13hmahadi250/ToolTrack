@@ -424,25 +424,36 @@ export const PdfEditTool: React.FC = () => {
 
       const totalSourcePages = sourceDoc.getPageCount();
 
-      // 1. Process Page Actions (Delete, Rotate, Duplicate) & Copy Pages
+      // 1. Process Page Actions (Delete, Rotate, Duplicate) & Batch Copy Pages
       const mappedPages: { newPageIndex: number; origPageIndex: number; page: any }[] = [];
+      const sourceIndicesToBatchCopy: number[] = [];
+      const planItems: { origIdx: number; rotationAdd: number }[] = [];
 
       for (let origIdx = 0; origIdx < totalSourcePages; origIdx++) {
         const action = pageActions[origIdx] || { rotationAdd: 0, isDeleted: false, duplicatedTimes: 0 };
         if (action.isDeleted) continue;
 
-        // Base page copy
         const copies = 1 + action.duplicatedTimes;
         for (let c = 0; c < copies; c++) {
-          const [copiedPage] = await newDoc.copyPages(sourceDoc, [origIdx]);
-          if (action.rotationAdd !== 0) {
+          sourceIndicesToBatchCopy.push(origIdx);
+          planItems.push({ origIdx, rotationAdd: action.rotationAdd });
+        }
+      }
+
+      if (sourceIndicesToBatchCopy.length > 0) {
+        // Single batch copyPages preserves all shared XObject/Font/Image dictionary references
+        const copiedPages = await newDoc.copyPages(sourceDoc, sourceIndicesToBatchCopy);
+        for (let i = 0; i < copiedPages.length; i++) {
+          const copiedPage = copiedPages[i];
+          const plan = planItems[i];
+          if (plan.rotationAdd !== 0) {
             const currentRot = copiedPage.getRotation().angle;
-            copiedPage.setRotation(degrees((currentRot + action.rotationAdd) % 360));
+            copiedPage.setRotation(degrees((currentRot + plan.rotationAdd) % 360));
           }
           newDoc.addPage(copiedPage);
           mappedPages.push({
             newPageIndex: newDoc.getPageCount() - 1,
-            origPageIndex: origIdx,
+            origPageIndex: plan.origIdx,
             page: copiedPage,
           });
         }

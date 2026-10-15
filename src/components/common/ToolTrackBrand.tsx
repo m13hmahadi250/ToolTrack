@@ -154,22 +154,22 @@ export const ToolTrackBrand: React.FC<ToolTrackBrandProps> = ({
 }) => {
   return (
     <div className={`flex items-center gap-2.5 select-none ${className}`}>
-      {/* Minimalist Brand Icon with initial reveal & hover micro-lift */}
-      <div className="shrink-0 animate-brand-reveal transition-all duration-200 ease-out group-hover:scale-105 group-hover:drop-shadow-[0_4px_12px_rgba(99,102,241,0.25)]">
+      {/* Minimalist Brand Icon with initial reveal & restrained hover micro-lift */}
+      <div className="shrink-0 animate-brand-reveal transition-all duration-200 ease-out group-hover:scale-[1.04] group-hover:drop-shadow-[0_4px_12px_rgba(99,102,241,0.22)]">
         <ToolTrackIcon className={iconClassName} />
       </div>
 
       {/* Brand Wordmark (ToolTrack + Minimal Tag) */}
       <div className={`flex-col justify-center animate-brand-reveal ${showTextOnMobile ? 'flex' : 'hidden sm:flex'}`}>
         <div className="flex items-center text-[20px] tracking-tight leading-tight">
-          <span className="font-bold text-slate-900 dark:text-white transition-colors duration-200">
+          <span className="font-bold text-slate-900 dark:text-white transition-colors duration-160">
             Tool
           </span>
-          <span className="font-extrabold text-indigo-600 dark:text-indigo-400 ml-0.5 transition-colors duration-200 group-hover:text-indigo-500 dark:group-hover:text-indigo-300">
+          <span className="font-extrabold text-indigo-600 dark:text-indigo-400 ml-0.5 transition-colors duration-160 group-hover:text-indigo-500 dark:group-hover:text-indigo-300">
             Track
           </span>
         </div>
-        <span className="text-[9px] font-bold tracking-[0.16em] group-hover:tracking-[0.19em] text-indigo-600 dark:text-indigo-400 uppercase leading-none mt-0.5 transition-all duration-200">
+        <span className="text-[9px] font-bold tracking-[0.16em] group-hover:tracking-[0.18em] text-indigo-600 dark:text-indigo-400 uppercase leading-none mt-0.5 transition-all duration-160">
           Productivity Toolkit
         </span>
       </div>

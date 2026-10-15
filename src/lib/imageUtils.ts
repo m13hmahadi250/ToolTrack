@@ -528,27 +528,57 @@ export async function imagesToPdf(
   options: ImagesToPdfOptions = { pageSize: 'A4', orientation: 'auto', marginMm: 10 }
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
+  const compressionQuality = options.quality !== undefined ? options.quality : 0.88;
 
   for (const file of files) {
     const arrayBuffer = await file.arrayBuffer();
-    const type = file.type;
+    const type = file.type || '';
 
     let embeddedImage;
-    if (type === 'image/png') {
-      embeddedImage = await pdfDoc.embedPng(arrayBuffer);
-    } else if (type === 'image/jpeg' || type === 'image/jpg') {
+    if ((type === 'image/jpeg' || type === 'image/jpg') && (!options.quality || options.quality >= 0.9)) {
+      // Direct pass-through for existing JPEGs when high quality requested
       embeddedImage = await pdfDoc.embedJpg(arrayBuffer);
+    } else if (type === 'image/png' && (!options.quality || options.quality >= 0.9)) {
+      // Direct pass-through for PNGs
+      embeddedImage = await pdfDoc.embedPng(arrayBuffer);
     } else {
-      // Re-encode WebP, BMP, etc. to PNG via canvas
+      // Decode and check transparency to avoid massive PNG bloat
       const img = await fileToImage(file);
       const canvas = document.createElement('canvas');
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d');
-      ctx?.drawImage(img, 0, 0);
-      const pngBlob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), 'image/png'));
-      const pngBuffer = await pngBlob.arrayBuffer();
-      embeddedImage = await pdfDoc.embedPng(pngBuffer);
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) continue;
+      ctx.drawImage(img, 0, 0);
+
+      // Inspect transparency if PNG or WebP
+      let hasAlpha = false;
+      if (type.includes('png') || type.includes('webp')) {
+        try {
+          const sampleData = ctx.getImageData(0, 0, Math.min(canvas.width, 200), Math.min(canvas.height, 200)).data;
+          for (let i = 3; i < sampleData.length; i += 4) {
+            if (sampleData[i] < 250) {
+              hasAlpha = true;
+              break;
+            }
+          }
+        } catch {}
+      }
+
+      if (hasAlpha) {
+        const pngBlob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), 'image/png'));
+        const pngBuf = await pngBlob.arrayBuffer();
+        embeddedImage = await pdfDoc.embedPng(pngBuf);
+      } else {
+        // Encode as JPEG with optimal quality to avoid huge file bloat
+        const jpgBlob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), 'image/jpeg', compressionQuality));
+        const jpgBuf = await jpgBlob.arrayBuffer();
+        embeddedImage = await pdfDoc.embedJpg(jpgBuf);
+      }
+
+      // Clean up canvas
+      canvas.width = 0;
+      canvas.height = 0;
     }
 
     const imgDims = embeddedImage.scale(1);
@@ -598,5 +628,5 @@ export async function imagesToPdf(
     });
   }
 
-  return await pdfDoc.save();
+  return await pdfDoc.save({ useObjectStreams: true });
 }

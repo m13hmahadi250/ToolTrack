@@ -197,7 +197,7 @@ export const Header: React.FC = () => {
             {/* Mobile Search Icon Toggle */}
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition sm:hidden cursor-pointer"
+              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-95 sm:hidden cursor-pointer"
               title="Search Tools"
               aria-label="Search Tools"
             >
@@ -210,7 +210,7 @@ export const Header: React.FC = () => {
             {/* Queue Button */}
             <button
               onClick={() => setIsQueueOpen(true)}
-              className="relative p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              className="relative p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-95 cursor-pointer"
               title="Processing Queue"
               aria-label="Processing Queue"
             >
@@ -232,7 +232,7 @@ export const Header: React.FC = () => {
             {/* History Button */}
             <button
               onClick={() => setIsActivityOpen(true)}
-              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-95 cursor-pointer"
               title="Recent Activity"
               aria-label="Recent Activity"
             >
@@ -242,7 +242,7 @@ export const Header: React.FC = () => {
             {/* Mobile / Tablet Menu Toggle Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition xl:hidden cursor-pointer"
+              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-95 xl:hidden cursor-pointer"
               aria-label="Toggle navigation menu"
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}

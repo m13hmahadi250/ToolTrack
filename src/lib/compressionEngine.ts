@@ -224,6 +224,118 @@ export async function compressImage(
     }
   }
 
+  // Helper for size display
+  const fmtBytes = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  // -------------------------------------------------------------------------
+  // STAGE 1: Primary High-Performance Server Engine (Sharp / Mozjpeg / Libvips)
+  // -------------------------------------------------------------------------
+  if (typeof fetch === 'function') {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': originalFormat,
+        'X-Quality': String(Math.round(actualQuality * 100)),
+        'X-Preset': effectivePreset,
+        'X-Format': targetFormat,
+      };
+      if (options.targetSizeKb && options.targetSizeKb > 0) {
+        headers['X-Target-Size-KB'] = String(options.targetSizeKb);
+      }
+      if (maxDim && maxDim > 0) {
+        headers['X-Max-Dimension'] = String(maxDim);
+      }
+      if (options.allowWebpConversion !== false) {
+        headers['X-Allow-Webp'] = 'true';
+      }
+
+      const res = await fetch('/api/compress-image', {
+        method: 'POST',
+        headers,
+        body: file,
+      });
+
+      if (res.ok) {
+        const outBlob = await res.blob();
+        const serverTargetW = Number(res.headers.get('x-target-width') || targetWidth);
+        const serverTargetH = Number(res.headers.get('x-target-height') || targetHeight);
+        const encoderUsed = res.headers.get('x-encoder-used') || 'sharp-mozjpeg';
+
+        let outputBlob = outBlob;
+        let wasCompressed = outputBlob.size < originalSizeBytes;
+        let isAlreadyOptimized = false;
+        let antiBloat = false;
+
+        if (!wasCompressed) {
+          isAlreadyOptimized = true;
+          outputBlob = file instanceof Blob ? file : new Blob([file]);
+          antiBloat = true;
+        }
+
+        const savedBytes = wasCompressed ? originalSizeBytes - outputBlob.size : 0;
+        const savedPercent = wasCompressed ? Number(((savedBytes / originalSizeBytes) * 100).toFixed(1)) : 0;
+        const outFmt = res.headers.get('content-type') || targetFormat;
+
+        const debugInfo: ImageCompressionDebugInfo = {
+          fileName,
+          originalSizeBytes,
+          outputSizeBytes: outputBlob.size,
+          originalSizeFormatted: fmtBytes(originalSizeBytes),
+          outputSizeFormatted: fmtBytes(outputBlob.size),
+          savedBytes,
+          savedBytesFormatted: fmtBytes(savedBytes),
+          savedPercent,
+          originalDimensions: `${originalWidth} × ${originalHeight}`,
+          outputDimensions: `${serverTargetW} × ${serverTargetH}`,
+          originalWidth,
+          originalHeight,
+          outputWidth: serverTargetW,
+          outputHeight: serverTargetH,
+          chosenCompressionPreset: effectivePreset,
+          userSelectedQuality: options.quality ?? actualQuality,
+          actualEncoderQuality: actualQuality,
+          originalFormat,
+          outputFormat: outFmt,
+          targetSizeKb: options.targetSizeKb,
+          compressionEngineUsed: wasCompressed ? (encoderUsed as any) : 'preserved-original',
+          antiBloatTriggered: antiBloat,
+          statusMessage: wasCompressed
+            ? `Compressed with ${encoderUsed} (Saved ${savedPercent}%)`
+            : 'Image is already optimized; original preserved.',
+          executionTimeMs: Math.round(performance.now() - startTime),
+        };
+
+        return {
+          blob: outputBlob,
+          originalSizeBytes,
+          outputSizeBytes: outputBlob.size,
+          savedBytes,
+          savedPercent,
+          originalWidth,
+          originalHeight,
+          outputWidth: serverTargetW,
+          outputHeight: serverTargetH,
+          originalFormat,
+          outputFormat: outFmt,
+          wasCompressed,
+          isAlreadyOptimized,
+          hasTransparency,
+          statusMessage: debugInfo.statusMessage,
+          appliedQuality: actualQuality,
+          debugInfo,
+        };
+      }
+    } catch (serverErr) {
+      console.warn('[Image Compression] Server encoder unavailable, running client-side fallback:', serverErr);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // STAGE 2: Client-Side Fallback (Canvas / browser-image-compression)
+  // -------------------------------------------------------------------------
   const img = await fileToImage(file);
 
   // Helper: Canvas render & encode

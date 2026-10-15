@@ -25,13 +25,14 @@
     /* Unified Animation Design Tokens */
     --ease-out-subtle: cubic-bezier(0.16, 1, 0.3, 1);
     --ease-in-out-subtle: cubic-bezier(0.4, 0, 0.2, 1);
+    --duration-instant: 100ms;
     --duration-fast: 160ms;
-    --duration-normal: 240ms;
-    --duration-panel: 300ms;
-    --wb-duration-icon: 180ms;
-    --wb-duration-toolbar: 280ms;
-    --wb-duration-panel: 300ms;
-    --wb-duration-sidebar: 320ms;
+    --duration-normal: 220ms;
+    --duration-panel: 280ms;
+    --wb-duration-icon: 140ms;
+    --wb-duration-toolbar: 240ms;
+    --wb-duration-panel: 260ms;
+    --wb-duration-sidebar: 280ms;
     --wb-ease-default: cubic-bezier(0.16, 1, 0.3, 1);
     --wb-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -262,28 +263,28 @@
 
 /* Utility animation classes */
 .animate-fade-in {
-  animation: fade-in var(--duration-fast, 120ms) var(--ease-out-subtle, ease-out) forwards;
+  animation: fade-in var(--duration-fast, 160ms) var(--ease-out-subtle, ease-out) forwards;
 }
 
 .animate-fade-slide-up {
-  animation: fade-slide-up var(--duration-normal, 180ms) var(--ease-out-subtle, ease-out) forwards;
+  animation: fade-slide-up var(--duration-normal, 220ms) var(--ease-out-subtle, ease-out) forwards;
 }
 
 .animate-fade-slide-down {
-  animation: fade-slide-down var(--duration-normal, 180ms) var(--ease-out-subtle, ease-out) forwards;
+  animation: fade-slide-down var(--duration-normal, 220ms) var(--ease-out-subtle, ease-out) forwards;
 }
 
 .animate-popover {
-  animation: popover-enter var(--duration-fast, 140ms) var(--ease-out-subtle, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
+  animation: popover-enter var(--duration-fast, 160ms) var(--ease-out-subtle, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
   transform-origin: top center;
 }
 
 .animate-modal {
-  animation: modal-enter var(--duration-normal, 180ms) var(--ease-out-subtle, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
+  animation: modal-enter var(--duration-normal, 200ms) var(--ease-out-subtle, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
 }
 
 .animate-brand-reveal {
-  animation: brand-reveal 320ms var(--ease-out-subtle, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
+  animation: brand-reveal 280ms var(--ease-out-subtle, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
 }
 
 .animate-brand-shimmer {
@@ -292,10 +293,10 @@
 
 /* Tool card interactive hover & press transitions */
 .tool-card-interactive {
-  transition: transform 160ms var(--ease-out-subtle),
-              border-color 160ms var(--ease-out-subtle),
-              box-shadow 160ms var(--ease-out-subtle),
-              background-color 160ms var(--ease-out-subtle);
+  transition: transform 140ms var(--ease-out-subtle),
+              border-color 140ms var(--ease-out-subtle),
+              box-shadow 140ms var(--ease-out-subtle),
+              background-color 140ms var(--ease-out-subtle);
   will-change: transform;
 }
 .tool-card-interactive:hover {
@@ -315,23 +316,21 @@
 
 /* Whiteboard Premium Animation Classes */
 .wb-panel-transition {
-  transition: transform var(--wb-duration-panel, 300ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
-              opacity var(--wb-duration-panel, 300ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
-              width var(--wb-duration-panel, 300ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
-              height var(--wb-duration-panel, 300ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
-              border-radius var(--wb-duration-panel, 300ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
-              box-shadow var(--wb-duration-panel, 300ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1));
+  transition: transform var(--wb-duration-panel, 260ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              opacity var(--wb-duration-panel, 260ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              border-radius var(--wb-duration-panel, 260ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              box-shadow var(--wb-duration-panel, 260ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
 .wb-toolbar-transition {
-  transition: transform var(--wb-duration-toolbar, 280ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
-              opacity var(--wb-duration-toolbar, 280ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1));
+  transition: transform var(--wb-duration-toolbar, 240ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              opacity var(--wb-duration-toolbar, 240ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
 .wb-button-press {
-  transition: transform var(--wb-duration-icon, 180ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
-              background-color var(--wb-duration-icon, 180ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
-              color var(--wb-duration-icon, 180ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1));
+  transition: transform var(--wb-duration-icon, 140ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              background-color var(--wb-duration-icon, 140ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1)),
+              color var(--wb-duration-icon, 140ms) var(--wb-ease-default, cubic-bezier(0.16, 1, 0.3, 1));
 }
 .wb-button-press:active {
   transform: scale(0.94);

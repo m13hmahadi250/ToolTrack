@@ -31,7 +31,8 @@ export const CompressPdfTool: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
 
   // Compress Settings
-  const [level, setLevel] = useState<'maximum' | 'balanced' | 'high'>('balanced');
+  const [level, setLevel] = useState<'maximum' | 'strong' | 'balanced' | 'low' | 'smart' | 'target'>('balanced');
+  const [targetSizeMb, setTargetSizeMb] = useState<string>('');
   const [alsoFlatten, setAlsoFlatten] = useState(true);
 
   // Flatten Settings
@@ -165,9 +166,14 @@ export const CompressPdfTool: React.FC = () => {
         setMetadataAfter(afterMeta as Record<string, string | number>);
         setStatusMessage('Privacy sanitization complete: Metadata fields and orphaned xref nodes removed.');
       } else {
-        // Standard Compression
+        // Standard Compression with real presets and target-size algorithm
+        const targetKb =
+          level === 'target' && targetSizeMb && parseFloat(targetSizeMb) > 0
+            ? Math.round(parseFloat(targetSizeMb) * 1024)
+            : undefined;
         const result = await compressPdfEngine(buffer, {
           preset: level,
+          targetSizeKb: targetKb,
           flattenForms: alsoFlatten,
           removeMetadata: true,
           signal: abortController.signal,
@@ -256,7 +262,7 @@ export const CompressPdfTool: React.FC = () => {
     return () => {
       clearTimeout(timer);
     };
-  }, [file, level, alsoFlatten, flattenForms, flattenAnnotations, cleanMetadataFields, cleanRebuildXref, activeToolId]);
+  }, [file, level, targetSizeMb, alsoFlatten, flattenForms, flattenAnnotations, cleanMetadataFields, cleanRebuildXref, activeToolId]);
 
   const handleDownload = () => {
     if (!resultBlob) return;
@@ -480,40 +486,82 @@ export const CompressPdfTool: React.FC = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    Compression Preset
+                    Compression Preset & Target Size
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                     {[
                       {
-                        id: 'maximum',
-                        label: 'Maximum Compression',
-                        desc: 'Smallest file size, strips all non-essential metadata',
+                        id: 'low',
+                        label: 'Low Compression',
+                        desc: 'Mild downsampling, best vector & print quality',
                       },
                       {
                         id: 'balanced',
                         label: 'Balanced Optimization',
-                        desc: 'Recommended: Great size reduction with intact formatting',
+                        desc: 'Recommended: Standard reduction with intact fonts',
                       },
                       {
-                        id: 'high',
-                        label: 'High Quality',
-                        desc: 'Mild compression, keeps all embedded metadata',
+                        id: 'strong',
+                        label: 'Strong Compression',
+                        desc: 'Heavy stream downsampling, ideal for emails',
+                      },
+                      {
+                        id: 'maximum',
+                        label: 'Maximum Compression',
+                        desc: 'Aggressive reduction (72 DPI), smallest possible file',
+                      },
+                      {
+                        id: 'smart',
+                        label: 'Smart Compression',
+                        desc: 'Content-adaptive: balances text and images dynamically',
+                      },
+                      {
+                        id: 'target',
+                        label: 'Target File Size',
+                        desc: 'Iterative optimization to hit exact MB target',
                       },
                     ].map((item) => (
                       <button
                         key={item.id}
+                        type="button"
                         onClick={() => setLevel(item.id as typeof level)}
-                        className={`p-3.5 rounded-xl border text-left transition cursor-pointer ${
+                        className={`p-3 rounded-xl border text-left transition cursor-pointer ${
                           level === item.id
                             ? 'border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/20'
                             : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                         }`}
                       >
                         <div className="text-xs font-bold">{item.label}</div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">{item.desc}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">{item.desc}</div>
                       </button>
                     ))}
                   </div>
+
+                  {level === 'target' && (
+                    <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/40 space-y-2 mt-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <label className="text-xs font-bold text-indigo-900 dark:text-indigo-300">
+                          Target File Size Limit (MB):
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0.1"
+                            max="100"
+                            placeholder="e.g. 2.0"
+                            value={targetSizeMb}
+                            onChange={(e) => setTargetSizeMb(e.target.value)}
+                            className="w-28 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <span className="text-xs font-medium text-slate-500">MB</span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-indigo-700 dark:text-indigo-400">
+                        The engine will iteratively adjust image DPI and Flate stream parameters to compress under this limit without breaking document structure.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-2">

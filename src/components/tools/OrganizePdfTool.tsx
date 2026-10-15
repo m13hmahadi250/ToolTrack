@@ -17,7 +17,9 @@ import {
   Square,
   FilePlus,
   ExternalLink,
-  RotateCcw
+  RotateCcw,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { FileUploader } from '../common/FileUploader';
 import { loadPdfDocument, renderPageToImageDataUrl } from '../../lib/pdfRenderer';
@@ -43,6 +45,8 @@ export const OrganizePdfTool: React.FC = () => {
   const [processing, setProcessing] = useState(false);
   const [resultBlob, setResultBlob] = useState<Blob | null>(null);
   const [resultSize, setResultSize] = useState<number | null>(null);
+  const [sizeWarning, setSizeWarning] = useState<string | null>(null);
+  const [sizeRatio, setSizeRatio] = useState<number | null>(null);
 
   const processingVersionRef = useRef(0);
 
@@ -221,6 +225,28 @@ export const OrganizePdfTool: React.FC = () => {
 
       if (processingVersionRef.current !== targetVersion) return;
 
+      const originalByteLength = file.size;
+      const outputByteLength = modifiedBytes.byteLength;
+      const calculatedRatio = outputByteLength / Math.max(1, originalByteLength);
+      setSizeRatio(calculatedRatio);
+
+      // Verify safety threshold:
+      // For reorder-only and rotation-only operations without page duplications or newly added pages,
+      // output must NEVER explode. A configurable safety threshold of 1.5x catches any resource duplication.
+      const isReorderOrRotationOnly = pages.every((p) => !p.isBlank) && pages.length <= thumbnails.length;
+      if (isReorderOrRotationOnly && calculatedRatio > 1.5) {
+        const errorMsg = `Safety threshold exceeded: Generated size (${(outputByteLength / (1024 * 1024)).toFixed(2)} MB) is ${calculatedRatio.toFixed(1)}x larger than original (${(originalByteLength / (1024 * 1024)).toFixed(2)} MB). File size inflation prevented.`;
+        console.error(errorMsg);
+        setSizeWarning(errorMsg);
+        updateJob(jobId, {
+          status: 'failed',
+          errorMessage: errorMsg,
+        });
+        addRecentActivity('organize-pdf', 'Organize PDF', file.name, 'failed');
+        return;
+      }
+
+      setSizeWarning(null);
       const blob = new Blob([new Uint8Array(modifiedBytes)], { type: 'application/pdf' });
       setResultBlob(blob);
       setResultSize(blob.size);
@@ -547,6 +573,17 @@ export const OrganizePdfTool: React.FC = () => {
             </div>
           )}
 
+          {/* Size Warning / Safety Banner */}
+          {sizeWarning && (
+            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-xs flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Size Inflation Guard Triggered</p>
+                <p className="mt-0.5">{sizeWarning}</p>
+              </div>
+            </div>
+          )}
+
           {/* Download & Completion Footer */}
           <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
             <div>
@@ -554,8 +591,21 @@ export const OrganizePdfTool: React.FC = () => {
                 <FileCheck className="w-5 h-5 text-emerald-500" />
                 <span>Ready to Download Organized PDF</span>
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Total Pages: {pages.length} {resultSize ? `• ${(resultSize / 1024).toFixed(1)} KB` : ''}
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
+                <span>Total Pages: {pages.length}</span>
+                {resultSize !== null && (
+                  <>
+                    <span>•</span>
+                    <span>
+                      Output: {(resultSize / (1024 * 1024)).toFixed(2)} MB ({resultSize.toLocaleString()} bytes)
+                    </span>
+                    {file && (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                        ({sizeRatio ? `${(sizeRatio * 100).toFixed(0)}% of original ${(file.size / (1024 * 1024)).toFixed(2)} MB` : ''})
+                      </span>
+                    )}
+                  </>
+                )}
               </p>
             </div>
 
