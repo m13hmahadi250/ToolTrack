@@ -2,17 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Search,
   ArrowRight,
-  Maximize2,
-  FileQuestion,
-  GraduationCap,
-  Zap,
+  Sparkles,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  BookOpen,
-  Lock,
-  ShieldCheck,
-  Sparkles,
   FileText,
   Clock,
   Trash2,
@@ -20,23 +13,18 @@ import {
   PenTool,
   Image as ImageIcon,
   FileSpreadsheet,
-  ScanText,
-  Palette,
-  QrCode,
-  Calculator,
-  KeyRound,
-  Code2,
-  Sliders,
   Layers,
   ArrowRightLeft,
-  Percent,
-  Calendar,
-  Binary,
   X,
+  FileQuestion,
+  FileCode2,
+  Wand2,
+  Scissors,
+  Minimize2,
+  LayoutGrid,
 } from 'lucide-react';
 import { useToolTrack } from '../../context/ToolTrackContext';
 import { TOOLS_LIST } from '../../data/toolsList';
-import { POPULAR_TOOL_IDS } from '../../data/categoryRegistry';
 import { getIconComponent } from '../common/MegaMenu';
 import { GlobalToolSearch } from '../common/GlobalToolSearch';
 import { searchTools, getCategoryLabel } from '../../lib/searchEngine';
@@ -56,7 +44,7 @@ export const HomePage: React.FC = () => {
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [isSwitchingCategory, setIsSwitchingCategory] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [directoryFilter, setDirectoryFilter] = useState('');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
   // Derive recently accessed tools list
@@ -82,7 +70,7 @@ export const HomePage: React.FC = () => {
       setIsSwitchingCategory(true);
       setTimeout(() => {
         setIsSwitchingCategory(false);
-      }, 150);
+      }, 140);
     }
     setActiveCategory(categoryId);
   };
@@ -100,7 +88,7 @@ export const HomePage: React.FC = () => {
           setIsSwitchingCategory(true);
           setTimeout(() => {
             setIsSwitchingCategory(false);
-          }, 150);
+          }, 140);
         }
         setActiveCategory(catId);
       }
@@ -112,28 +100,64 @@ export const HomePage: React.FC = () => {
     };
   }, []);
 
-  const categories: { id: string; label: string }[] = [
-    { id: 'all', label: 'All Tools' },
-    { id: 'pdf', label: 'PDF Tools' },
-    { id: 'convert', label: 'Convert & Office' },
-    { id: 'image-tools', label: 'Image Studio' },
-    { id: 'ocr', label: 'OCR & Scanner' },
-    { id: 'student-tools', label: 'Student Suite' },
-    { id: 'design-tools', label: 'Design & Canvas' },
-    { id: 'utilities', label: 'Everyday Utilities' },
-    { id: 'security', label: 'Security' },
+  const categories: { id: string; label: string; count: number }[] = [
+    { id: 'all', label: 'All Tools', count: TOOLS_LIST.length },
+    {
+      id: 'pdf',
+      label: 'PDF & Documents',
+      count: TOOLS_LIST.filter((t) =>
+        ['page-tools', 'organize', 'optimize', 'security', 'inspector'].includes(t.category)
+      ).length,
+    },
+    {
+      id: 'convert',
+      label: 'Office & Convert',
+      count: TOOLS_LIST.filter((t) =>
+        ['convert-to-pdf', 'convert-from-pdf'].includes(t.category)
+      ).length,
+    },
+    {
+      id: 'image-tools',
+      label: 'Image Studio',
+      count: TOOLS_LIST.filter((t) => t.category === 'image-tools').length,
+    },
+    {
+      id: 'ocr',
+      label: 'OCR & Scanner',
+      count: TOOLS_LIST.filter((t) => t.category === 'ocr').length,
+    },
+    {
+      id: 'student-tools',
+      label: 'Student Suite',
+      count: TOOLS_LIST.filter((t) => t.category === 'student-tools').length,
+    },
+    {
+      id: 'design-tools',
+      label: 'Design & Canvas',
+      count: TOOLS_LIST.filter((t) => t.category === 'design-tools').length,
+    },
+    {
+      id: 'utilities',
+      label: 'Everyday Utilities',
+      count: TOOLS_LIST.filter((t) => t.category === 'utilities').length,
+    },
+    {
+      id: 'security',
+      label: 'Security',
+      count: TOOLS_LIST.filter((t) => t.category === 'security').length,
+    },
   ];
 
-  // Frequently used quick actions (curated to 8 high-value tools prioritizing core productivity tasks)
-  const quickActionTools = useMemo(() => {
+  // Exactly 8 high-utility quick action tools near the top
+  const popularTools = useMemo(() => {
     const curatedIds = [
       'compress-pdf',
       'merge-pdf',
       'pdf-to-word',
       'images-to-pdf',
+      'image-background-remover',
       'image-compressor',
       'image-resizer',
-      'image-background-remover',
       'whiteboard',
     ];
     return curatedIds.map((id) => TOOLS_LIST.find((t) => t.id === id)).filter(Boolean) as typeof TOOLS_LIST;
@@ -161,14 +185,14 @@ export const HomePage: React.FC = () => {
       }
     }
 
-    if (!searchQuery.trim()) {
+    if (!directoryFilter.trim()) {
       return baseList;
     }
 
-    const scoredResults = searchTools(searchQuery, 40);
+    const scoredResults = searchTools(directoryFilter, 40);
     const scoredIds = new Set(scoredResults.map((s) => s.tool.id));
     return baseList.filter((tool) => scoredIds.has(tool.id));
-  }, [searchQuery, activeCategory]);
+  }, [directoryFilter, activeCategory]);
 
   const faqs = [
     {
@@ -185,7 +209,7 @@ export const HomePage: React.FC = () => {
     },
     {
       q: 'Can I use ToolTrack on mobile phones and tablets?',
-      a: 'Yes. Every tool interface is fully responsive and optimized for smartphones, iPads, Android tablets, laptops, and Windows touch screens.',
+      a: 'Yes. Every tool interface is fully responsive and optimized for smartphones, iPads, Android tablets, laptops, and touch screens.',
     },
     {
       q: 'How are my favorites and recent tools stored?',
@@ -194,198 +218,458 @@ export const HomePage: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-12 py-6 sm:py-8 animate-fade-in">
-      {/* 1. COMPACT HERO SECTION & VALUE PROPOSITION */}
-      <section className="text-center max-w-4xl mx-auto space-y-4 px-4">
-        {/* Anti-Slop Unboxed Trust Header */}
-        <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium animate-fade-in">
-          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            100% In-Browser Privacy
-          </span>
-          <span aria-hidden="true" className="text-slate-300 dark:text-slate-700">·</span>
-          <span>Zero Server Uploads</span>
-          <span aria-hidden="true" className="text-slate-300 dark:text-slate-700">·</span>
-          <span>60+ Built-In Utilities</span>
-          <span aria-hidden="true" className="text-slate-300 dark:text-slate-700">·</span>
-          <span>Free & Offline Ready</span>
-        </div>
+    <div className="space-y-14 sm:space-y-16 pb-12 animate-fade-in">
+      {/* ========================================================================= */}
+      {/* 1. DISTINCTIVE ASYMMETRIC HERO EXPERIENCE                                */}
+      {/* ========================================================================= */}
+      <section className="relative pt-2 sm:pt-4">
+        {/* Subtle decorative glow element in background */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 w-full max-w-5xl h-80 bg-gradient-to-b from-indigo-500/10 via-cyan-500/5 to-transparent blur-3xl -z-10"
+        />
 
-        <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight animate-fade-slide-up">
-          All Your Files & Productivity Tools in One Place
-        </h1>
-
-        <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed animate-fade-slide-up">
-          PDF, Word, Excel, Images, OCR, Whiteboard, Everyday Calculators & Developer Utilities. Fast, client-side, and simple to use.
-        </p>
-
-        {/* 2. PROMINENT SEARCH BAR */}
-        <div className="max-w-xl mx-auto pt-2 space-y-2.5 animate-fade-slide-up">
-          <GlobalToolSearch
-            variant="home"
-            initialQuery={searchQuery}
-            onQueryChange={(q) => setSearchQuery(q)}
-          />
-
-          {/* Quick Keywords Filter Line */}
-          <div className="flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-            <span className="font-semibold text-slate-600 dark:text-slate-300">Quick suggestions:</span>
-            {[
-              { id: 'compress-pdf', label: 'Compress PDF' },
-              { id: 'pdf-to-word', label: 'PDF to Word' },
-              { id: 'image-background-remover', label: 'Remove BG' },
-              { id: 'whiteboard', label: 'Whiteboard' },
-              { id: 'qr-code-generator', label: 'QR Generator' },
-              { id: 'word-counter', label: 'Word Count' },
-              { id: 'password-generator', label: 'Passwords' },
-              { id: 'calculator', label: 'Calculator' },
-            ].map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setActiveToolId(s.id)}
-                className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer text-[11px]"
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 3. FREQUENTLY USED TOOLS (QUICK ACTIONS) */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-                Frequently Used Tools
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Direct access to high-utility file converters, calculators, and media editors
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+          {/* Left Column: Brand Statement, Typography, Search & Quick Pills */}
+          <div className="lg:col-span-7 space-y-5 text-left">
+            {/* Primary Headline */}
+            <div className="space-y-2">
+              <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-extrabold text-[#101828] dark:text-[#F2F4F7] tracking-tight leading-[1.08] text-balance">
+                Every file. Every task.{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2563EB] via-[#1D4ED8] to-[#7C3AED] dark:from-[#3B82F6] dark:via-[#60A5FA] dark:to-[#8B5CF6]">
+                  One workspace.
+                </span>
+              </h1>
+              <p className="text-sm sm:text-base text-[#344054] dark:text-[#B8C4D6] leading-relaxed max-w-xl text-balance">
+                Convert, organize, optimize, and work with PDFs, documents, images, and more — all in one place. Fast, client-side, and simple to use.
               </p>
             </div>
-            <button
-              onClick={() => {
-                setActiveCategory('all');
-                const el = document.getElementById('tools-directory');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <span>View All 60+ Tools</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+
+            {/* Prominent Search Field with Isolated Command Bar */}
+            <div className="pt-1 max-w-xl space-y-3">
+              <GlobalToolSearch
+                variant="home"
+                placeholder="Search 60+ tools (e.g., PDF to Word, compress, resize, background)..."
+              />
+
+              {/* Quick Jump Suggestions */}
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[#667085] dark:text-[#8292A9]">
+                <span className="font-semibold text-[#344054] dark:text-[#B8C4D6] shrink-0">Popular:</span>
+                {[
+                  { id: 'compress-pdf', label: 'Compress PDF' },
+                  { id: 'pdf-to-word', label: 'PDF to Word' },
+                  { id: 'image-background-remover', label: 'Remove BG' },
+                  { id: 'whiteboard', label: 'Whiteboard' },
+                  { id: 'qr-code-generator', label: 'QR Generator' },
+                  { id: 'word-counter', label: 'Word Count' },
+                  { id: 'calculator', label: 'Calculator' },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setActiveToolId(s.id)}
+                    className="px-2.5 py-1 rounded-lg bg-[#EAF1FF] hover:bg-[#DCE3EF] dark:bg-[#172338] dark:hover:bg-[#1E2D47] text-[#101828] dark:text-[#F2F4F7] transition cursor-pointer text-[11px] font-medium border border-[#DCE3EF] dark:border-[#1E2D47]"
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Core Value Props Guarantee Strip */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-[#667085] dark:text-[#8292A9] pt-2 border-t border-[#DCE3EF] dark:border-[#1E2D47]">
+              <div className="flex items-center gap-1.5 text-[#344054] dark:text-[#B8C4D6]">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span>Zero Server Uploads</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[#344054] dark:text-[#B8C4D6]">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#3B82F6] shrink-0" />
+                <span>60+ Built-In Utilities</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[#344054] dark:text-[#B8C4D6]">
+                <CheckCircle2 className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                <span>Free & Offline-Ready</span>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            {quickActionTools.map((tool) => {
-              const Icon = getIconComponent(tool.iconName);
-              const isFav = isFavoriteTool(tool.id);
+          {/* Right Column: Lightweight Visual Composition (Interactive Workspace Matrix) */}
+          <div className="lg:col-span-5 relative">
+            <div className="relative rounded-3xl p-4 sm:p-5 bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] shadow-xl overflow-hidden space-y-3">
+              {/* Header of Workspace preview */}
+              <div className="flex items-center justify-between pb-2 border-b border-[#DCE3EF] dark:border-[#1E2D47]">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-400/80 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80 inline-block" />
+                  </div>
+                  <span className="text-[11px] font-bold text-[#667085] dark:text-[#8292A9] font-mono tracking-tight pl-1">
+                    ToolTrack Workspace
+                  </span>
+                </div>
+              </div>
 
-              return (
+              {/* 4 Interactive Visual Pillars */}
+              <div className="grid grid-cols-2 gap-2.5">
+                {/* 1. PDF Tools Pillar */}
                 <div
-                  key={tool.id}
-                  onClick={() => setActiveToolId(tool.id)}
+                  onClick={() => setActiveToolId('merge-pdf')}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      setActiveToolId(tool.id);
+                      setActiveToolId('merge-pdf');
                     }
                   }}
-                  className="p-4 sm:p-4.5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md tool-card-interactive text-left group cursor-pointer flex flex-col justify-between min-h-[148px] relative"
+                  className="p-3 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-750 hover:border-indigo-400 dark:hover:border-[#2563EB] transition-all hover:shadow-sm group cursor-pointer space-y-2 text-left"
                 >
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs">
-                        <Icon className="w-4.5 h-4.5" />
-                      </div>
-
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleFavoriteTool(tool.id);
-                        }}
-                        className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-amber-500 transition cursor-pointer"
-                        title={isFav ? 'Remove favorite' : 'Add to favorites'}
-                      >
-                        <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-amber-400 text-amber-500' : ''}`} />
-                      </button>
+                  <div className="flex items-center justify-between">
+                    <div className="w-8 h-8 rounded-xl bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center">
+                      <FileText className="w-4 h-4" />
                     </div>
-
-                    <div>
-                      {tool.id === 'whiteboard' && (
-                        <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 mb-0.5">
-                          Flagship Canvas
-                        </div>
-                      )}
-                      <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition leading-snug break-words">
-                        {tool.name}
-                      </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1 leading-relaxed">
-                        {tool.description}
-                      </p>
-                    </div>
+                    <span className="text-[10px] font-bold text-red-600 dark:text-red-400">PDF Suite</span>
                   </div>
-
-                  <div className="pt-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                    <span>Open tool</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition">
+                      Merge & Compress
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                      Lossless structural PDF tools
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6]">
+                    <span>Explore PDF</span>
+                    <ArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </section>
 
-      {/* 4. MAIN TOOL CATEGORIES DIRECTORY & SEARCH RESULTS */}
-      <section id="tools-directory" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+                {/* 2. Office & Conversion Pillar */}
+                <div
+                  onClick={() => setActiveToolId('pdf-to-word')}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setActiveToolId('pdf-to-word');
+                    }
+                  }}
+                  className="p-3 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-750 hover:border-indigo-400 dark:hover:border-[#2563EB] transition-all hover:shadow-sm group cursor-pointer space-y-2 text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                      <ArrowRightLeft className="w-4 h-4" />
+                    </div>
+                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">DOCX & XLSX</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition">
+                      Word & Excel Convert
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                      Two-way document engine
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6]">
+                    <span>Convert docs</span>
+                    <ArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+
+                {/* 3. Image Studio Pillar */}
+                <div
+                  onClick={() => setActiveToolId('image-background-remover')}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setActiveToolId('image-background-remover');
+                    }
+                  }}
+                  className="p-3 rounded-2xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] hover:border-[#7C3AED] dark:hover:border-[#8B5CF6] transition-all hover:shadow-sm group cursor-pointer space-y-2 text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="w-8 h-8 rounded-xl bg-[#EAF1FF] dark:bg-[#172338] text-[#7C3AED] dark:text-[#8B5CF6] flex items-center justify-center">
+                      <Scissors className="w-4 h-4" />
+                    </div>
+                    <span className="text-[10px] font-bold text-[#7C3AED] dark:text-[#8B5CF6]">Image Studio</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-[#101828] dark:text-[#F2F4F7] group-hover:text-[#7C3AED] dark:group-hover:text-[#8B5CF6] transition">
+                      Remove Background
+                    </h3>
+                    <p className="text-[11px] text-[#667085] dark:text-[#8292A9] line-clamp-1 mt-0.5">
+                      AI alpha cutout & compressor
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] font-semibold text-[#667085] dark:text-[#8292A9] group-hover:text-[#7C3AED] dark:group-hover:text-[#8B5CF6]">
+                    <span>Open Studio</span>
+                    <ArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+
+                {/* 4. Whiteboard Flagship Pillar */}
+                <div
+                  onClick={() => setActiveToolId('whiteboard')}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setActiveToolId('whiteboard');
+                    }
+                  }}
+                  className="p-3 rounded-2xl bg-[#2563EB] text-white border border-[#2563EB] transition-all hover:shadow-md group cursor-pointer space-y-2 text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="w-8 h-8 rounded-xl bg-white/20 text-white flex items-center justify-center">
+                      <PenTool className="w-4 h-4" />
+                    </div>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/25 text-white tracking-wider uppercase">
+                      Flagship
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-white group-hover:text-blue-100 transition">
+                      Infinite Whiteboard
+                    </h3>
+                    <p className="text-[11px] text-blue-100 line-clamp-1 mt-0.5">
+                      Diagrams & PDF markup
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] font-semibold text-white/90 group-hover:text-white">
+                    <span>Launch canvas</span>
+                    <ArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 2. FREQUENTLY USED TOOLS (COMPACT, HIGH-VALUE CURATED 8 TOOLS)             */}
+      {/* ========================================================================= */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+              Frequently Used Tools
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Direct access to high-utility file converters, calculators, and media editors
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setActiveCategory('all');
+              const el = document.getElementById('tools-directory');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="text-xs font-semibold text-[#2563EB] dark:text-[#3B82F6] hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <span>View All {TOOLS_LIST.length} Tools</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          {popularTools.map((tool) => {
+            const Icon = getIconComponent(tool.iconName);
+            const isFav = isFavoriteTool(tool.id);
+
+            return (
+              <div
+                key={tool.id}
+                onClick={() => setActiveToolId(tool.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setActiveToolId(tool.id);
+                  }
+                }}
+                className="p-4 rounded-2xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] hover:border-indigo-400 dark:hover:border-[#2563EB] hover:shadow-md tool-card-interactive text-left group cursor-pointer flex flex-col justify-between min-h-[148px] relative"
+              >
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 text-[#2563EB] dark:text-[#3B82F6] flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs">
+                      <Icon className="w-4.5 h-4.5" />
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavoriteTool(tool.id);
+                      }}
+                      className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-amber-500 transition cursor-pointer"
+                      title={isFav ? 'Remove favorite' : 'Add to favorites'}
+                    >
+                      <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-amber-400 text-amber-500' : ''}`} />
+                    </button>
+                  </div>
+
+                  <div>
+                    {tool.id === 'whiteboard' && (
+                      <div className="text-[10px] font-bold text-[#2563EB] dark:text-[#3B82F6] mb-0.5">
+                        Flagship Canvas
+                      </div>
+                    )}
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition leading-snug break-words">
+                      {tool.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1 leading-relaxed">
+                      {tool.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 text-xs font-semibold text-[#2563EB] dark:text-[#3B82F6] flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  <span>Open tool</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 3. FEATURED FLAGSHIP: INTERACTIVE WHITEBOARD                               */}
+      {/* ========================================================================= */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#101828] via-[#172338] to-[#0B1220] border border-[#1E2D47] p-6 sm:p-8 text-white shadow-xl">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-3 max-w-2xl text-left">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-indigo-500/20 text-[#93C5FD] border border-[#2563EB]/30">
+                <Sparkles className="w-3.5 h-3.5 text-[#60A5FA]" />
+                Flagship Workspace
+              </span>
+              <span className="text-xs text-slate-400">· 100% Client-Side Vector Canvas</span>
+            </div>
+
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+              Interactive Infinite Whiteboard & PDF Annotation
+            </h2>
+
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              Sketch diagrams, brainstorm workflows, import and annotate PDF lecture slides, and draw with precision tools. Instant launch with zero lag, hardware-accelerated rendering, and export to vector PDF, PNG, or SVG.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-300 pt-1">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                Infinite Pan & Zoom
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                PDF & Image Markup
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                Smart Shapes & Connectors
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                Vector PDF & SVG Export
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row lg:flex-col gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveToolId('whiteboard')}
+              className="px-5 py-3 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-[#2563EB]/25 transition cursor-pointer"
+            >
+              <PenTool className="w-4 h-4" />
+              <span>Launch Whiteboard</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategory('design-tools');
+                const el = document.getElementById('tools-directory');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 font-medium text-xs flex items-center justify-center gap-1.5 transition cursor-pointer border border-white/10"
+            >
+              <span>Explore Design & Canvas Tools</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 4. MAIN TOOL CATEGORIES DIRECTORY & DEDICATED DIRECTORY FILTER            */}
+      {/* ========================================================================= */}
+      <section id="tools-directory" className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-                {searchQuery ? `Search Results for "${searchQuery}"` : 'All Tool Categories'}
-              </h2>
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="px-2.5 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-xs font-semibold text-indigo-600 dark:text-indigo-400 transition cursor-pointer flex items-center gap-1 border border-indigo-200 dark:border-indigo-800"
-                  title="Clear search filter"
-                >
-                  <span>Clear Search</span>
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <h2 className="text-lg sm:text-xl font-bold text-[#101828] dark:text-[#F2F4F7] tracking-tight">
+              All Tool Categories
+            </h2>
+            <p className="text-xs text-[#667085] dark:text-[#8292A9]">
               Browse by domain or filter instantly with keyword search
             </p>
           </div>
 
-          <span className="text-xs text-slate-500 font-semibold">
-            {displayedTools.length} {displayedTools.length === 1 ? 'Tool' : 'Tools'} Available
-          </span>
+          {/* Dedicated Directory Filter Bar */}
+          <div className="flex items-center gap-2">
+            <div className="relative w-48 sm:w-60">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#667085] dark:text-[#8292A9]" />
+              <input
+                type="text"
+                value={directoryFilter}
+                onChange={(e) => setDirectoryFilter(e.target.value)}
+                placeholder="Filter tools..."
+                className="w-full pl-8 pr-7 py-1.5 rounded-xl bg-white dark:bg-[#111C2E] text-xs text-[#101828] dark:text-[#F2F4F7] border border-[#DCE3EF] dark:border-[#1E2D47] focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+              />
+              {directoryFilter && (
+                <button
+                  onClick={() => setDirectoryFilter('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#667085] hover:text-[#101828] dark:hover:text-[#F2F4F7]"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <span className="text-xs text-[#667085] dark:text-[#8292A9] font-semibold whitespace-nowrap">
+              {displayedTools.length} {displayedTools.length === 1 ? 'Tool' : 'Tools'}
+            </span>
+          </div>
         </div>
 
-        {/* Category Segmented Tabs (Functional Buttons) */}
+        {/* Category Segmented Tabs */}
         <div
-          className="p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl flex items-center gap-1 overflow-x-auto scrollbar-none border border-slate-200/60 dark:border-slate-700/60"
+          className="p-1 bg-[#EAF1FF] dark:bg-[#111C2E] rounded-xl flex items-center gap-1 overflow-x-auto scrollbar-none border border-[#DCE3EF] dark:border-[#1E2D47]"
           role="tablist"
         >
           {categories.map((cat) => (
             <button
               key={cat.id}
               onClick={() => handleCategorySelect(cat.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
                 activeCategory === cat.id
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'
+                  ? 'bg-white dark:bg-[#172338] text-[#101828] dark:text-[#F2F4F7] shadow-2xs font-bold border border-[#DCE3EF] dark:border-[#1E2D47]'
+                  : 'text-[#344054] dark:text-[#B8C4D6] hover:text-[#101828] dark:hover:text-[#F2F4F7] hover:bg-white/60 dark:hover:bg-[#172338]/60'
               }`}
               role="tab"
               aria-selected={activeCategory === cat.id}
             >
-              {cat.label}
+              <span>{cat.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                activeCategory === cat.id
+                  ? 'bg-[#EAF1FF] dark:bg-[#111C2E] text-[#2563EB] dark:text-[#3B82F6] font-bold'
+                  : 'bg-[#DCE3EF]/60 dark:bg-[#172338] text-[#667085] dark:text-[#8292A9]'
+              }`}>
+                {cat.count}
+              </span>
             </button>
           ))}
         </div>
@@ -394,25 +678,25 @@ export const HomePage: React.FC = () => {
         {isSwitchingCategory ? (
           <ToolCardSkeletonGrid count={8} />
         ) : displayedTools.length === 0 ? (
-          <div className="p-12 text-center rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto">
+          <div className="p-12 text-center rounded-2xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] space-y-3">
+            <div className="w-10 h-10 rounded-xl bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] flex items-center justify-center mx-auto">
               <FileQuestion className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                No tools found for "{searchQuery}"
+              <h3 className="font-bold text-sm text-[#101828] dark:text-[#F2F4F7]">
+                No tools found for "{directoryFilter}"
               </h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+              <p className="text-xs text-[#667085] dark:text-[#8292A9] mt-1 max-w-sm mx-auto">
                 Try searching for common tools like PDF, Image, Word, Compress, Resize, OCR, QR, or Calculator.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => setSearchQuery('')}
-                className="px-3 py-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-semibold transition cursor-pointer shadow-xs"
+                onClick={() => setDirectoryFilter('')}
+                className="px-3.5 py-2 rounded-xl bg-[#2563EB] text-white hover:bg-[#1D4ED8] text-xs font-semibold transition cursor-pointer shadow-2xs"
               >
-                Clear Search & Show All Tools
+                Clear Filter & Show All Tools
               </button>
             </div>
           </div>
@@ -435,17 +719,17 @@ export const HomePage: React.FC = () => {
                       setActiveToolId(tool.id);
                     }
                   }}
-                  className={`p-4 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md tool-card-interactive text-left group flex flex-col justify-between h-40 cursor-pointer relative stagger-card-enter ${staggerDelayClass}`}
+                  className={`p-4 rounded-2xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] hover:border-[#2563EB] dark:hover:border-[#3B82F6] hover:shadow-md tool-card-interactive text-left group flex flex-col justify-between h-40 cursor-pointer relative stagger-card-enter ${staggerDelayClass}`}
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950 group-hover:text-indigo-600 transition flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-xl bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] group-hover:bg-[#2563EB] group-hover:text-white dark:group-hover:bg-[#2563EB] dark:group-hover:text-white transition-colors flex items-center justify-center">
                         <Icon className="w-4 h-4" />
                       </div>
 
                       <div className="flex items-center gap-1.5">
                         {tool.badge && (
-                          <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                          <span className="text-[10px] font-bold text-[#2563EB] dark:text-[#3B82F6]">
                             {tool.badge}
                           </span>
                         )}
@@ -454,7 +738,7 @@ export const HomePage: React.FC = () => {
                             e.stopPropagation();
                             toggleFavoriteTool(tool.id);
                           }}
-                          className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-amber-500 transition cursor-pointer"
+                          className="p-1 rounded-md text-[#667085] dark:text-[#8292A9] hover:text-amber-500 transition cursor-pointer"
                           title={isFav ? 'Remove favorite' : 'Add to favorites'}
                         >
                           <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-amber-400 text-amber-500' : ''}`} />
@@ -463,20 +747,19 @@ export const HomePage: React.FC = () => {
                     </div>
 
                     <div>
-                      {/* Zero-Pill Unboxed Category Label */}
-                      <div className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mb-0.5">
+                      <div className="text-[10px] font-semibold text-[#667085] dark:text-[#8292A9] mb-0.5">
                         {getCategoryLabel(tool.category)}
                       </div>
-                      <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">
+                      <h3 className="font-bold text-sm text-[#101828] dark:text-[#F2F4F7] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition truncate">
                         {tool.name}
                       </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1 leading-snug">
+                      <p className="text-xs text-[#667085] dark:text-[#8292A9] line-clamp-2 mt-1 leading-snug">
                         {tool.description}
                       </p>
                     </div>
                   </div>
 
-                  <div className="text-xs font-semibold text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 flex items-center gap-1 transition">
+                  <div className="text-xs font-semibold text-[#667085] dark:text-[#8292A9] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] flex items-center gap-1 transition">
                     <span>Use Tool</span>
                     <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                   </div>
@@ -487,20 +770,21 @@ export const HomePage: React.FC = () => {
         )}
       </section>
 
-      {/* 5. FAVORITES & RECENTLY USED (PROGRESSIVE DISCLOSURE) */}
+      {/* ========================================================================= */}
+      {/* 5. FAVORITES & RECENTLY USED                                              */}
+      {/* ========================================================================= */}
       {(favoriteTools.length > 0 || recentTools.length > 0) && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          {/* Favorite Tools */}
+        <section className="space-y-6 pt-2">
           {favoriteTools.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <h3 className="text-sm font-bold text-[#101828] dark:text-[#F2F4F7] flex items-center gap-1.5">
                   <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
                   <span>Favorite Shortcuts ({favoriteTools.length})</span>
                 </h3>
                 <button
                   onClick={clearFavoriteTools}
-                  className="text-[11px] text-slate-400 hover:text-red-500 cursor-pointer flex items-center gap-1"
+                  className="text-[11px] text-[#667085] hover:text-[#DC2626] cursor-pointer flex items-center gap-1 transition"
                 >
                   <Trash2 className="w-3 h-3" />
                   <span>Clear</span>
@@ -514,10 +798,10 @@ export const HomePage: React.FC = () => {
                     <div
                       key={t.id}
                       onClick={() => setActiveToolId(t.id)}
-                      className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 hover:border-amber-400 transition flex items-center gap-2 cursor-pointer"
+                      className="p-2.5 rounded-xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] hover:border-amber-400 transition flex items-center gap-2 cursor-pointer"
                     >
                       <Icon className="w-4 h-4 text-amber-500 shrink-0" />
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                      <span className="text-xs font-semibold text-[#101828] dark:text-[#F2F4F7] truncate">
                         {t.name}
                       </span>
                     </div>
@@ -527,17 +811,16 @@ export const HomePage: React.FC = () => {
             </div>
           )}
 
-          {/* Recent Tools */}
           {recentTools.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-indigo-500" />
+                <h3 className="text-sm font-bold text-[#101828] dark:text-[#F2F4F7] flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-[#2563EB] dark:text-[#3B82F6]" />
                   <span>Recently Used ({recentTools.length})</span>
                 </h3>
                 <button
                   onClick={clearRecentTools}
-                  className="text-[11px] text-slate-400 hover:text-red-500 cursor-pointer flex items-center gap-1"
+                  className="text-[11px] text-[#667085] hover:text-[#DC2626] cursor-pointer flex items-center gap-1 transition"
                 >
                   <Trash2 className="w-3 h-3" />
                   <span>Clear History</span>
@@ -551,10 +834,10 @@ export const HomePage: React.FC = () => {
                     <div
                       key={t.id}
                       onClick={() => setActiveToolId(t.id)}
-                      className="p-2.5 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-400 transition flex items-center gap-2 cursor-pointer"
+                      className="p-2.5 rounded-xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] hover:border-[#2563EB] dark:hover:border-[#3B82F6] transition flex items-center gap-2 cursor-pointer"
                     >
-                      <Icon className="w-4 h-4 text-indigo-500 shrink-0" />
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                      <Icon className="w-4 h-4 text-[#2563EB] dark:text-[#3B82F6] shrink-0" />
+                      <span className="text-xs font-semibold text-[#101828] dark:text-[#F2F4F7] truncate">
                         {t.name}
                       </span>
                     </div>
@@ -566,47 +849,49 @@ export const HomePage: React.FC = () => {
         </section>
       )}
 
-      {/* 6. COMPACT FAQ ACCORDION */}
-      <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 pt-4">
-          <div className="text-center space-y-1">
-            <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Frequently Asked Questions
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Clear answers regarding privacy, file limits, and offline capabilities
-            </p>
-          </div>
+      {/* ========================================================================= */}
+      {/* 6. COMPACT FAQ ACCORDION                                                  */}
+      {/* ========================================================================= */}
+      <section className="max-w-3xl mx-auto space-y-4 pt-4">
+        <div className="text-center space-y-1">
+          <h2 className="text-lg sm:text-xl font-bold text-[#101828] dark:text-[#F2F4F7] tracking-tight">
+            Frequently Asked Questions
+          </h2>
+          <p className="text-xs text-[#667085] dark:text-[#8292A9]">
+            Clear answers regarding privacy, file limits, and offline capabilities
+          </p>
+        </div>
 
-          <div className="space-y-2">
-            {faqs.map((faq, idx) => {
-              const isOpen = openFaqIndex === idx;
-              return (
-                <div
-                  key={idx}
-                  className="rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-850 overflow-hidden transition"
+        <div className="space-y-2">
+          {faqs.map((faq, idx) => {
+            const isOpen = openFaqIndex === idx;
+            return (
+              <div
+                key={idx}
+                className="rounded-xl border border-[#DCE3EF] dark:border-[#1E2D47] bg-white dark:bg-[#111C2E] overflow-hidden transition"
+              >
+                <button
+                  onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
+                  className="w-full p-3.5 text-left font-semibold text-xs sm:text-sm text-[#101828] dark:text-[#F2F4F7] flex items-center justify-between gap-3 cursor-pointer"
                 >
-                  <button
-                    onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
-                    className="w-full p-3.5 text-left font-semibold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center justify-between gap-3 cursor-pointer"
-                  >
-                    <span>{faq.q}</span>
-                    {isOpen ? (
-                      <ChevronUp className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-                    )}
-                  </button>
-
-                  {isOpen && (
-                    <div className="px-3.5 pb-3.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed border-t border-slate-100 dark:border-slate-800 pt-2.5">
-                      {faq.a}
-                    </div>
+                  <span>{faq.q}</span>
+                  {isOpen ? (
+                    <ChevronUp className="w-4 h-4 text-[#2563EB] dark:text-[#3B82F6] shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-[#667085] shrink-0" />
                   )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
+                </button>
+
+                {isOpen && (
+                  <div className="px-3.5 pb-3.5 text-xs text-[#344054] dark:text-[#B8C4D6] leading-relaxed border-t border-[#DCE3EF] dark:border-[#1E2D47] pt-2.5">
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 };

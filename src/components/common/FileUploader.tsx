@@ -174,10 +174,10 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
             fileInputRef.current?.click();
           }
         }}
-        className={`relative group cursor-pointer border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center transition-all duration-200 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none ${
+        className={`relative group cursor-pointer border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center transition-all duration-200 focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:outline-none ${
           isDragging
-            ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 scale-[1.01]'
-            : 'border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 bg-white dark:bg-slate-850 hover:bg-slate-50/80 dark:hover:bg-slate-800/80'
+            ? 'border-[#2563EB] bg-[#EAF1FF]/80 dark:bg-[#172338]/90 scale-[1.01]'
+            : 'border-[#DCE3EF] dark:border-[#1E2D47] hover:border-[#2563EB] dark:hover:border-[#3B82F6] bg-white dark:bg-[#111C2E] hover:bg-[#F5F8FF]/80 dark:hover:bg-[#172338]/80'
         }`}
       >
         <input
@@ -194,31 +194,31 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
           <div
             className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 ${
               isDragging
-                ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/40 scale-110 ring-4 ring-indigo-400/30'
-                : 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 group-hover:scale-105 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/60'
+                ? 'bg-[#2563EB] text-white shadow-xl shadow-[#2563EB]/40 scale-110 ring-4 ring-[#2563EB]/30'
+                : 'bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] group-hover:scale-105 group-hover:bg-[#2563EB] group-hover:text-white dark:group-hover:bg-[#2563EB] dark:group-hover:text-white'
             }`}
           >
             {validating ? (
-              <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-8 h-8 border-3 border-[#2563EB] border-t-transparent rounded-full animate-spin"></div>
             ) : (
               <UploadCloud className={`w-8 h-8 transition-transform duration-300 ${isDragging ? '-translate-y-1' : ''}`} />
             )}
           </div>
 
           <div className="space-y-1.5 max-w-sm">
-            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+            <h3 className="text-base sm:text-lg font-bold text-[#101828] dark:text-[#F2F4F7] tracking-tight">
               {isDragging ? 'Drop your file right here' : title}
             </h3>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-              <span className="font-semibold text-indigo-600 dark:text-indigo-400 underline underline-offset-2">
+            <p className="text-xs sm:text-sm text-[#344054] dark:text-[#B8C4D6]">
+              <span className="font-semibold text-[#2563EB] dark:text-[#3B82F6] underline underline-offset-2">
                 Browse Files
               </span>{' '}
               {description}
             </p>
             <div className="pt-0.5">
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 dark:text-slate-500">
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#667085] dark:text-[#8292A9]">
                 <span>or paste with</span>
-                <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-slate-600 dark:text-slate-300">
+                <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-[#EAF1FF] dark:bg-[#172338] border border-[#DCE3EF] dark:border-[#1E2D47] rounded text-[#344054] dark:text-[#B8C4D6]">
                   Ctrl + V
                 </kbd>
               </span>
@@ -230,12 +230,12 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
             {acceptedFormats.map((fmt) => (
               <span
                 key={fmt}
-                className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700"
+                className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-md bg-[#EAF1FF] dark:bg-[#172338] text-[#101828] dark:text-[#F2F4F7] border border-[#DCE3EF] dark:border-[#1E2D47]"
               >
                 {fmt.replace('.', '')}
               </span>
             ))}
-            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 px-1">
+            <span className="text-[11px] font-medium text-[#667085] dark:text-[#8292A9] px-1">
               (Up to 150 MB{multiple ? `, max ${maxFiles} files` : ''})
             </span>
           </div>
@@ -243,8 +243,8 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
       </div>
 
       {/* Security notice banner */}
-      <div className="mt-3 flex items-center justify-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-400">
-        <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+      <div className="mt-3 flex items-center justify-center gap-2 text-xs font-medium text-[#344054] dark:text-[#B8C4D6]">
+        <Shield className="w-3.5 h-3.5 text-[#15803D] dark:text-emerald-400 shrink-0" />
         <span>Your files are processed locally in your browser. Complete privacy guaranteed.</span>
       </div>
 

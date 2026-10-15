@@ -1,26 +1,47 @@
 @import "tailwindcss";
 
 @theme {
-  --color-slate-850: #141d31;
+  --color-navy-950: #0B1220;
+  --color-navy-900: #101828;
+  --color-navy-850: #111C2E;
+  --color-navy-800: #172338;
+  --color-navy-750: #1C2B44;
+  --color-navy-700: #1E2D47;
+  --color-navy-600: #26395A;
+  --color-slate-850: #111C2E;
+
+  --color-brand-blue: #2563EB;
+  --color-brand-blue-hover: #1D4ED8;
+  --color-brand-blue-light: #EAF1FF;
+  --color-brand-blue-surface: #F5F8FF;
+  --color-brand-border: #DCE3EF;
+  --color-brand-border-dark: #1E2D47;
+  --color-brand-muted: #667085;
+  --color-brand-secondary: #344054;
+  --color-brand-violet: #7C3AED;
 }
 
 @layer base {
   :root {
-    --background: #f8fafc;
-    --foreground: #0f172a;
-    --card: #ffffff;
-    --card-foreground: #0f172a;
-    --muted: #f1f5f9;
-    --muted-foreground: #475569;
-    --primary: #4f46e5;
-    --primary-foreground: #ffffff;
-    --secondary: #e2e8f0;
-    --secondary-foreground: #1e293b;
-    --border: #cbd5e1;
-    --input: #e2e8f0;
-    --ring: #6366f1;
-    --destructive: #dc2626;
-    --destructive-foreground: #ffffff;
+    --background: #F5F8FF;
+    --foreground: #101828;
+    --card: #FFFFFF;
+    --card-foreground: #101828;
+    --surface-soft: #EAF1FF;
+    --muted: #EDF3FC;
+    --muted-foreground: #667085;
+    --secondary-text: #344054;
+    --primary: #2563EB;
+    --primary-hover: #1D4ED8;
+    --primary-foreground: #FFFFFF;
+    --border: #DCE3EF;
+    --input: #DCE3EF;
+    --ring: #2563EB;
+    --destructive: #DC2626;
+    --destructive-foreground: #FFFFFF;
+    --success: #15803D;
+    --warning: #B45309;
+    --accent-violet: #7C3AED;
 
     /* Unified Animation Design Tokens */
     --ease-out-subtle: cubic-bezier(0.16, 1, 0.3, 1);
@@ -38,21 +59,25 @@
   }
 
   .dark {
-    --background: #0b0f19;
-    --foreground: #f8fafc;
-    --card: #131b2e;
-    --card-foreground: #f8fafc;
-    --muted: #1e293b;
-    --muted-foreground: #94a3b8;
-    --primary: #6366f1;
-    --primary-foreground: #ffffff;
-    --secondary: #1e293b;
-    --secondary-foreground: #f1f5f9;
-    --border: #334155;
-    --input: #334155;
-    --ring: #818cf8;
-    --destructive: #ef4444;
-    --destructive-foreground: #ffffff;
+    --background: #0B1220;
+    --foreground: #F2F4F7;
+    --card: #111C2E;
+    --card-foreground: #F2F4F7;
+    --surface-soft: #172338;
+    --muted: #131E33;
+    --muted-foreground: #8292A9;
+    --secondary-text: #B8C4D6;
+    --primary: #3B82F6;
+    --primary-hover: #2563EB;
+    --primary-foreground: #FFFFFF;
+    --border: #1E2D47;
+    --input: #1E2D47;
+    --ring: #3B82F6;
+    --destructive: #EF4444;
+    --destructive-foreground: #FFFFFF;
+    --success: #22C55E;
+    --warning: #F59E0B;
+    --accent-violet: #8B5CF6;
   }
 
   body {
@@ -68,20 +93,20 @@
   /* Universal select and option contrast */
   select {
     color-scheme: light dark;
-    color: #0f172a;
-    background-color: #ffffff;
+    color: #101828;
+    background-color: #FFFFFF;
   }
   .dark select {
-    color: #f8fafc;
-    background-color: #1e293b;
+    color: #F2F4F7;
+    background-color: #172338;
   }
   select option {
-    background-color: #ffffff;
-    color: #0f172a;
+    background-color: #FFFFFF;
+    color: #101828;
   }
   .dark select option {
-    background-color: #1e293b;
-    color: #f8fafc;
+    background-color: #172338;
+    color: #F2F4F7;
   }
 
   /* Universal input, textarea, and form controls text readability */
@@ -91,8 +116,8 @@
   input[type="email"],
   input[type="search"],
   textarea {
-    color: #0f172a;
-    background-color: #ffffff;
+    color: #101828;
+    background-color: #FFFFFF;
   }
   .dark input[type="text"],
   .dark input[type="number"],
@@ -100,18 +125,18 @@
   .dark input[type="email"],
   .dark input[type="search"],
   .dark textarea {
-    color: #f8fafc;
-    background-color: #1e293b;
+    color: #F2F4F7;
+    background-color: #111C2E;
   }
 
   input::placeholder,
   textarea::placeholder {
-    color: #64748b;
+    color: #667085;
     opacity: 0.9;
   }
   .dark input::placeholder,
   .dark textarea::placeholder {
-    color: #94a3b8;
+    color: #8292A9;
     opacity: 0.9;
   }
 
@@ -120,6 +145,37 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+}
+
+/* Centralized Semantic Theme Tokens */
+.bg-theme-page {
+  background-color: var(--background);
+}
+.bg-theme-card {
+  background-color: var(--card);
+}
+.bg-theme-surface-soft {
+  background-color: var(--surface-soft);
+}
+.text-theme-primary {
+  color: var(--foreground);
+}
+.text-theme-secondary {
+  color: var(--secondary-text);
+}
+.text-theme-muted {
+  color: var(--muted-foreground);
+}
+.border-theme-subtle {
+  border-color: var(--border);
+}
+.btn-primary-theme {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  transition: all 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-primary-theme:hover {
+  background-color: var(--primary-hover);
 }
 
 /* Custom scrollbars */

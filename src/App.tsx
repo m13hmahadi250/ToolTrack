@@ -336,25 +336,25 @@ function MainContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors">
+    <div className="min-h-screen flex flex-col bg-[#F5F8FF] dark:bg-[#0B1220] text-[#101828] dark:text-[#F2F4F7] transition-colors">
       <Header />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Breadcrumb navigation for category page */}
         {!activeToolId && activeCategoryKey && (
-          <nav className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-6 pb-3 border-b border-slate-200 dark:border-slate-800">
+          <nav className="flex items-center gap-2 text-xs font-semibold text-[#667085] dark:text-[#8292A9] mb-6 pb-3 border-b border-[#DCE3EF] dark:border-[#1E2D47]">
             <button
               onClick={() => {
                 setActiveCategoryKey(null);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#EAF1FF] dark:bg-[#172338] hover:bg-[#DCE3EF] dark:hover:bg-[#1E2D47] text-[#101828] dark:text-[#F2F4F7] border border-[#DCE3EF] dark:border-[#1E2D47] transition cursor-pointer"
             >
-              <Home className="w-3.5 h-3.5" />
+              <Home className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#3B82F6]" />
               <span>All Tools</span>
             </button>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-slate-900 dark:text-slate-100 font-bold">
+            <ChevronRight className="w-3.5 h-3.5 text-[#667085] dark:text-[#8292A9]" />
+            <span className="text-[#101828] dark:text-[#F2F4F7] font-bold">
               {CATEGORIES_SEO[activeCategoryKey]?.name || activeCategoryKey}
             </span>
           </nav>
@@ -362,28 +362,28 @@ function MainContent() {
 
         {/* Breadcrumb navigation if on tool page */}
         {activeToolId && currentTool && (
-          <nav className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-6 pb-3 border-b border-slate-200 dark:border-slate-800">
+          <nav className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[#667085] dark:text-[#8292A9] mb-6 pb-3 border-b border-[#DCE3EF] dark:border-[#1E2D47]">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {
                   setActiveToolId(null);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#EAF1FF] dark:bg-[#172338] hover:bg-[#DCE3EF] dark:hover:bg-[#1E2D47] text-[#101828] dark:text-[#F2F4F7] border border-[#DCE3EF] dark:border-[#1E2D47] transition cursor-pointer"
               >
-                <Home className="w-3.5 h-3.5" />
+                <Home className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#3B82F6]" />
                 <span>All Tools</span>
               </button>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              <ChevronRight className="w-3.5 h-3.5 text-[#667085] dark:text-[#8292A9]" />
               {currentTool.category && (
                 <>
-                  <span className="text-slate-500 dark:text-slate-400 font-medium">
+                  <span className="text-[#667085] dark:text-[#8292A9] font-medium">
                     {currentTool.category.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                   </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  <ChevronRight className="w-3.5 h-3.5 text-[#667085] dark:text-[#8292A9]" />
                 </>
               )}
-              <span className="text-slate-900 dark:text-slate-100 font-bold truncate max-w-xs sm:max-w-md">
+              <span className="text-[#101828] dark:text-[#F2F4F7] font-bold truncate max-w-xs sm:max-w-md">
                 {currentTool.name}
               </span>
             </div>
@@ -391,10 +391,10 @@ function MainContent() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => toggleFavoriteTool(currentTool.id)}
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer border ${
                   isFavoriteTool(currentTool.id)
-                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700/60'
-                    : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-amber-500'
+                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700/60'
+                    : 'bg-white dark:bg-[#111C2E] text-[#667085] dark:text-[#8292A9] border-[#DCE3EF] dark:border-[#1E2D47] hover:text-amber-500 hover:border-amber-300'
                 }`}
                 title={isFavoriteTool(currentTool.id) ? 'Remove from favorites' : 'Add to favorites'}
                 aria-label={isFavoriteTool(currentTool.id) ? 'Remove from favorites' : 'Add to favorites'}

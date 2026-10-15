@@ -23,22 +23,22 @@ export const RecentActivityModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200 cursor-pointer"
+      className="fixed inset-0 z-50 overflow-y-auto bg-[#101828]/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200 cursor-pointer"
       onClick={() => setIsActivityOpen(false)}
     >
       <div
-        className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 max-h-[85vh] flex flex-col cursor-default animate-modal"
+        className="relative w-full max-w-xl bg-white dark:bg-[#111C2E] rounded-2xl shadow-2xl border border-[#DCE3EF] dark:border-[#1E2D47] p-6 max-h-[85vh] flex flex-col cursor-default animate-modal"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between pb-4 border-b border-[#DCE3EF] dark:border-[#1E2D47]">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+            <div className="p-2 rounded-xl bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6]">
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-lg text-slate-900 dark:text-white">Recent Activity</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <h3 className="font-bold text-lg text-[#101828] dark:text-[#F2F4F7]">Recent Activity</h3>
+              <p className="text-xs text-[#667085] dark:text-[#8292A9]">
                 Log of tools and files processed in this session. No file content is retained.
               </p>
             </div>
@@ -48,7 +48,7 @@ export const RecentActivityModal: React.FC = () => {
             {recentActivity.length > 0 && (
               <button
                 onClick={clearRecentActivity}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#DC2626] hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Clear History</span>
@@ -56,7 +56,7 @@ export const RecentActivityModal: React.FC = () => {
             )}
             <button
               onClick={() => setIsActivityOpen(false)}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              className="p-1.5 rounded-lg text-[#667085] hover:text-[#101828] dark:hover:text-[#F2F4F7] hover:bg-[#EAF1FF] dark:hover:bg-[#172338] transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -66,29 +66,29 @@ export const RecentActivityModal: React.FC = () => {
         {/* List */}
         <div className="flex-1 overflow-y-auto py-4 space-y-2.5">
           {recentActivity.length === 0 ? (
-            <div className="text-center py-10 text-slate-500 dark:text-slate-400 text-sm">
-              <Clock className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+            <div className="text-center py-10 text-[#667085] dark:text-[#8292A9] text-sm">
+              <Clock className="w-8 h-8 mx-auto text-[#667085] dark:text-[#8292A9] mb-2" />
               <p>No recent activity recorded yet.</p>
             </div>
           ) : (
             recentActivity.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center justify-between p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/80 hover:bg-slate-100/80 dark:hover:bg-slate-700/60 transition group"
+                className="flex items-center justify-between p-3 rounded-xl border border-[#DCE3EF] dark:border-[#1E2D47] bg-[#F5F8FF] dark:bg-[#172338]/60 hover:bg-[#EAF1FF] dark:hover:bg-[#172338] transition group"
               >
                 <div className="min-w-0 pr-3">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                    <span className="font-semibold text-xs sm:text-sm text-[#101828] dark:text-[#F2F4F7] truncate">
                       {item.fileName}
                     </span>
                     {item.status === 'completed' ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#15803D] dark:text-emerald-400 shrink-0" />
                     ) : (
-                      <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      <AlertCircle className="w-3.5 h-3.5 text-[#DC2626] shrink-0" />
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                  <div className="flex items-center gap-2 text-[11px] text-[#667085] dark:text-[#8292A9] mt-0.5">
+                    <span className="text-[#2563EB] dark:text-[#3B82F6] font-medium">
                       {item.toolName}
                     </span>
                     <span>•</span>
@@ -101,7 +101,7 @@ export const RecentActivityModal: React.FC = () => {
                     setActiveToolId(item.toolId);
                     setIsActivityOpen(false);
                   }}
-                  className="flex items-center gap-1 text-xs font-semibold text-slate-600 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition"
+                  className="flex items-center gap-1 text-xs font-semibold text-[#344054] dark:text-[#B8C4D6] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] p-1.5 rounded-lg hover:bg-white dark:hover:bg-[#111C2E] transition"
                   title="Open this tool"
                 >
                   <span>Open</span>

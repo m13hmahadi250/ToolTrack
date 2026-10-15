@@ -124,26 +124,21 @@ export const ToolTrackFileFlow: React.FC<ToolTrackFileFlowProps> = ({
 
   return (
     <div
-      className={`w-full relative overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 shadow-xl text-white p-5 sm:p-7 ${className}`}
+      className={`w-full relative overflow-hidden rounded-2xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] shadow-xl text-[#101828] dark:text-[#F2F4F7] p-5 sm:p-7 ${className}`}
       aria-live="polite"
     >
-      {/* Background Decorative Track Ambient Gradients */}
-      <div className="absolute inset-0 bg-radial from-indigo-900/25 via-slate-900/60 to-slate-950 pointer-events-none" />
-      <div className="absolute top-0 right-1/4 w-72 h-32 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-1/4 w-72 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
       <div className="relative z-10 space-y-6">
         {/* Top Header: Badge & Status */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DCE3EF] dark:border-[#1E2D47] pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47] flex items-center justify-center font-bold">
               <Sparkles className="w-3.5 h-3.5" />
             </div>
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 block leading-none">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#2563EB] dark:text-[#3B82F6] block leading-none">
                 ToolTrack File Flow
               </span>
-              <span className="text-xs font-medium text-slate-300">
+              <span className="text-xs font-medium text-[#667085] dark:text-[#8292A9]">
                 100% In-Memory Local Stream
               </span>
             </div>
@@ -151,13 +146,13 @@ export const ToolTrackFileFlow: React.FC<ToolTrackFileFlowProps> = ({
 
           <div className="flex items-center gap-2 text-xs">
             {isReady ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-[#15803D] dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 font-semibold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#15803D] dark:text-emerald-400" />
                 <span>Ready</span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-semibold">
-                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47] font-semibold">
+                <span className="w-2 h-2 rounded-full bg-[#2563EB] animate-ping" />
                 <span>In Flight</span>
               </span>
             )}
@@ -168,11 +163,11 @@ export const ToolTrackFileFlow: React.FC<ToolTrackFileFlowProps> = ({
         <div className="py-2">
           <div className="relative flex items-center justify-between">
             {/* Background Track Line */}
-            <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-1 bg-slate-800 rounded-full" />
+            <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-1 bg-[#DCE3EF] dark:bg-[#1E2D47] rounded-full" />
 
             {/* Active Luminous Progress Line */}
             <div
-              className="absolute left-6 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-indigo-500 via-sky-400 to-emerald-400 rounded-full transition-all duration-500"
+              className="absolute left-6 top-1/2 -translate-y-1/2 h-1 bg-[#2563EB] dark:bg-[#3B82F6] rounded-full transition-all duration-500"
               style={{
                 width: isReady
                   ? 'calc(100% - 48px)'
@@ -192,10 +187,10 @@ export const ToolTrackFileFlow: React.FC<ToolTrackFileFlowProps> = ({
                   <div
                     className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all duration-300 ${
                       isPast
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/40 scale-100 border border-indigo-400/40'
+                        ? 'bg-[#2563EB] text-white shadow-md shadow-[#2563EB]/30 scale-100'
                         : isCurrent
-                        ? 'bg-slate-900 text-sky-300 border-2 border-sky-400 shadow-lg shadow-sky-400/30 scale-110 animate-pulse'
-                        : 'bg-slate-850 text-slate-500 border border-slate-700/80 scale-95'
+                        ? 'bg-[#101828] text-[#38BDF8] border-2 border-[#2563EB] shadow-lg shadow-[#2563EB]/30 scale-110 animate-pulse'
+                        : 'bg-[#F5F8FF] dark:bg-[#172338] text-[#667085] dark:text-[#8292A9] border border-[#DCE3EF] dark:border-[#1E2D47] scale-95'
                     }`}
                   >
                     <IconComponent className="w-5 h-5" />
@@ -206,15 +201,15 @@ export const ToolTrackFileFlow: React.FC<ToolTrackFileFlowProps> = ({
                     <span
                       className={`text-xs font-bold block transition-colors ${
                         isCurrent
-                          ? 'text-sky-300'
+                          ? 'text-[#2563EB] dark:text-[#3B82F6]'
                           : isPast
-                          ? 'text-slate-200'
-                          : 'text-slate-500'
+                          ? 'text-[#101828] dark:text-[#F2F4F7]'
+                          : 'text-[#667085] dark:text-[#8292A9]'
                       }`}
                     >
                       {node.title}
                     </span>
-                    <span className="text-[10px] text-slate-400 hidden sm:block">
+                    <span className="text-[10px] text-[#667085] dark:text-[#8292A9] hidden sm:block">
                       {node.subtitle}
                     </span>
                   </div>
@@ -225,27 +220,27 @@ export const ToolTrackFileFlow: React.FC<ToolTrackFileFlowProps> = ({
         </div>
 
         {/* File Information & Status Description Card */}
-        <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="p-4 rounded-xl bg-[#F5F8FF] dark:bg-[#172338]/60 border border-[#DCE3EF] dark:border-[#1E2D47] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <span className="text-xs font-bold text-[#667085] dark:text-[#8292A9] uppercase tracking-wider">
                 Status:
               </span>
-              <p className="text-sm font-semibold text-slate-200">
+              <p className="text-sm font-semibold text-[#101828] dark:text-[#F2F4F7]">
                 {defaultStatusText()}
               </p>
             </div>
 
             {/* Optional File Specs */}
             {(fileName || fileSize || details) && (
-              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-400">
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-[#344054] dark:text-[#B8C4D6]">
                 {fileName && (
-                  <span className="font-mono text-slate-300 max-w-xs truncate font-medium">
+                  <span className="font-mono text-[#101828] dark:text-[#F2F4F7] max-w-xs truncate font-medium">
                     {fileName}
                   </span>
                 )}
                 {fileType && (
-                  <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] uppercase font-bold text-slate-300">
+                  <span className="px-1.5 py-0.5 rounded bg-[#EAF1FF] dark:bg-[#111C2E] text-[10px] uppercase font-bold text-[#2563EB] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47]">
                     {fileType}
                   </span>
                 )}
@@ -259,13 +254,13 @@ export const ToolTrackFileFlow: React.FC<ToolTrackFileFlowProps> = ({
           {progress !== null && progress !== undefined && !isReady && (
             <div className="shrink-0 flex items-center gap-3">
               <div className="text-right">
-                <span className="text-lg font-black text-sky-400 font-mono">
+                <span className="text-lg font-black text-[#2563EB] dark:text-[#3B82F6] font-mono">
                   {Math.round(progress)}%
                 </span>
               </div>
-              <div className="w-20 h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div className="w-20 h-2 bg-[#DCE3EF] dark:bg-[#111C2E] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-indigo-500 to-sky-400 transition-all duration-200"
+                  className="h-full bg-[#2563EB] transition-all duration-200"
                   style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
                 />
               </div>
@@ -279,7 +274,7 @@ export const ToolTrackFileFlow: React.FC<ToolTrackFileFlowProps> = ({
             {onReset && (
               <button
                 onClick={onReset}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition cursor-pointer"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#EAF1FF] dark:bg-[#172338] hover:bg-[#DCE3EF] dark:hover:bg-[#1E2D47] text-[#101828] dark:text-[#F2F4F7] text-xs font-bold transition cursor-pointer border border-[#DCE3EF] dark:border-[#1E2D47]"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Process Another File</span>
@@ -289,7 +284,7 @@ export const ToolTrackFileFlow: React.FC<ToolTrackFileFlowProps> = ({
             {onDownload && (
               <button
                 onClick={onDownload}
-                className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-blue-600 to-sky-500 hover:from-indigo-500 hover:to-sky-400 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-600/30 hover:scale-[1.02] cursor-pointer ml-auto"
+                className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-sm transition-all shadow-lg shadow-[#2563EB]/25 hover:scale-[1.02] cursor-pointer ml-auto"
               >
                 <Download className="w-4 h-4" />
                 <span>{downloadLabel}</span>

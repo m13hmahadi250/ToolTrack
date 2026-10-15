@@ -27,6 +27,8 @@ export const Header: React.FC = () => {
     setIsActivityOpen,
     isMegaMenuOpen,
     setIsMegaMenuOpen,
+    darkMode,
+    setDarkMode,
   } = useToolTrack();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -75,7 +77,7 @@ export const Header: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/90 dark:border-slate-800 transition-colors">
+      <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-[#111C2E]/95 backdrop-blur-md border-b border-[#DCE3EF] dark:border-[#1E2D47] transition-colors">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4 flex-nowrap">
           {/* Logo & Desktop Nav */}
           <div className="flex items-center gap-2 sm:gap-4 lg:gap-5 min-w-0 flex-nowrap shrink-0">
@@ -84,7 +86,7 @@ export const Header: React.FC = () => {
                 setActiveToolId(null);
                 setActiveDropdownCatId(null);
               }}
-              className="group text-left cursor-pointer rounded-xl focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none shrink-0 whitespace-nowrap"
+              className="group text-left cursor-pointer rounded-xl focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:outline-none shrink-0 whitespace-nowrap"
               aria-label="ToolTrack Home"
             >
               <ToolTrackBrand iconClassName="w-9 h-9 sm:w-10 sm:h-10" />
@@ -100,8 +102,8 @@ export const Header: React.FC = () => {
                 }}
                 className={`px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs 2xl:text-sm font-medium transition cursor-pointer shrink-0 whitespace-nowrap ${
                   activeToolId === null && !activeDropdownCatId
-                    ? 'bg-indigo-50/90 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
+                    ? 'bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] font-semibold shadow-2xs'
+                    : 'text-[#344054] dark:text-[#B8C4D6] hover:text-[#101828] dark:hover:text-[#F2F4F7] hover:bg-[#EAF1FF]/70 dark:hover:bg-[#172338]/70'
                 }`}
               >
                 Home
@@ -115,8 +117,8 @@ export const Header: React.FC = () => {
                 }}
                 className={`flex items-center gap-1.5 px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs 2xl:text-sm transition cursor-pointer shrink-0 whitespace-nowrap ${
                   activeToolId === 'whiteboard'
-                    ? 'bg-indigo-600 text-white font-semibold shadow-xs'
-                    : 'text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40 font-medium'
+                    ? 'bg-[#2563EB] text-white font-semibold shadow-xs'
+                    : 'text-[#344054] dark:text-[#B8C4D6] hover:text-[#2563EB] dark:hover:text-[#3B82F6] hover:bg-[#EAF1FF]/70 dark:hover:bg-[#172338]/70 font-medium'
                 }`}
                 title="Interactive Infinite Whiteboard"
               >
@@ -125,7 +127,7 @@ export const Header: React.FC = () => {
                 <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
                   activeToolId === 'whiteboard'
                     ? 'bg-white/20 text-white'
-                    : 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/50'
+                    : 'bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47]'
                 }`}>
                   PRO
                 </span>
@@ -152,8 +154,8 @@ export const Header: React.FC = () => {
                       }}
                       className={`flex items-center gap-1 px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs 2xl:text-sm font-medium transition cursor-pointer group shrink-0 whitespace-nowrap ${
                         isOpen || isActiveCat
-                          ? 'bg-indigo-50/90 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold shadow-2xs'
-                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
+                          ? 'bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] font-semibold shadow-2xs'
+                          : 'text-[#344054] dark:text-[#B8C4D6] hover:text-[#101828] dark:hover:text-[#F2F4F7] hover:bg-[#EAF1FF]/70 dark:hover:bg-[#172338]/70'
                       }`}
                       aria-expanded={isOpen}
                       aria-haspopup="menu"
@@ -162,8 +164,8 @@ export const Header: React.FC = () => {
                       <ChevronDown
                         className={`w-3.5 h-3.5 transition-transform duration-150 shrink-0 ${
                           isOpen
-                            ? 'rotate-180 text-indigo-600 dark:text-indigo-400'
-                            : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'
+                            ? 'rotate-180 text-[#2563EB] dark:text-[#3B82F6]'
+                            : 'text-[#667085] group-hover:text-[#101828] dark:group-hover:text-[#F2F4F7]'
                         }`}
                       />
                     </button>
@@ -197,7 +199,7 @@ export const Header: React.FC = () => {
             {/* Mobile Search Icon Toggle */}
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-95 sm:hidden cursor-pointer"
+              className="p-2 rounded-xl text-[#344054] dark:text-[#B8C4D6] hover:bg-[#EAF1FF] dark:hover:bg-[#172338] transition active:scale-95 sm:hidden cursor-pointer"
               title="Search Tools"
               aria-label="Search Tools"
             >
@@ -210,20 +212,20 @@ export const Header: React.FC = () => {
             {/* Queue Button */}
             <button
               onClick={() => setIsQueueOpen(true)}
-              className="relative p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-95 cursor-pointer"
+              className="relative p-2 rounded-xl text-[#344054] dark:text-[#B8C4D6] hover:bg-[#EAF1FF] dark:hover:bg-[#172338] border border-[#DCE3EF] dark:border-[#1E2D47] transition active:scale-95 cursor-pointer"
               title="Processing Queue"
               aria-label="Processing Queue"
             >
-              <Layers className="w-5 h-5" />
+              <Layers className="w-4.5 h-4.5" />
               {activeJobsCount > 0 ? (
                 <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-4 w-4 bg-indigo-600 text-white text-[10px] font-bold items-center justify-center">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3B82F6] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-[#2563EB] text-white text-[10px] font-bold items-center justify-center">
                     {activeJobsCount}
                   </span>
                 </span>
               ) : completedJobsCount > 0 ? (
-                <span className="absolute -top-1 -right-1 inline-flex rounded-full h-4 w-4 bg-emerald-600 text-white text-[10px] font-bold items-center justify-center">
+                <span className="absolute -top-1 -right-1 inline-flex rounded-full h-4 w-4 bg-[#15803D] text-white text-[10px] font-bold items-center justify-center">
                   {completedJobsCount}
                 </span>
               ) : null}
@@ -232,17 +234,17 @@ export const Header: React.FC = () => {
             {/* History Button */}
             <button
               onClick={() => setIsActivityOpen(true)}
-              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-95 cursor-pointer"
+              className="p-2 rounded-xl text-[#344054] dark:text-[#B8C4D6] hover:bg-[#EAF1FF] dark:hover:bg-[#172338] border border-[#DCE3EF] dark:border-[#1E2D47] transition active:scale-95 cursor-pointer"
               title="Recent Activity"
               aria-label="Recent Activity"
             >
-              <Clock className="w-5 h-5" />
+              <Clock className="w-4.5 h-4.5" />
             </button>
 
             {/* Mobile / Tablet Menu Toggle Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-95 xl:hidden cursor-pointer"
+              className="p-2 rounded-xl text-[#344054] dark:text-[#B8C4D6] hover:bg-[#EAF1FF] dark:hover:bg-[#172338] border border-[#DCE3EF] dark:border-[#1E2D47] transition active:scale-95 xl:hidden cursor-pointer"
               aria-label="Toggle navigation menu"
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -254,10 +256,10 @@ export const Header: React.FC = () => {
         {isMobileMenuOpen && (
           <>
             <div
-              className="fixed inset-0 top-16 z-30 bg-slate-900/50 backdrop-blur-xs cursor-pointer xl:hidden animate-fade-in"
+              className="fixed inset-0 top-16 z-30 bg-[#101828]/60 backdrop-blur-xs cursor-pointer xl:hidden animate-fade-in"
               onClick={() => setIsMobileMenuOpen(false)}
             />
-            <div className="relative z-40 xl:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4 space-y-3 animate-fade-slide-down shadow-xl max-h-[85vh] overflow-y-auto">
+            <div className="relative z-40 xl:hidden border-t border-[#DCE3EF] dark:border-[#1E2D47] bg-white dark:bg-[#111C2E] px-4 py-4 space-y-3 animate-fade-slide-down shadow-xl max-h-[85vh] overflow-y-auto">
               {/* Mobile Search */}
               <div className="w-full">
                 <GlobalToolSearch
@@ -279,8 +281,8 @@ export const Header: React.FC = () => {
                     }}
                     className={`p-2.5 rounded-xl border text-left text-xs font-semibold cursor-pointer transition ${
                       activeToolId === null
-                        ? 'border-indigo-500/50 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold'
-                        : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100'
+                        ? 'border-[#2563EB] bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] font-bold'
+                        : 'border-[#DCE3EF] dark:border-[#1E2D47] bg-[#F5F8FF] dark:bg-[#172338]/50 text-[#101828] dark:text-[#F2F4F7]'
                     }`}
                   >
                     Home
@@ -293,15 +295,15 @@ export const Header: React.FC = () => {
                     }}
                     className={`p-2.5 rounded-xl border text-left text-xs font-semibold flex items-center justify-between cursor-pointer transition ${
                       activeToolId === 'whiteboard'
-                        ? 'border-indigo-600 bg-indigo-600 text-white font-bold shadow-xs'
-                        : 'border-indigo-200 dark:border-indigo-900 bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300'
+                        ? 'border-[#2563EB] bg-[#2563EB] text-white font-bold shadow-xs'
+                        : 'border-[#DCE3EF] dark:border-[#1E2D47] bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6]'
                     }`}
                   >
                     <span className="flex items-center gap-1.5">
                       <PenTool className="w-3.5 h-3.5" />
                       <span>Whiteboard</span>
                     </span>
-                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-indigo-500/20">
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-white/20">
                       PRO
                     </span>
                   </button>
@@ -312,17 +314,17 @@ export const Header: React.FC = () => {
                     setIsMegaMenuOpen(true);
                     setIsMobileMenuOpen(false);
                   }}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 text-left text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center justify-between cursor-pointer transition"
+                  className="w-full p-2.5 rounded-xl border border-[#DCE3EF] dark:border-[#1E2D47] bg-[#F5F8FF] dark:bg-[#172338]/50 hover:bg-[#EAF1FF] dark:hover:bg-[#172338] text-left text-xs font-bold text-[#101828] dark:text-[#F2F4F7] flex items-center justify-between cursor-pointer transition"
                 >
                   <span>All Tools Directory</span>
-                  <span className="text-[10px] font-semibold text-slate-400">60+ tools →</span>
+                  <span className="text-[10px] font-semibold text-[#2563EB] dark:text-[#3B82F6]">60+ tools →</span>
                 </button>
 
                 <div className="pt-1">
                   <PWAInstallButton variant="full" className="w-full justify-center py-2" />
                 </div>
 
-                <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-1 pt-2">
+                <div className="text-[11px] font-bold text-[#667085] dark:text-[#8292A9] uppercase tracking-wider px-1 pt-2">
                   Tool Categories
                 </div>
 
@@ -333,27 +335,27 @@ export const Header: React.FC = () => {
                   return (
                     <div
                       key={cat.id}
-                      className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-850/50"
+                      className="border border-[#DCE3EF] dark:border-[#1E2D47] rounded-xl overflow-hidden bg-[#F5F8FF] dark:bg-[#172338]/40"
                     >
                       <button
                         onClick={() => setExpandedMobileCat(isExpanded ? null : cat.id)}
-                        className="w-full px-3.5 py-2.5 flex items-center justify-between text-xs font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                        className="w-full px-3.5 py-2.5 flex items-center justify-between text-xs font-semibold text-[#101828] dark:text-[#F2F4F7] hover:bg-[#EAF1FF] dark:hover:bg-[#172338] transition cursor-pointer"
                       >
                         <span className="flex items-center gap-2">
                           <span>{cat.name}</span>
-                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#EAF1FF] dark:bg-[#111C2E] text-[#2563EB] dark:text-[#3B82F6] font-semibold border border-[#DCE3EF] dark:border-[#1E2D47]">
                             {catTools.length}
                           </span>
                         </span>
                         <ChevronDown
-                          className={`w-4 h-4 text-slate-400 transition-transform duration-150 ${
-                            isExpanded ? 'rotate-180 text-indigo-600 dark:text-indigo-400' : ''
+                          className={`w-4 h-4 text-[#667085] dark:text-[#8292A9] transition-transform duration-150 ${
+                            isExpanded ? 'rotate-180 text-[#2563EB] dark:text-[#3B82F6]' : ''
                           }`}
                         />
                       </button>
 
                       {isExpanded && (
-                        <div className="p-2 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 grid grid-cols-1 gap-1 animate-in slide-in-from-top-1 duration-150">
+                        <div className="p-2 bg-white dark:bg-[#111C2E] border-t border-[#DCE3EF] dark:border-[#1E2D47] grid grid-cols-1 gap-1 animate-in slide-in-from-top-1 duration-150">
                           {catTools.map((t) => {
                             const Icon = getIconComponent(t.iconName);
                             return (
@@ -363,10 +365,10 @@ export const Header: React.FC = () => {
                                   setActiveToolId(t.id);
                                   setIsMobileMenuOpen(false);
                                 }}
-                                className="p-2 rounded-lg text-left hover:bg-indigo-50 dark:hover:bg-indigo-950/50 flex items-center gap-2.5 cursor-pointer text-xs transition"
+                                className="p-2 rounded-lg text-left hover:bg-[#EAF1FF] dark:hover:bg-[#172338] flex items-center gap-2.5 cursor-pointer text-xs transition"
                               >
-                                <Icon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                                <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                <Icon className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#3B82F6] shrink-0" />
+                                <span className="font-semibold text-[#101828] dark:text-[#F2F4F7] truncate">
                                   {t.name}
                                 </span>
                               </button>
@@ -377,7 +379,7 @@ export const Header: React.FC = () => {
                               if (cat.homepageCategoryId) handleViewAllCategory(cat.homepageCategoryId);
                               setIsMobileMenuOpen(false);
                             }}
-                            className="p-2 rounded-lg text-left text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer pt-1"
+                            className="p-2 rounded-lg text-left text-xs font-bold text-[#2563EB] dark:text-[#3B82F6] hover:underline flex items-center gap-1 cursor-pointer pt-1"
                           >
                             <span>View All {cat.name} →</span>
                           </button>

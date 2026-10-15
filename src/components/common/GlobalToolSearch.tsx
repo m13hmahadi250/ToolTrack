@@ -325,10 +325,10 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
           className={
             inputClassName ||
             (isHome
-              ? 'w-full pl-12 pr-11 py-3.5 rounded-2xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-300 dark:border-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm sm:text-base transition font-medium'
+              ? 'w-full pl-12 pr-11 py-3.5 rounded-2xl bg-white dark:bg-[#111C2E] text-[#101828] dark:text-[#F2F4F7] placeholder:text-[#667085] dark:placeholder:text-[#8292A9] border border-[#DCE3EF] dark:border-[#1E2D47] shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2563EB] text-sm sm:text-base transition font-medium'
               : isHeader
-              ? 'w-full pl-8 sm:pl-9 pr-14 py-1.5 text-xs sm:text-sm rounded-xl bg-slate-100/90 hover:bg-slate-100 dark:bg-slate-800/90 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200/90 dark:border-slate-700/80 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white dark:focus:bg-slate-900 transition-all font-medium h-9'
-              : 'w-full pl-9 pr-8 py-2 text-sm rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium')
+              ? 'w-full pl-8 sm:pl-9 pr-14 py-1.5 text-xs sm:text-sm rounded-xl bg-[#EAF1FF]/80 hover:bg-[#EAF1FF] dark:bg-[#172338]/90 dark:hover:bg-[#172338] text-[#101828] dark:text-[#F2F4F7] placeholder:text-[#667085] dark:placeholder:text-[#8292A9] border border-[#DCE3EF] dark:border-[#1E2D47] focus:outline-none focus:border-[#2563EB] dark:focus:border-[#3B82F6] focus:ring-2 focus:ring-[#2563EB]/20 focus:bg-white dark:focus:bg-[#111C2E] transition-all font-medium h-9'
+              : 'w-full pl-9 pr-8 py-2 text-sm rounded-xl bg-white dark:bg-[#111C2E] text-[#101828] dark:text-[#F2F4F7] placeholder:text-[#667085] dark:placeholder:text-[#8292A9] border border-[#DCE3EF] dark:border-[#1E2D47] focus:outline-none focus:ring-2 focus:ring-[#2563EB] font-medium')
           }
         />
 
@@ -379,10 +379,10 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
                 width: `${coords.width}px`,
                 maxHeight: `${coords.maxHeight}px`,
               }}
-              className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-700/80 overflow-hidden z-[9999] animate-popover flex flex-col"
+              className="bg-white dark:bg-[#111C2E] rounded-2xl shadow-2xl border border-[#DCE3EF] dark:border-[#1E2D47] overflow-hidden z-[9999] animate-popover flex flex-col"
             >
             {/* Header indicator bar */}
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-850/70 text-xs font-bold text-slate-600 dark:text-slate-300">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#DCE3EF] dark:border-[#1E2D47] bg-[#F5F8FF] dark:bg-[#172338] text-xs font-bold text-[#344054] dark:text-[#B8C4D6]">
               <span className="flex items-center gap-1.5">
                 {isQueryEmpty ? (
                   <>
@@ -391,12 +391,12 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
                   </>
                 ) : (
                   <>
-                    <Search className="w-3.5 h-3.5 text-indigo-500" />
+                    <Search className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#3B82F6]" />
                     <span>Matching Tools ({searchResults.length})</span>
                   </>
                 )}
               </span>
-              <span className="hidden sm:inline text-[11px] font-normal text-slate-400 dark:text-slate-500">
+              <span className="hidden sm:inline text-[11px] font-normal text-[#667085] dark:text-[#8292A9]">
                 Navigate with ↑ ↓ • Press Enter to open
               </span>
             </div>
@@ -427,8 +427,8 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
                       onMouseEnter={() => setSelectedIndex(idx)}
                       className={`w-full flex items-start justify-between p-3 sm:p-3.5 rounded-xl text-left transition group cursor-pointer border ${
                         isSelected
-                          ? 'bg-indigo-50/90 dark:bg-indigo-950/80 border-indigo-200 dark:border-indigo-800/80 text-indigo-950 dark:text-indigo-50 shadow-2xs'
-                          : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/70 hover:border-slate-200 dark:hover:border-slate-700/60 text-slate-800 dark:text-slate-200'
+                          ? 'bg-[#EAF1FF] dark:bg-[#172338] border-[#2563EB]/40 dark:border-[#3B82F6]/40 text-[#101828] dark:text-[#F2F4F7] shadow-2xs'
+                          : 'border-transparent hover:bg-[#F5F8FF] dark:hover:bg-[#172338]/70 hover:border-[#DCE3EF] dark:hover:border-[#1E2D47] text-[#344054] dark:text-[#B8C4D6]'
                       }`}
                     >
                       <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -436,8 +436,8 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
                         <div
                           className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all mt-0.5 shadow-2xs ${
                             isSelected
-                              ? 'bg-indigo-600 text-white shadow-sm'
-                              : 'bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white dark:group-hover:bg-indigo-600 dark:group-hover:text-white'
+                              ? 'bg-[#2563EB] text-white shadow-sm'
+                              : 'bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] group-hover:bg-[#2563EB] group-hover:text-white dark:group-hover:bg-[#2563EB] dark:group-hover:text-white'
                           }`}
                         >
                           <Icon className="w-5 h-5" />
@@ -463,19 +463,19 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
                             <span
                               className={`text-[10px] font-semibold px-2 py-0.5 rounded-md shrink-0 ${
                                 isSelected
-                                  ? 'bg-indigo-200/80 dark:bg-indigo-900/70 text-indigo-900 dark:text-indigo-200'
-                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60'
+                                  ? 'bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6]'
+                                  : 'bg-[#EAF1FF]/60 dark:bg-[#172338]/80 text-[#344054] dark:text-[#B8C4D6] border border-[#DCE3EF] dark:border-[#1E2D47]'
                               }`}
                             >
                               {getCategoryLabel(tool.category)}
                             </span>
                             {tool.badge && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/50 shrink-0">
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47] shrink-0">
                                 {tool.badge}
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 mt-1 leading-relaxed">
+                          <p className="text-xs text-[#667085] dark:text-[#8292A9] line-clamp-2 mt-1 leading-relaxed">
                             {tool.description}
                           </p>
                         </div>
@@ -484,7 +484,7 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
                       {/* Action Icon */}
                       <div className="flex items-center gap-1.5 shrink-0 ml-3 mt-1">
                         {isSelected && (
-                          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-[#2563EB] dark:text-[#3B82F6]">
                             <span>Open</span>
                             <CornerDownLeft className="w-3 h-3" />
                           </span>
@@ -492,8 +492,8 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
                         <ArrowRight
                           className={`w-4 h-4 transition-transform ${
                             isSelected
-                              ? 'text-indigo-600 dark:text-indigo-400 translate-x-0.5'
-                              : 'text-slate-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5'
+                              ? 'text-[#2563EB] dark:text-[#3B82F6] translate-x-0.5'
+                              : 'text-[#667085] opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5'
                           }`}
                         />
                       </div>

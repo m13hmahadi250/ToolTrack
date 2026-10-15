@@ -1,4 +1,5 @@
 import { TOOLS_LIST } from './toolsList';
+import { TOOL_GUIDES } from './toolGuides';
 import type { ToolItem } from '../types';
 
 /**
@@ -1787,6 +1788,38 @@ export function generateFallbackToolSeo(tool: ToolItem): ToolSeoData {
     ])
   );
 
+  const guide = TOOL_GUIDES[tool.id];
+
+  const howTo = guide
+    ? guide.howItWorks.map((h) => ({ step: h.step, title: h.title, description: h.description }))
+    : [
+        { step: 1, title: 'Upload Your File', description: `Select or drop your ${(tool.inputFormats || ['file']).join('/')} into the secure workspace.` },
+        { step: 2, title: 'Configure Options', description: 'Adjust processing presets and inspect immediate real-time preview.' },
+        { step: 3, title: 'Process & Download', description: 'Download your converted, optimized file instantly with complete data safety.' },
+      ];
+
+  const features =
+    guide && guide.goodToKnow && guide.goodToKnow.length > 0
+      ? guide.goodToKnow
+      : [
+          '100% In-Browser client-side processing with zero server leaks',
+          'Fast real-time document rendering and optimization',
+          'Preserves high resolution, page geometry, and clean typography',
+          'No registration, usage caps, or file watermarks required',
+        ];
+
+  const inputFmt =
+    guide && guide.specs.supportedFormats
+      ? guide.specs.supportedFormats.split(',').map((s) => s.trim())
+      : (tool.inputFormats || ['PDF', 'Image', 'Document']).map((f) => `${f} (.${f.toLowerCase()})`);
+
+  const outputFmt =
+    guide && guide.specs.outputFormat
+      ? guide.specs.outputFormat.split(',').map((s) => s.trim())
+      : (tool.outputFormats || ['PDF', 'Image', 'Document']).map((f) => `${f} (.${f.toLowerCase()})`);
+
+  const privacyNote = guide ? guide.specs.privacyNote : 'All processing is executed safely in your local browser with zero remote storage.';
+
   return {
     toolId: tool.id,
     name: tool.name,
@@ -1801,26 +1834,17 @@ export function generateFallbackToolSeo(tool: ToolItem): ToolSeoData {
     tagline: tool.description,
     keywords,
     supportedFormats: {
-      input: (tool.inputFormats || ['PDF', 'Image', 'Document']).map((f) => `${f} (.${f.toLowerCase()})`),
-      output: (tool.outputFormats || ['PDF', 'Image', 'Document']).map((f) => `${f} (.${f.toLowerCase()})`),
+      input: inputFmt,
+      output: outputFmt,
     },
-    features: [
-      '100% In-Browser client-side processing with zero server leaks',
-      'Fast real-time document rendering and optimization',
-      'Preserves high resolution, page geometry, and clean typography',
-      'No registration, usage caps, or file watermarks required',
-    ],
-    howTo: [
-      { step: 1, title: 'Upload Your File', description: `Select or drop your ${(tool.inputFormats || ['file']).join('/')} into the secure workspace.` },
-      { step: 2, title: 'Configure Options', description: 'Adjust processing presets and inspect immediate real-time preview.' },
-      { step: 3, title: 'Process & Download', description: 'Download your converted, optimized file instantly with complete data safety.' },
-    ],
+    features,
+    howTo,
     faq: [
       { question: `Is ${tool.name} free to use?`, answer: `Yes, ${tool.name} is 100% free with no file limit, account registration, or watermarks.` },
-      { question: `Are my files private and secure?`, answer: `Yes. All processing is executed safely in your local browser or secure isolated pipelines with zero unauthorized storage.` },
-      { question: `What file types are accepted?`, answer: `This utility supports input formats: ${(tool.inputFormats || []).join(', ')} and exports to ${(tool.outputFormats || []).join(', ')}.` },
+      { question: `Are my files and data private and secure?`, answer: `Yes. ${privacyNote}` },
+      { question: `What processing engine powers ${tool.name}?`, answer: guide ? `Powered by ${guide.specs.processingType}.` : 'Runs via high-performance client-side WebAssembly and modern browser APIs.' },
     ],
-    relatedToolIds: getRelatedTools(tool.id, 4).map((t) => t.id),
+    relatedToolIds: guide && guide.relatedToolIds && guide.relatedToolIds.length > 0 ? guide.relatedToolIds : getRelatedTools(tool.id, 4).map((t) => t.id),
   };
 }
 

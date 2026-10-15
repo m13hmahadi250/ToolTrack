@@ -121,21 +121,21 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
           width: `${position.width}px`,
           maxWidth: 'calc(100vw - 32px)',
         }}
-        className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl shadow-slate-900/20 dark:shadow-black/70 p-4 sm:p-5 z-[9999] animate-popover cursor-default"
+        className="bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] rounded-2xl shadow-2xl p-4 sm:p-5 z-[9999] animate-popover cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Category Header */}
-        <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#DCE3EF] dark:border-[#1E2D47]">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#2563EB] dark:text-[#3B82F6]">
                 {config.name}
               </span>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47]">
                 {tools.length} Tools
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+            <p className="text-xs text-[#667085] dark:text-[#8292A9] mt-0.5 leading-snug">
               {config.description}
             </p>
           </div>
@@ -154,24 +154,24 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
                   onClose();
                 }}
                 role="menuitem"
-                className="p-2.5 sm:p-3 rounded-xl flex items-start gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all group text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 border border-transparent hover:border-slate-200 dark:hover:border-slate-700/60"
+                className="p-2.5 sm:p-3 rounded-xl flex items-start gap-3 hover:bg-[#EAF1FF]/60 dark:hover:bg-[#172338]/80 transition-all group text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] border border-transparent hover:border-[#DCE3EF] dark:hover:border-[#1E2D47]"
               >
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white dark:group-hover:bg-indigo-600 dark:group-hover:text-white flex items-center justify-center shrink-0 transition-colors mt-0.5 shadow-2xs">
+                <div className="w-9 h-9 rounded-xl bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] group-hover:bg-[#2563EB] group-hover:text-white dark:group-hover:bg-[#2563EB] dark:group-hover:text-white flex items-center justify-center shrink-0 transition-colors mt-0.5 shadow-2xs">
                   <Icon className="w-4.5 h-4.5" />
                 </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-semibold text-sm text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug break-words">
+                    <span className="font-semibold text-sm text-[#101828] dark:text-[#F2F4F7] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition-colors leading-snug break-words">
                       {tool.name}
                     </span>
                     {tool.badge && (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 shrink-0">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47] shrink-0">
                         {tool.badge}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1 leading-relaxed">
+                  <p className="text-xs text-[#667085] dark:text-[#8292A9] line-clamp-2 mt-1 leading-relaxed">
                     {tool.description}
                   </p>
                 </div>
@@ -181,8 +181,8 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
         </div>
 
         {/* Footer "View All" Action */}
-        <div className="pt-3 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-          <span className="text-slate-500 dark:text-slate-400 font-medium">
+        <div className="pt-3 mt-3 border-t border-[#DCE3EF] dark:border-[#1E2D47] flex items-center justify-between text-xs">
+          <span className="text-[#667085] dark:text-[#8292A9] font-medium">
             Private, in-browser processing
           </span>
           <button
@@ -192,7 +192,7 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
               }
               onClose();
             }}
-            className="inline-flex items-center gap-1.5 font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 font-semibold text-[#2563EB] dark:text-[#3B82F6] hover:text-[#1D4ED8] dark:hover:text-[#60A5FA] hover:underline transition cursor-pointer"
           >
             <span>View All {config.shortName} →</span>
           </button>
