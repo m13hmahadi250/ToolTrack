@@ -6,6 +6,8 @@ import {
   ChevronUp,
   Lock,
   ArrowRight,
+  ArrowUpRight,
+  ExternalLink,
   Sparkles,
   Command,
   FileCheck2,
@@ -15,7 +17,7 @@ import { InfoModal } from './InfoModal';
 import { ToolTrackBrand } from './ToolTrackBrand';
 
 export const Footer: React.FC = () => {
-  const { setActiveToolId, activeInfoModal, setActiveInfoModal } = useToolTrack();
+  const { activeToolId, setActiveToolId, activeInfoModal, setActiveInfoModal } = useToolTrack();
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -27,6 +29,64 @@ export const Footer: React.FC = () => {
       const el = document.getElementById('tools-directory');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     }, 50);
+  };
+
+  const renderToolLink = (toolId: string, label: string, badge?: string) => {
+    const isActive = activeToolId === toolId;
+    return (
+      <li>
+        <button
+          onClick={() => {
+            setActiveToolId(toolId);
+            scrollToTop();
+          }}
+          className={`group flex items-center gap-1.5 transition-all cursor-pointer text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#3B82F6] rounded-sm py-0.5 ${
+            isActive
+              ? 'text-[#3B82F6] font-bold'
+              : 'text-[#B8C4D6] hover:text-[#3B82F6] font-normal hover:translate-x-0.5'
+          }`}
+        >
+          <span
+            className={`w-1.5 h-1.5 rounded-full transition-all shrink-0 ${
+              isActive
+                ? 'bg-[#3B82F6] scale-100'
+                : 'bg-transparent group-hover:bg-[#3B82F6]/60 scale-0 group-hover:scale-100'
+            }`}
+          />
+          <span className="truncate">{label}</span>
+          {badge && (
+            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#EAF1FF] text-[#2563EB] dark:bg-[#172338] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47] ml-auto shrink-0">
+              {badge}
+            </span>
+          )}
+        </button>
+      </li>
+    );
+  };
+
+  const renderModalLink = (modalType: 'about' | 'privacy' | 'terms' | 'contact' | 'faq', label: string) => {
+    const isActive = activeInfoModal === modalType;
+    return (
+      <li>
+        <button
+          onClick={() => setActiveInfoModal(modalType)}
+          className={`group flex items-center gap-1.5 transition-all cursor-pointer text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#3B82F6] rounded-sm py-0.5 ${
+            isActive
+              ? 'text-[#3B82F6] font-bold'
+              : 'text-[#B8C4D6] hover:text-[#3B82F6] font-normal hover:translate-x-0.5'
+          }`}
+        >
+          <span
+            className={`w-1.5 h-1.5 rounded-full transition-all shrink-0 ${
+              isActive
+                ? 'bg-[#3B82F6] scale-100'
+                : 'bg-transparent group-hover:bg-[#3B82F6]/60 scale-0 group-hover:scale-100'
+            }`}
+          />
+          <span>{label}</span>
+        </button>
+      </li>
+    );
   };
 
   return (
@@ -118,63 +178,14 @@ export const Footer: React.FC = () => {
             <h5 className="text-xs font-bold text-[#F2F4F7] uppercase tracking-wider">
               PDF & Documents
             </h5>
-            <ul className="space-y-2 text-xs text-[#B8C4D6]">
-              <li>
-                <button
-                  onClick={() => setActiveToolId('normalize-pdf-page-size')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Normalize Page Size
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('organize-pdf')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Organize & Reorder
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('merge-pdf')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Merge PDF Files
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('split-pdf')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Split & Extract Pages
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('compress-pdf')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Compress PDF Size
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('pdf-edit')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Edit & Annotate
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('pdf-security')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Protect & Secure
-                </button>
-              </li>
+            <ul className="space-y-1.5 text-xs text-[#B8C4D6]">
+              {renderToolLink('normalize-pdf-page-size', 'Normalize Page Size')}
+              {renderToolLink('organize-pdf', 'Organize & Reorder')}
+              {renderToolLink('merge-pdf', 'Merge PDF Files')}
+              {renderToolLink('split-pdf', 'Split & Extract Pages')}
+              {renderToolLink('compress-pdf', 'Compress PDF Size')}
+              {renderToolLink('pdf-edit', 'Edit & Annotate')}
+              {renderToolLink('pdf-security', 'Protect & Secure')}
             </ul>
           </div>
 
@@ -183,63 +194,14 @@ export const Footer: React.FC = () => {
             <h5 className="text-xs font-bold text-[#F2F4F7] uppercase tracking-wider">
               Convert & Office
             </h5>
-            <ul className="space-y-2 text-xs text-[#B8C4D6]">
-              <li>
-                <button
-                  onClick={() => setActiveToolId('pdf-to-word')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  PDF to Word (.docx)
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('word-to-pdf')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Word (.docx) to PDF
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('excel-to-pdf')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Excel (.xlsx) to PDF
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('pdf-to-excel')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  PDF to Excel Table
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('images-to-pdf')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Images to PDF
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('pdf-to-images')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  PDF to JPG / PNG
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('image-converter')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Image Format Converter
-                </button>
-              </li>
+            <ul className="space-y-1.5 text-xs text-[#B8C4D6]">
+              {renderToolLink('pdf-to-word', 'PDF to Word (.docx)')}
+              {renderToolLink('word-to-pdf', 'Word (.docx) to PDF')}
+              {renderToolLink('excel-to-pdf', 'Excel (.xlsx) to PDF')}
+              {renderToolLink('pdf-to-excel', 'PDF to Excel Table')}
+              {renderToolLink('images-to-pdf', 'Images to PDF')}
+              {renderToolLink('pdf-to-images', 'PDF to JPG / PNG')}
+              {renderToolLink('image-converter', 'Image Converter')}
             </ul>
           </div>
 
@@ -248,63 +210,14 @@ export const Footer: React.FC = () => {
             <h5 className="text-xs font-bold text-[#F2F4F7] uppercase tracking-wider">
               Image & Design
             </h5>
-            <ul className="space-y-2 text-xs text-[#B8C4D6]">
-              <li>
-                <button
-                  onClick={() => setActiveToolId('image-background-remover')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Remove Background
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('image-background-changer')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Change Background
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('image-compressor')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Batch Image Compressor
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('image-cropper')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Resize & Crop Image
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('image-watermark')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Watermark Image
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('image-color-picker')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Color Palette Picker
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('image-text')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Add Text to Image
-                </button>
-              </li>
+            <ul className="space-y-1.5 text-xs text-[#B8C4D6]">
+              {renderToolLink('image-background-remover', 'Remove Background')}
+              {renderToolLink('image-background-changer', 'Change Background')}
+              {renderToolLink('image-compressor', 'Batch Image Compressor')}
+              {renderToolLink('image-cropper', 'Resize & Crop Image')}
+              {renderToolLink('image-watermark', 'Watermark Image')}
+              {renderToolLink('image-color-picker', 'Color Palette Picker')}
+              {renderToolLink('image-text', 'Add Text to Image')}
             </ul>
           </div>
 
@@ -313,55 +226,13 @@ export const Footer: React.FC = () => {
             <h5 className="text-xs font-bold text-[#F2F4F7] uppercase tracking-wider">
               Productivity
             </h5>
-            <ul className="space-y-2 text-xs text-[#B8C4D6]">
-              <li>
-                <button
-                  onClick={() => setActiveToolId('whiteboard')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left font-semibold text-indigo-600 dark:text-indigo-400"
-                >
-                  Whiteboard PRO
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('ocr-pdf')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  OCR Text Scan
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('assignment-pdf-maker')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Assignment Maker
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('notes-to-pdf')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Notes to PDF
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('pdf-submission-compressor')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Portal Compressor
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveToolId('pdf-compare')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Compare PDFs
-                </button>
-              </li>
+            <ul className="space-y-1.5 text-xs text-[#B8C4D6]">
+              {renderToolLink('whiteboard', 'Whiteboard', 'PRO')}
+              {renderToolLink('ocr-pdf', 'OCR Text Scan')}
+              {renderToolLink('assignment-pdf-maker', 'Assignment Maker')}
+              {renderToolLink('notes-to-pdf', 'Notes to PDF')}
+              {renderToolLink('pdf-submission-compressor', 'Portal Compressor')}
+              {renderToolLink('pdf-compare', 'Compare PDFs')}
             </ul>
           </div>
 
@@ -370,58 +241,23 @@ export const Footer: React.FC = () => {
             <h5 className="text-xs font-bold text-[#F2F4F7] uppercase tracking-wider">
               Trust & Legal
             </h5>
-            <ul className="space-y-2 text-xs text-[#B8C4D6]">
-              <li>
-                <button
-                  onClick={() => setActiveInfoModal('about')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  About ToolTrack
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveInfoModal('privacy')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Privacy Policy
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveInfoModal('terms')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Terms of Service
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveInfoModal('contact')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Contact & Feedback
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setActiveInfoModal('faq')}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left"
-                >
-                  Frequently Asked Questions
-                </button>
-              </li>
+            <ul className="space-y-1.5 text-xs text-[#B8C4D6]">
+              {renderModalLink('about', 'About ToolTrack')}
+              {renderModalLink('privacy', 'Privacy Policy')}
+              {renderModalLink('terms', 'Terms of Service')}
+              {renderModalLink('contact', 'Contact & Feedback')}
+              {renderModalLink('faq', 'Frequently Asked Questions')}
               <li>
                 <button
                   onClick={navigateToDirectory}
-                  className="hover:text-[#3B82F6] transition cursor-pointer text-left font-medium"
+                  className="group flex items-center gap-1.5 transition-all cursor-pointer text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#3B82F6] rounded-sm py-0.5 text-[#B8C4D6] hover:text-[#3B82F6] hover:translate-x-0.5 font-medium"
                 >
-                  All 38+ Tools Directory
+                  <span>All 38+ Tools Directory</span>
                 </button>
               </li>
               <li className="pt-2">
-                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-mono bg-slate-100 dark:bg-slate-800 text-[#B8C4D6]">
-                  <Command className="w-3 h-3" />
+                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono bg-[#172338] border border-[#1E2D47] text-[#B8C4D6]">
+                  <Command className="w-3 h-3 text-[#3B82F6]" />
                   <span>K for Quick Search</span>
                 </span>
               </li>
@@ -432,23 +268,33 @@ export const Footer: React.FC = () => {
         {/* Global Footer Sub-bar */}
         <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-[#8292A9]">
           {/* Copyright & Core Statement */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-center md:text-left">
+          <div className="flex flex-wrap items-center gap-2 text-center md:text-left">
             <span>© {new Date().getFullYear()} ToolTrack. All Your Files & Productivity Tools in One Place.</span>
-            <span className="hidden sm:inline" aria-hidden="true">·</span>
-            <span>Files never leave your device. 100% private in-browser processing.</span>
           </div>
 
           {/* Actions & Designer Credit */}
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Developer Credit */}
-            <div className="inline-flex items-center gap-1.5 text-xs text-[#8292A9] font-normal select-none">
-              <span>Build and Design by Muhammad Mahadi Hussain.</span>
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+            {/* Premium Developer Attribution Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#111C2E] border border-[#1E2D47] text-xs shadow-xs transition-all hover:border-[#3B82F6]/60">
+              <span className="text-[#8292A9] font-medium">Build and Design by</span>
+              <a
+                href="https://www.facebook.com/m13hmahadi250/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Visit Mohammad Mahadi Hossain on Facebook"
+                className="group/dev inline-flex items-center gap-1 font-bold text-[#3B82F6] hover:text-[#60A5FA] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-1 focus-visible:ring-offset-[#101828] rounded-md px-1 py-0.5 -my-0.5 cursor-pointer"
+              >
+                <span className="tracking-tight hover:underline underline-offset-4 decoration-[#3B82F6]/60">
+                  Mohammad Mahadi Hossain
+                </span>
+                <ArrowUpRight className="w-3.5 h-3.5 text-[#3B82F6] group-hover/dev:text-[#60A5FA] group-hover/dev:translate-x-0.5 group-hover/dev:-translate-y-0.5 transition-transform shrink-0" />
+              </a>
             </div>
 
             {/* Back to top button */}
             <button
               onClick={scrollToTop}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[#B8C4D6] hover:text-white hover:bg-[#172338] border border-[#1E2D47] transition cursor-pointer text-xs font-medium"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-[#B8C4D6] hover:text-white hover:bg-[#172338] border border-[#1E2D47] transition cursor-pointer text-xs font-medium"
               aria-label="Scroll to top"
             >
               <span>Back to Top</span>

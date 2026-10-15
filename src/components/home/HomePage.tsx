@@ -220,232 +220,71 @@ export const HomePage: React.FC = () => {
   return (
     <div className="space-y-14 sm:space-y-16 pb-12 animate-fade-in">
       {/* ========================================================================= */}
-      {/* 1. DISTINCTIVE ASYMMETRIC HERO EXPERIENCE                                */}
+      {/* 1. DISTINCTIVE CENTERED HERO EXPERIENCE                                   */}
       {/* ========================================================================= */}
-      <section className="relative pt-2 sm:pt-4">
+      <section className="relative pt-4 pb-2 sm:pt-8 sm:pb-4 max-w-3xl mx-auto text-center space-y-6">
         {/* Subtle decorative glow element in background */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 w-full max-w-5xl h-80 bg-gradient-to-b from-indigo-500/10 via-cyan-500/5 to-transparent blur-3xl -z-10"
+          className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 w-full max-w-4xl h-80 bg-gradient-to-b from-[#2563EB]/10 via-[#7C3AED]/5 to-transparent blur-3xl -z-10"
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-          {/* Left Column: Brand Statement, Typography, Search & Quick Pills */}
-          <div className="lg:col-span-7 space-y-5 text-left">
-            {/* Primary Headline */}
-            <div className="space-y-2">
-              <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-extrabold text-[#101828] dark:text-[#F2F4F7] tracking-tight leading-[1.08] text-balance">
-                Every file. Every task.{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2563EB] via-[#1D4ED8] to-[#7C3AED] dark:from-[#3B82F6] dark:via-[#60A5FA] dark:to-[#8B5CF6]">
-                  One workspace.
-                </span>
-              </h1>
-              <p className="text-sm sm:text-base text-[#344054] dark:text-[#B8C4D6] leading-relaxed max-w-xl text-balance">
-                Convert, organize, optimize, and work with PDFs, documents, images, and more — all in one place. Fast, client-side, and simple to use.
-              </p>
-            </div>
+        {/* Primary Headline */}
+        <div className="space-y-3">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#101828] dark:text-[#F2F4F7] tracking-tight leading-[1.08] text-balance">
+            Every file. Every task.{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2563EB] via-[#1D4ED8] to-[#7C3AED] dark:from-[#3B82F6] dark:via-[#60A5FA] dark:to-[#8B5CF6]">
+              One workspace.
+            </span>
+          </h1>
+          <p className="text-base sm:text-lg text-[#344054] dark:text-[#B8C4D6] leading-relaxed max-w-2xl mx-auto text-balance font-normal">
+            Convert, organize, optimize, and work with PDFs, documents, images, and more — all in one place. Fast, client-side, and 100% private.
+          </p>
+        </div>
 
-            {/* Prominent Search Field with Isolated Command Bar */}
-            <div className="pt-1 max-w-xl space-y-3">
-              <GlobalToolSearch
-                variant="home"
-                placeholder="Search 60+ tools (e.g., PDF to Word, compress, resize, background)..."
-              />
+        {/* Prominent Search Field with Isolated Command Bar */}
+        <div className="pt-2 max-w-2xl mx-auto space-y-3.5">
+          <GlobalToolSearch
+            variant="home"
+            placeholder="Search 60+ tools (e.g., PDF to Word, compress, resize, background)..."
+          />
 
-              {/* Quick Jump Suggestions */}
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[#667085] dark:text-[#8292A9]">
-                <span className="font-semibold text-[#344054] dark:text-[#B8C4D6] shrink-0">Popular:</span>
-                {[
-                  { id: 'compress-pdf', label: 'Compress PDF' },
-                  { id: 'pdf-to-word', label: 'PDF to Word' },
-                  { id: 'image-background-remover', label: 'Remove BG' },
-                  { id: 'whiteboard', label: 'Whiteboard' },
-                  { id: 'qr-code-generator', label: 'QR Generator' },
-                  { id: 'word-counter', label: 'Word Count' },
-                  { id: 'calculator', label: 'Calculator' },
-                ].map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => setActiveToolId(s.id)}
-                    className="px-2.5 py-1 rounded-lg bg-[#EAF1FF] hover:bg-[#DCE3EF] dark:bg-[#172338] dark:hover:bg-[#1E2D47] text-[#101828] dark:text-[#F2F4F7] transition cursor-pointer text-[11px] font-medium border border-[#DCE3EF] dark:border-[#1E2D47]"
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Core Value Props Guarantee Strip */}
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-[#667085] dark:text-[#8292A9] pt-2 border-t border-[#DCE3EF] dark:border-[#1E2D47]">
-              <div className="flex items-center gap-1.5 text-[#344054] dark:text-[#B8C4D6]">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>Zero Server Uploads</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[#344054] dark:text-[#B8C4D6]">
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#3B82F6] shrink-0" />
-                <span>60+ Built-In Utilities</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[#344054] dark:text-[#B8C4D6]">
-                <CheckCircle2 className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-                <span>Free & Offline-Ready</span>
-              </div>
-            </div>
+          {/* Quick Jump Suggestions */}
+          <div className="flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-[#667085] dark:text-[#8292A9]">
+            <span className="font-semibold text-[#344054] dark:text-[#B8C4D6] shrink-0">Popular:</span>
+            {[
+              { id: 'compress-pdf', label: 'Compress PDF' },
+              { id: 'pdf-to-word', label: 'PDF to Word' },
+              { id: 'image-background-remover', label: 'Remove BG' },
+              { id: 'whiteboard', label: 'Whiteboard' },
+              { id: 'qr-code-generator', label: 'QR Generator' },
+              { id: 'word-counter', label: 'Word Count' },
+              { id: 'calculator', label: 'Calculator' },
+            ].map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setActiveToolId(s.id)}
+                className="px-2.5 py-1 rounded-lg bg-[#EAF1FF] hover:bg-[#DCE3EF] dark:bg-[#172338] dark:hover:bg-[#1E2D47] text-[#101828] dark:text-[#F2F4F7] transition cursor-pointer text-[11px] font-medium border border-[#DCE3EF] dark:border-[#1E2D47]"
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
+        </div>
 
-          {/* Right Column: Lightweight Visual Composition (Interactive Workspace Matrix) */}
-          <div className="lg:col-span-5 relative">
-            <div className="relative rounded-3xl p-4 sm:p-5 bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] shadow-xl overflow-hidden space-y-3">
-              {/* Header of Workspace preview */}
-              <div className="flex items-center justify-between pb-2 border-b border-[#DCE3EF] dark:border-[#1E2D47]">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-400/80 inline-block" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80 inline-block" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80 inline-block" />
-                  </div>
-                  <span className="text-[11px] font-bold text-[#667085] dark:text-[#8292A9] font-mono tracking-tight pl-1">
-                    ToolTrack Workspace
-                  </span>
-                </div>
-              </div>
-
-              {/* 4 Interactive Visual Pillars */}
-              <div className="grid grid-cols-2 gap-2.5">
-                {/* 1. PDF Tools Pillar */}
-                <div
-                  onClick={() => setActiveToolId('merge-pdf')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setActiveToolId('merge-pdf');
-                    }
-                  }}
-                  className="p-3 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-750 hover:border-indigo-400 dark:hover:border-[#2563EB] transition-all hover:shadow-sm group cursor-pointer space-y-2 text-left"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="w-8 h-8 rounded-xl bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <span className="text-[10px] font-bold text-red-600 dark:text-red-400">PDF Suite</span>
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition">
-                      Merge & Compress
-                    </h3>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                      Lossless structural PDF tools
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6]">
-                    <span>Explore PDF</span>
-                    <ArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                </div>
-
-                {/* 2. Office & Conversion Pillar */}
-                <div
-                  onClick={() => setActiveToolId('pdf-to-word')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setActiveToolId('pdf-to-word');
-                    }
-                  }}
-                  className="p-3 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-750 hover:border-indigo-400 dark:hover:border-[#2563EB] transition-all hover:shadow-sm group cursor-pointer space-y-2 text-left"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                      <ArrowRightLeft className="w-4 h-4" />
-                    </div>
-                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">DOCX & XLSX</span>
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition">
-                      Word & Excel Convert
-                    </h3>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                      Two-way document engine
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6]">
-                    <span>Convert docs</span>
-                    <ArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                </div>
-
-                {/* 3. Image Studio Pillar */}
-                <div
-                  onClick={() => setActiveToolId('image-background-remover')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setActiveToolId('image-background-remover');
-                    }
-                  }}
-                  className="p-3 rounded-2xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] hover:border-[#7C3AED] dark:hover:border-[#8B5CF6] transition-all hover:shadow-sm group cursor-pointer space-y-2 text-left"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="w-8 h-8 rounded-xl bg-[#EAF1FF] dark:bg-[#172338] text-[#7C3AED] dark:text-[#8B5CF6] flex items-center justify-center">
-                      <Scissors className="w-4 h-4" />
-                    </div>
-                    <span className="text-[10px] font-bold text-[#7C3AED] dark:text-[#8B5CF6]">Image Studio</span>
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-[#101828] dark:text-[#F2F4F7] group-hover:text-[#7C3AED] dark:group-hover:text-[#8B5CF6] transition">
-                      Remove Background
-                    </h3>
-                    <p className="text-[11px] text-[#667085] dark:text-[#8292A9] line-clamp-1 mt-0.5">
-                      AI alpha cutout & compressor
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px] font-semibold text-[#667085] dark:text-[#8292A9] group-hover:text-[#7C3AED] dark:group-hover:text-[#8B5CF6]">
-                    <span>Open Studio</span>
-                    <ArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                </div>
-
-                {/* 4. Whiteboard Flagship Pillar */}
-                <div
-                  onClick={() => setActiveToolId('whiteboard')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setActiveToolId('whiteboard');
-                    }
-                  }}
-                  className="p-3 rounded-2xl bg-[#2563EB] text-white border border-[#2563EB] transition-all hover:shadow-md group cursor-pointer space-y-2 text-left"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="w-8 h-8 rounded-xl bg-white/20 text-white flex items-center justify-center">
-                      <PenTool className="w-4 h-4" />
-                    </div>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/25 text-white tracking-wider uppercase">
-                      Flagship
-                    </span>
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-white group-hover:text-blue-100 transition">
-                      Infinite Whiteboard
-                    </h3>
-                    <p className="text-[11px] text-blue-100 line-clamp-1 mt-0.5">
-                      Diagrams & PDF markup
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px] font-semibold text-white/90 group-hover:text-white">
-                    <span>Launch canvas</span>
-                    <ArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                </div>
-              </div>
-            </div>
+        {/* Core Value Props Guarantee Strip */}
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-[#667085] dark:text-[#8292A9] pt-4 border-t border-[#DCE3EF]/80 dark:border-[#1E2D47]/80">
+          <div className="flex items-center gap-1.5 text-[#344054] dark:text-[#B8C4D6]">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <span>Zero Server Uploads</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[#344054] dark:text-[#B8C4D6]">
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#3B82F6] shrink-0" />
+            <span>60+ Built-In Utilities</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[#344054] dark:text-[#B8C4D6]">
+            <CheckCircle2 className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+            <span>Free & Offline-Ready</span>
           </div>
         </div>
       </section>
