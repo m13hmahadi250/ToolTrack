@@ -400,8 +400,15 @@ export const BackgroundChangerTool: React.FC = () => {
                       const f = e.target.files?.[0];
                       if (f) {
                         const img = new Image();
-                        img.src = URL.createObjectURL(f);
-                        img.onload = () => setBgImageEl(img);
+                        const objUrl = URL.createObjectURL(f);
+                        img.onload = () => {
+                          URL.revokeObjectURL(objUrl);
+                          setBgImageEl(img);
+                        };
+                        img.onerror = () => {
+                          URL.revokeObjectURL(objUrl);
+                        };
+                        img.src = objUrl;
                       }
                     }}
                     className="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 cursor-pointer"

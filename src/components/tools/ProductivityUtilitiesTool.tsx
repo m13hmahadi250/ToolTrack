@@ -66,9 +66,16 @@ export const ProductivityUtilitiesTool: React.FC<ProductivityUtilitiesToolProps>
     if (file.type.startsWith('image/')) {
       dimensions = await new Promise((resolve) => {
         const img = new Image();
-        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-        img.onerror = () => resolve(undefined);
-        img.src = URL.createObjectURL(file);
+        const objUrl = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(objUrl);
+          resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(objUrl);
+          resolve(undefined);
+        };
+        img.src = objUrl;
       });
     }
 

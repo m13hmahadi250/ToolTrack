@@ -71,7 +71,18 @@ self.onmessage = async (e) => {
       },
     };
 
-    const blob = await removeBackground(imageSource, enhancedConfig);
+    let blob: Blob;
+    try {
+      blob = await removeBackground(imageSource, enhancedConfig);
+    } catch (gpuError) {
+      if (enhancedConfig.device === 'gpu') {
+        console.warn('[BackgroundRemover Worker] GPU segmentation unavailable, falling back to CPU engine...');
+        enhancedConfig.device = 'cpu';
+        blob = await removeBackground(imageSource, enhancedConfig);
+      } else {
+        throw gpuError;
+      }
+    }
     isWarmedUp = true;
 
     self.postMessage({

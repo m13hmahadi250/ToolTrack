@@ -151,7 +151,7 @@ export const NotesToPdfTool: React.FC = () => {
       }
 
       const bytes = await pdfDoc.save();
-      const out = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      const out = new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
       setOutputPdfBlob(out);
 
       updateJob(jobId, {

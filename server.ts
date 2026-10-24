@@ -1177,9 +1177,9 @@ app.post('/api/pdf-security/inspect', async (req: Request, res: Response) => {
       printing: 'Full / Allowed',
       extracting: 'Allowed',
       modifying: 'Allowed',
-      annotations: 'Allowed',
-      formFilling: 'Allowed',
-      assembly: 'Allowed',
+      annotations: true,
+      formFilling: true,
+      assembly: true,
     };
 
     try {
@@ -1236,9 +1236,9 @@ app.post('/api/pdf-security/inspect', async (req: Request, res: Response) => {
         permissions.modifying = 'Full Content Modification Allowed';
       }
 
-      permissions.annotations = !stdout.includes('modify: none') ? 'Allowed' : 'Disallowed';
-      permissions.formFilling = !stdout.includes('modify: none') ? 'Allowed' : 'Disallowed';
-      permissions.assembly = !stdout.includes('modify: none') ? 'Allowed' : 'Disallowed';
+      permissions.annotations = !stdout.includes('modify: none');
+      permissions.formFilling = !stdout.includes('modify: none') && !stdout.includes('modify: assembly');
+      permissions.assembly = !stdout.includes('modify: none');
     }
 
     // Also inspect document metadata using pdf-lib if accessible

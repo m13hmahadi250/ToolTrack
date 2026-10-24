@@ -583,7 +583,7 @@ export const PdfEditTool: React.FC = () => {
       updateJob(jobId, { progress: 0.85 });
 
       const pdfBytes = await newDoc.save({ useObjectStreams: true });
-      const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
 
       setResultBlob(blob);
       setOutputSize(blob.size);
@@ -1020,22 +1020,26 @@ export const PdfEditTool: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Base PDF Canvas */}
-                  <canvas
-                    ref={previewCanvasRef}
-                    className="shadow-md rounded border border-slate-200 dark:border-slate-700 bg-white max-w-full block"
-                  />
+                  {/* Canvas Container with strict pixel alignment */}
+                  <div className="relative inline-block max-w-full shadow-md rounded border border-slate-200 dark:border-slate-700 bg-white overflow-hidden">
+                    {/* Base PDF Canvas */}
+                    <canvas
+                      ref={previewCanvasRef}
+                      className="max-w-full block"
+                    />
 
-                  {/* Transparent Interactive Annotation Overlay Canvas */}
-                  <canvas
-                    ref={drawingCanvasRef}
-                    onPointerDown={handleOverlayPointerDown}
-                    onPointerMove={handleOverlayPointerMove}
-                    onPointerUp={handleOverlayPointerUp}
-                    className={`absolute inset-0 m-auto cursor-${
-                      activeEditorTool === 'draw' ? 'crosshair' : activeEditorTool === 'text' ? 'text' : 'pointer'
-                    }`}
-                  />
+                    {/* Transparent Interactive Annotation Overlay Canvas */}
+                    <canvas
+                      ref={drawingCanvasRef}
+                      onPointerDown={handleOverlayPointerDown}
+                      onPointerMove={handleOverlayPointerMove}
+                      onPointerUp={handleOverlayPointerUp}
+                      style={{ touchAction: 'none' }}
+                      className={`absolute inset-0 w-full h-full cursor-${
+                        activeEditorTool === 'draw' ? 'crosshair' : activeEditorTool === 'text' ? 'text' : 'pointer'
+                      }`}
+                    />
+                  </div>
                 </div>
 
                 <p className="text-[11px] text-slate-400 mt-2 text-center">

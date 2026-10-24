@@ -44,12 +44,16 @@ export const PdfToWordTool: React.FC = () => {
   const [comparisonResult, setComparisonResult] = useState<VisualComparisonResult | null>(null);
   const [selectedPreviewPage, setSelectedPreviewPage] = useState<number>(1);
 
+  const processingVersionRef = React.useRef(0);
+  const hasConvertedOnceRef = React.useRef(false);
+
   const handleFilesSelected = (files: File[]) => {
     if (files.length === 0) return;
     setFile(files[0]);
     setResultBlob(null);
     setLayoutAnalysis(null);
     setComparisonResult(null);
+    hasConvertedOnceRef.current = false;
   };
 
   // Escape key listener to exit file selection menu back to uploader
@@ -61,14 +65,17 @@ export const PdfToWordTool: React.FC = () => {
         setResultBlob(null);
         setLayoutAnalysis(null);
         setComparisonResult(null);
+        hasConvertedOnceRef.current = false;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [file, processing]);
 
-  const handleConvert = async () => {
+  const handleConvertWithVersion = async (targetVersion: number) => {
     if (!file) return;
+    if (processingVersionRef.current !== targetVersion) return;
+
     setProcessing(true);
     setProgress(0.15);
     setProgressStatus('Analyzing PDF geometry, boxes, and font structures...');
@@ -89,6 +96,7 @@ export const PdfToWordTool: React.FC = () => {
 
     try {
       const buffer = await file.arrayBuffer();
+      if (processingVersionRef.current !== targetVersion) return;
 
       setProgress(0.2);
       setProgressStatus('Analyzing document structure & detecting layout...');
@@ -96,7 +104,7 @@ export const PdfToWordTool: React.FC = () => {
 
       // Run high-fidelity conversion engine with intermediate steps
       setProgress(0.45);
-      setProgressStatus('Detecting visual blocks & diagram regions (Food Pyramid)...');
+      setProgressStatus('Detecting visual blocks & diagram regions...');
       updateJob(jobId, { progress: 0.45 });
 
       setProgress(0.65);
@@ -110,6 +118,8 @@ export const PdfToWordTool: React.FC = () => {
         reconstructTables,
       });
 
+      if (processingVersionRef.current !== targetVersion) return;
+
       setLayoutAnalysis(analysis);
 
       setProgress(0.85);
@@ -122,8 +132,9 @@ export const PdfToWordTool: React.FC = () => {
 
       // Evaluate visual comparison metrics
       const evalResult = evaluateVisualFidelity(analysis, conversionMode);
-      setComparisonResult(evalResult);
+      if (processingVersionRef.current !== targetVersion) return;
 
+      setComparisonResult(evalResult);
       setResultBlob(blob);
       setOutputSize(blob.size);
       setProgress(1.0);
@@ -140,15 +151,47 @@ export const PdfToWordTool: React.FC = () => {
       addRecentActivity('pdf-to-word', 'PDF to Word (.docx)', file.name, 'completed');
     } catch (err: unknown) {
       console.error('PDF to Word error:', err);
-      updateJob(jobId, {
-        status: 'failed',
-        errorMessage: 'Layout reconstruction failed: ' + String(err),
-      });
-      addRecentActivity('pdf-to-word', 'PDF to Word (.docx)', file.name, 'failed');
+      if (processingVersionRef.current === targetVersion) {
+        updateJob(jobId, {
+          status: 'failed',
+          errorMessage: 'Layout reconstruction failed: ' + String(err),
+        });
+        addRecentActivity('pdf-to-word', 'PDF to Word (.docx)', file.name, 'failed');
+      }
     } finally {
-      setProcessing(false);
+      if (processingVersionRef.current === targetVersion) {
+        setProcessing(false);
+      }
     }
   };
+
+  const handleConvert = () => {
+    hasConvertedOnceRef.current = true;
+    processingVersionRef.current += 1;
+    handleConvertWithVersion(processingVersionRef.current);
+  };
+
+  // AUTOMATIC REPROCESSING ON SETTINGS CHANGE (FROM ORIGINAL PDF)
+  React.useEffect(() => {
+    if (!file || !hasConvertedOnceRef.current) return;
+
+    // Invalidate stale result immediately so metrics match active settings
+    setResultBlob(null);
+    setLayoutAnalysis(null);
+    setComparisonResult(null);
+    setProcessing(true);
+
+    processingVersionRef.current += 1;
+    const currentVersion = processingVersionRef.current;
+
+    const timer = setTimeout(() => {
+      handleConvertWithVersion(currentVersion);
+    }, 450);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [file, conversionMode, preserveBoxes, preserveFonts, reconstructTables]);
 
   const handleDownload = () => {
     if (!resultBlob) return;

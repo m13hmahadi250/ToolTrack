@@ -874,8 +874,12 @@ export const BackgroundRemoverTool: React.FC = () => {
                       const bgF = e.target.files?.[0];
                       if (bgF) {
                         const img = new Image();
-                        img.src = URL.createObjectURL(bgF);
-                        img.onload = () => setBgImageEl(img);
+                        const objUrl = URL.createObjectURL(bgF);
+                        img.onload = () => {
+                          setBgImageEl(img);
+                          URL.revokeObjectURL(objUrl);
+                        };
+                        img.src = objUrl;
                       }
                     }}
                     className="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
@@ -886,10 +890,22 @@ export const BackgroundRemoverTool: React.FC = () => {
 
             {/* Quality & Detection Options */}
             <div className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-4">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-indigo-600" />
-                <span>Detection & Contours</span>
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sliders className="w-4 h-4 text-indigo-600" />
+                  <span>Detection & Contours</span>
+                </h3>
+                <button
+                  onClick={() => {
+                    if (file) runAutoSegmentation(file, sensitivity, edgeFeather);
+                  }}
+                  disabled={processing}
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer disabled:opacity-50"
+                  title="Re-run segmentation with updated sensitivity and feathering"
+                >
+                  Apply
+                </button>
+              </div>
 
               <div className="space-y-3 text-xs">
                 <div>

@@ -49,8 +49,9 @@ export const ColorPickerTool: React.FC = () => {
     setDetails(info);
 
     const img = new Image();
-    img.src = URL.createObjectURL(selected);
+    const objUrl = URL.createObjectURL(selected);
     img.onload = () => {
+      URL.revokeObjectURL(objUrl);
       const canvas = canvasRef.current;
       if (!canvas) return;
       canvas.width = img.naturalWidth;
@@ -58,6 +59,10 @@ export const ColorPickerTool: React.FC = () => {
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (ctx) ctx.drawImage(img, 0, 0);
     };
+    img.onerror = () => {
+      URL.revokeObjectURL(objUrl);
+    };
+    img.src = objUrl;
   };
 
   const rgbToHsl = (r: number, g: number, b: number) => {

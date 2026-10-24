@@ -287,6 +287,11 @@ export async function normalizePdfPageSizes(
     const usableW = Math.max(10, finalPageW - mLeft - mRight);
     const usableH = Math.max(10, finalPageH - mTop - mBottom);
 
+    // Ensure page has a Contents stream so embedPages does not throw MissingPageContentsEmbeddingError
+    if (!origPage.node.Contents()) {
+      origPage.node.set(PDFName.of('Contents'), sourceDoc.context.flateStream(''));
+    }
+
     const [embeddedPage] = await newDoc.embedPages([origPage]);
 
     let drawW = origW;
@@ -501,13 +506,13 @@ export async function getPdfMetadata(pdfBytes: ArrayBuffer | Uint8Array) {
 
   return {
     pageCount: pages.length,
-    title: pdfDoc.getTitle() || 'Untitled',
-    author: pdfDoc.getAuthor() || 'Unknown',
-    subject: pdfDoc.getSubject() || '',
-    creator: pdfDoc.getCreator() || 'Unknown',
-    producer: pdfDoc.getProducer() || 'Unknown',
-    creationDate: pdfDoc.getCreationDate()?.toLocaleString() || 'Unknown',
-    modificationDate: pdfDoc.getModificationDate()?.toLocaleString() || 'Unknown',
-    keywords: pdfDoc.getKeywords() || '',
+    title: pdfDoc.getTitle() ?? '',
+    author: pdfDoc.getAuthor() ?? '',
+    subject: pdfDoc.getSubject() ?? '',
+    creator: pdfDoc.getCreator() ?? '',
+    producer: pdfDoc.getProducer() ?? '',
+    creationDate: pdfDoc.getCreationDate()?.toLocaleString() ?? '',
+    modificationDate: pdfDoc.getModificationDate()?.toLocaleString() ?? '',
+    keywords: pdfDoc.getKeywords() ?? '',
   };
 }

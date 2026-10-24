@@ -256,7 +256,7 @@ export const AssignmentPdfMaker: React.FC = () => {
       }
 
       const pdfBytes = await pdfDoc.save();
-      const outBlob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      const outBlob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
       setGeneratedPdfBlob(outBlob);
 
       updateJob(jobId, {
