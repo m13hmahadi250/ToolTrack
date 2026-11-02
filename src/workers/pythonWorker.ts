@@ -76,6 +76,43 @@ def _tooltrack_capture_plots():
     return plots
 `;
 
+// Intercept self.fetch inside Pyodide Web Worker to serve cached WASM and wheels when offline
+const nativeWorkerFetch = self.fetch.bind(self);
+self.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+
+  // Intercept Pyodide runtime files & wheels from CacheStorage
+  if ('caches' in self && (url.includes('pyodide') || url.includes('.whl') || url.includes('.wasm') || url.includes('.zip') || url.includes('.json'))) {
+    try {
+      const cache = await caches.open('tooltrack-compiler-cache-v1');
+      const cached = await cache.match(url);
+      if (cached) {
+        return cached;
+      }
+    } catch (cErr) {
+      console.warn('[Pyodide Worker CacheStorage Match Error]:', cErr);
+    }
+  }
+
+  // Fallback to network fetch if online
+  try {
+    return await nativeWorkerFetch(input, init);
+  } catch (netErr: any) {
+    // Retry CacheStorage one last time if offline
+    if ('caches' in self) {
+      try {
+        const cache = await caches.open('tooltrack-compiler-cache-v1');
+        const cached = await cache.match(url);
+        if (cached) return cached;
+      } catch {}
+    }
+    const filename = url.split('/').pop() || 'resource';
+    throw new Error(
+      `Offline Error: Could not load '${filename}' while offline. Please connect to the internet and click "Enable Offline Mode" or "Download Offline Science Bundle" to download packages into cache.`
+    );
+  }
+};
+
 async function initPyodide() {
   if (pyodideInstance) return pyodideInstance;
   if (isInitializing) {
@@ -91,18 +128,32 @@ async function initPyodide() {
   postMessage({ type: 'status', state: 'initializing', message: 'Loading Pyodide WebAssembly runtime...' });
 
   try {
-    // In an ES module worker (type: 'module'), importScripts() throws TypeError.
-    // Instead, dynamically import the official pyodide.mjs ES module.
     let loadPyodideFn: any = null;
     try {
+      // 1. Attempt standard ESM dynamic import from CDN / CacheStorage
       const pyodideModule = await import(/* @vite-ignore */ `${PYODIDE_INDEX_URL}pyodide.mjs`);
       loadPyodideFn = pyodideModule.loadPyodide;
     } catch (importErr: any) {
-      console.warn('[Pyodide Worker] ESM dynamic import failed, checking global:', importErr);
-      if (typeof (self as any).loadPyodide === 'function') {
-        loadPyodideFn = (self as any).loadPyodide;
-      } else {
-        throw new Error(`Failed to load Pyodide module: ${importErr?.message || String(importErr)}`);
+      console.warn('[Pyodide Worker] ESM dynamic import failed, attempting fetch via CacheStorage:', importErr);
+      try {
+        // 2. Fetch pyodide.mjs through intercepted fetch (which reads from CacheStorage when offline)
+        const res = await self.fetch(`${PYODIDE_INDEX_URL}pyodide.mjs`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const codeText = await res.text();
+        const blob = new Blob([codeText], { type: 'application/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
+        const pyodideModule = await import(/* @vite-ignore */ blobUrl);
+        URL.revokeObjectURL(blobUrl);
+        loadPyodideFn = pyodideModule.loadPyodide;
+      } catch (blobErr: any) {
+        console.error('[Pyodide Worker] Blob import error:', blobErr);
+        if (typeof (self as any).loadPyodide === 'function') {
+          loadPyodideFn = (self as any).loadPyodide;
+        } else {
+          throw new Error(
+            'Pyodide runtime is not cached for offline use. Please connect to the internet once and click "Enable Offline Mode" to download the required assets.'
+          );
+        }
       }
     }
 

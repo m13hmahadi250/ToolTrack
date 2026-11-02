@@ -746,17 +746,32 @@ export const CompilerTool: React.FC = () => {
             <span>{isOnline ? 'Connected (Online)' : 'Offline Mode (Local WebAssembly)'}</span>
           </div>
 
-          {/* Offline Bundle Button */}
+          {/* Enable Offline Mode / Offline Ready Badge */}
           <button
-            onClick={() => setActiveTab('offline')}
+            onClick={cacheStatus?.hasCore ? () => setActiveTab('offline') : handleDownloadOfflineBundle}
+            disabled={isDownloadingBundle}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
               cacheStatus?.hasCore
-                ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
-                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600 shadow-sm'
             }`}
           >
-            <HardDrive className="w-3.5 h-3.5 text-indigo-500" />
-            <span>{cacheStatus?.hasCore ? 'Offline Ready (Cached)' : 'Download Offline Runtimes'}</span>
+            {isDownloadingBundle ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                <span>Caching Assets ({downloadProgress?.percent || 0}%)...</span>
+              </>
+            ) : cacheStatus?.hasCore ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Offline Ready</span>
+              </>
+            ) : (
+              <>
+                <HardDrive className="w-3.5 h-3.5" />
+                <span>Enable Offline Mode</span>
+              </>
+            )}
           </button>
         </div>
       </div>
