@@ -257,6 +257,7 @@ export const HomePage: React.FC = () => {
               { id: 'pdf-to-word', label: 'PDF to Word' },
               { id: 'image-background-remover', label: 'Remove BG' },
               { id: 'whiteboard', label: 'Whiteboard' },
+              { id: 'compiler', label: 'Compiler IDE' },
               { id: 'qr-code-generator', label: 'QR Generator' },
               { id: 'word-counter', label: 'Word Count' },
               { id: 'calculator', label: 'Calculator' },

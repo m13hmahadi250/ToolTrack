@@ -262,6 +262,38 @@ async function runTests() {
     assert.ok(bits >= 100, 'A 16-char complex password should have >= 100 bits of entropy');
   });
 
+  // --- 5. COMPILER & RUNTIME TESTS ---
+  console.log('\n--- 5. COMPILER & RUNTIME ENGINES ---');
+
+  await test('Client C++ Offline Runner: executes basic C++ with cout and arithmetic', async () => {
+    const { runClientCpp } = await import('../src/lib/clientCppRunner');
+    const code = `#include <iostream>
+using namespace std;
+int main() {
+    int x = 20, y = 22;
+    int sum = x + y;
+    cout << "Answer: " << sum << endl;
+    return 0;
+}`;
+    const res = runClientCpp(code, '', 'cpp');
+    assert.strictEqual(res.success, true);
+    assert.ok(res.stdout.includes('Answer: 42'), 'Output should contain computed sum 42');
+  });
+
+  await test('Client C Offline Runner: executes C printf and stdin parsing', async () => {
+    const { runClientCpp } = await import('../src/lib/clientCppRunner');
+    const code = `#include <stdio.h>
+int main() {
+    int val = 0;
+    scanf("%d", &val);
+    printf("Value received: %d\\n", val);
+    return 0;
+}`;
+    const res = runClientCpp(code, '100', 'c');
+    assert.strictEqual(res.success, true);
+    assert.ok(res.stdout.includes('Value received: 100'), 'Output should reflect input value 100');
+  });
+
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
   console.log('====================================================');

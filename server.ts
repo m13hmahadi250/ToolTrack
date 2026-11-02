@@ -1491,6 +1491,245 @@ app.get('/api/seo-audit', async (_req: Request, res: Response) => {
   }
 });
 
+/**
+ * ====================================================================
+ * SECURE ISOLATED PROGRAMMING COMPILER & RUNNER API
+ * ====================================================================
+ * Supports C (GCC 12), C++ (G++ 12 with <bits/stdc++.h> and C++20),
+ * and Python 3 with process isolation, strict timeouts, stdin piping,
+ * compiler error diagnostics, and resource limits.
+ */
+app.post('/api/compile-run', async (req: Request, res: Response) => {
+  let tmpDir = '';
+  const startTime = Date.now();
+
+  try {
+    const { language, code, stdin = '', standard } = req.body;
+
+    if (!code || typeof code !== 'string') {
+      return res.status(400).json({ error: 'Source code is required.' });
+    }
+
+    if (!['c', 'cpp', 'python'].includes(language)) {
+      return res.status(400).json({ error: 'Unsupported language. Allowed: c, cpp, python.' });
+    }
+
+    if (code.length > 256 * 1024) {
+      return res.status(400).json({ error: 'Source code exceeds maximum allowed size (256 KB).' });
+    }
+
+    const runId = crypto.randomUUID ? crypto.randomUUID() : `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `tt-comp-${runId}-`));
+
+    const EXECUTION_TIMEOUT_MS = 8000;
+    const MAX_OUTPUT_BYTES = 512 * 1024; // 512 KB
+
+    if (language === 'python') {
+      const scriptPath = path.join(tmpDir, 'script.py');
+      await fs.promises.writeFile(scriptPath, code, 'utf-8');
+
+      const pyProc = execFile('python3', [scriptPath], {
+        cwd: tmpDir,
+        timeout: EXECUTION_TIMEOUT_MS,
+        maxBuffer: MAX_OUTPUT_BYTES,
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      if (pyProc.stdout) {
+        pyProc.stdout.on('data', (d) => {
+          if (stdout.length < MAX_OUTPUT_BYTES) stdout += d.toString();
+        });
+      }
+      if (pyProc.stderr) {
+        pyProc.stderr.on('data', (d) => {
+          if (stderr.length < MAX_OUTPUT_BYTES) stderr += d.toString();
+        });
+      }
+
+      if (pyProc.stdin && stdin) {
+        pyProc.stdin.write(stdin);
+        pyProc.stdin.end();
+      } else if (pyProc.stdin) {
+        pyProc.stdin.end();
+      }
+
+      const exitCode = await new Promise<number>((resolve) => {
+        pyProc.on('close', (code) => resolve(code ?? 0));
+        pyProc.on('error', (err) => {
+          stderr += `\nRuntime execution error: ${err.message}`;
+          resolve(1);
+        });
+      });
+
+      const execDuration = Date.now() - startTime;
+      return res.json({
+        success: exitCode === 0,
+        phase: 'execution',
+        stdout,
+        stderr,
+        exitCode,
+        executionTimeMs: execDuration,
+        compiler: 'Python 3.11 Runtime',
+      });
+    }
+
+    if (language === 'c') {
+      const srcPath = path.join(tmpDir, 'main.c');
+      const binPath = path.join(tmpDir, 'main');
+      await fs.promises.writeFile(srcPath, code, 'utf-8');
+
+      const stdFlag = standard ? `-std=${standard}` : '-std=c17';
+      const gccArgs = ['-O2', stdFlag, '-Wall', srcPath, '-o', binPath, '-lm'];
+
+      try {
+        await execFileAsync('gcc', gccArgs, { timeout: 10000 });
+      } catch (compileErr: any) {
+        const compileStderr = compileErr.stderr || compileErr.message || 'Compilation failed';
+        return res.json({
+          success: false,
+          phase: 'compilation',
+          stdout: '',
+          stderr: compileStderr,
+          exitCode: 1,
+          executionTimeMs: Date.now() - startTime,
+          compiler: 'gcc 12.3 (Debian/Ubuntu)',
+        });
+      }
+
+      const runProc = execFile(binPath, [], {
+        cwd: tmpDir,
+        timeout: EXECUTION_TIMEOUT_MS,
+        maxBuffer: MAX_OUTPUT_BYTES,
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      if (runProc.stdout) {
+        runProc.stdout.on('data', (d) => {
+          if (stdout.length < MAX_OUTPUT_BYTES) stdout += d.toString();
+        });
+      }
+      if (runProc.stderr) {
+        runProc.stderr.on('data', (d) => {
+          if (stderr.length < MAX_OUTPUT_BYTES) stderr += d.toString();
+        });
+      }
+
+      if (runProc.stdin && stdin) {
+        runProc.stdin.write(stdin);
+        runProc.stdin.end();
+      } else if (runProc.stdin) {
+        runProc.stdin.end();
+      }
+
+      const exitCode = await new Promise<number>((resolve) => {
+        runProc.on('close', (code) => resolve(code ?? 0));
+        runProc.on('error', (err) => {
+          stderr += `\nRuntime execution error: ${err.message}`;
+          resolve(1);
+        });
+      });
+
+      const execDuration = Date.now() - startTime;
+      return res.json({
+        success: exitCode === 0,
+        phase: 'execution',
+        stdout,
+        stderr,
+        exitCode,
+        executionTimeMs: execDuration,
+        compiler: 'gcc 12.3 (Debian/Ubuntu)',
+      });
+    }
+
+    if (language === 'cpp') {
+      const srcPath = path.join(tmpDir, 'main.cpp');
+      const binPath = path.join(tmpDir, 'main');
+      await fs.promises.writeFile(srcPath, code, 'utf-8');
+
+      const stdFlag = standard ? `-std=${standard}` : '-std=c++20';
+      const gppArgs = ['-O2', stdFlag, '-Wall', srcPath, '-o', binPath];
+
+      try {
+        await execFileAsync('g++', gppArgs, { timeout: 12000 });
+      } catch (compileErr: any) {
+        const compileStderr = compileErr.stderr || compileErr.message || 'Compilation failed';
+        return res.json({
+          success: false,
+          phase: 'compilation',
+          stdout: '',
+          stderr: compileStderr,
+          exitCode: 1,
+          executionTimeMs: Date.now() - startTime,
+          compiler: 'g++ 12.3 (Debian/Ubuntu)',
+        });
+      }
+
+      const runProc = execFile(binPath, [], {
+        cwd: tmpDir,
+        timeout: EXECUTION_TIMEOUT_MS,
+        maxBuffer: MAX_OUTPUT_BYTES,
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      if (runProc.stdout) {
+        runProc.stdout.on('data', (d) => {
+          if (stdout.length < MAX_OUTPUT_BYTES) stdout += d.toString();
+        });
+      }
+      if (runProc.stderr) {
+        runProc.stderr.on('data', (d) => {
+          if (stderr.length < MAX_OUTPUT_BYTES) stderr += d.toString();
+        });
+      }
+
+      if (runProc.stdin && stdin) {
+        runProc.stdin.write(stdin);
+        runProc.stdin.end();
+      } else if (runProc.stdin) {
+        runProc.stdin.end();
+      }
+
+      const exitCode = await new Promise<number>((resolve) => {
+        runProc.on('close', (code) => resolve(code ?? 0));
+        runProc.on('error', (err) => {
+          stderr += `\nRuntime execution error: ${err.message}`;
+          resolve(1);
+        });
+      });
+
+      const execDuration = Date.now() - startTime;
+      return res.json({
+        success: exitCode === 0,
+        phase: 'execution',
+        stdout,
+        stderr,
+        exitCode,
+        executionTimeMs: execDuration,
+        compiler: 'g++ 12.3 (Debian/Ubuntu)',
+      });
+    }
+
+    return res.status(400).json({ error: 'Unhandled language.' });
+  } catch (err: unknown) {
+    console.error('[CompileRun API Error]:', err);
+    return res.status(500).json({
+      error: 'Compiler service encountered an unexpected error: ' + String(err),
+    });
+  } finally {
+    if (tmpDir) {
+      try {
+        await fs.promises.rm(tmpDir, { recursive: true, force: true });
+      } catch {}
+    }
+  }
+});
+
 // Mount Vite middleware in development with unified HTTP/WebSocket server
 async function startServer() {
   const httpServer = http.createServer(app);

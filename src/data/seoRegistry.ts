@@ -212,11 +212,75 @@ export const CATEGORIES_SEO: Record<string, CategorySeoData> = {
       'file-info-inspector',
       'aspect-ratio-calculator',
       'color-converter',
+      'compiler',
     ],
   },
 };
 
 export const TOOLS_SEO: Record<string, ToolSeoData> = {
+  compiler: {
+    toolId: 'compiler',
+    name: 'Online & Offline Compiler',
+    route: '/compiler',
+    aliases: ['/compiler', '/tools/compiler', 'compiler', '#compiler'],
+    categoryKey: 'utilities',
+    categoryName: 'Everyday & Developer Utilities',
+    categoryRoute: '/tools/utilities',
+    seoTitle: 'Online & Offline Compiler – Python, C++, C with Data Science & ML | ToolTrack',
+    seoDescription:
+      'Free online and offline programming compiler for Python 3 (Pandas, NumPy, Matplotlib, Scikit-learn), C++20 (GCC 12), and C17. Fast in-browser execution with full PWA offline support.',
+    h1: 'Online & Offline Programming Compiler',
+    tagline: 'Write, compile, and execute Python 3, C++, and C with full data science libraries and offline PWA capability.',
+    keywords: [
+      'online compiler',
+      'offline compiler',
+      'python compiler online',
+      'c++ online compiler',
+      'c compiler',
+      'pandas online',
+      'numpy in browser',
+      'matplotlib online',
+      'scikit-learn browser',
+      'pyodide ide',
+      'bits stdc++ online',
+      'webassembly compiler',
+    ],
+    supportedFormats: {
+      input: ['Python (.py)', 'C++ (.cpp)', 'C (.c)', 'CSV Datasets (.csv)', 'Text (.txt)'],
+      output: ['Terminal Output', 'Matplotlib Plots (.png)', 'Source Code (.py, .cpp, .c)'],
+    },
+    features: [
+      'In-browser Pyodide WebAssembly Python 3 runtime with real NumPy, Pandas, Matplotlib, and Scikit-learn',
+      'Native GCC and G++ 12 compilation engine with <bits/stdc++.h> and C++20 support',
+      'Offline PWA CacheStorage: pre-cache runtimes once and execute code completely disconnected',
+      'Interactive standard input (stdin) and colored terminal output console',
+      'Matplotlib figure extraction with direct high-DPI plot viewing and PNG downloads',
+      'Virtual dataset mounting to load uploaded CSV files directly into Pandas',
+    ],
+    howTo: [
+      { step: 1, title: 'Select Programming Language', description: 'Choose Python 3, C++ 20, or C 17 from the compiler tabs.' },
+      { step: 2, title: 'Write or Paste Code', description: 'Enter your source code or choose from the built-in starter templates.' },
+      { step: 3, title: 'Provide Stdin & Run', description: 'Enter standard input values if needed, then click Run or press Ctrl+Enter to execute.' },
+    ],
+    faq: [
+      {
+        question: 'Does this compiler run real Python code or just syntax checking?',
+        answer:
+          'ToolTrack executes genuine Python 3.12 bytecode using the official Pyodide WebAssembly runtime inside a dedicated Web Worker. Variables, functions, loops, lists, dictionaries, exceptions, and data science operations with Pandas, NumPy, and Scikit-learn execute for real.',
+      },
+      {
+        question: 'Can I use this compiler offline without an internet connection?',
+        answer:
+          'Yes! ToolTrack includes full PWA support. Click "Download Offline Runtimes" inside the Compiler to cache the WebAssembly engine and scientific packages into your browser. Once cached, you can disconnect from the internet and continue editing, compiling, and running code.',
+      },
+      {
+        question: 'Are C and C++ programs compiled with a real compiler?',
+        answer:
+          'Yes. In online mode, programs are compiled using GCC and G++ 12.3 with -O2 optimization and support for standard headers including <bits/stdc++.h>. In offline mode, ToolTrack uses an in-browser client execution engine with standard library support.',
+      },
+    ],
+    relatedToolIds: ['json-formatter', 'csv-json-converter', 'base64-converter', 'notes-to-pdf'],
+  },
   whiteboard: {
     toolId: 'whiteboard',
     name: 'Online Whiteboard',

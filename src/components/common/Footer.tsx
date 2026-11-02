@@ -228,6 +228,7 @@ export const Footer: React.FC = () => {
             </h5>
             <ul className="space-y-1.5 text-xs text-[#B8C4D6]">
               {renderToolLink('whiteboard', 'Whiteboard', 'PRO')}
+              {renderToolLink('compiler', 'Compiler & IDE', 'NEW')}
               {renderToolLink('ocr-pdf', 'OCR Text Scan')}
               {renderToolLink('assignment-pdf-maker', 'Assignment Maker')}
               {renderToolLink('notes-to-pdf', 'Notes to PDF')}

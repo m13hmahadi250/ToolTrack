@@ -955,6 +955,22 @@ export const TOOLS_LIST: ToolItem[] = [
     inputFormats: ['HEX / RGB / HSL'],
     outputFormats: ['Color Codes & Contrast Score'],
   },
+  {
+    id: 'compiler',
+    name: 'Online & Offline Compiler',
+    category: 'utilities',
+    description: 'Write, compile, and run Python 3 (Pandas, NumPy, Matplotlib, Scikit-learn), C++20 (GCC 12), and C17 in your browser with 100% offline PWA execution.',
+    badge: 'NEW IDE',
+    iconName: 'Code2',
+    acceptedFormats: ['.py', '.cpp', '.c', '.csv', '.txt'],
+    popular: true,
+    route: '/compiler',
+    offlineCapability: 'offline',
+    keywords: ['compiler', 'ide', 'python', 'c++', 'cpp', 'c', 'code runner', 'pandas', 'numpy', 'matplotlib', 'scikit-learn', 'gcc', 'g++', 'offline compiler', 'wasm'],
+    synonyms: ['online compiler', 'offline compiler', 'code editor', 'python runner', 'c++ runner', 'c compiler', 'data science compiler'],
+    inputFormats: ['Python (.py)', 'C++ (.cpp)', 'C (.c)', 'CSV Datasets'],
+    outputFormats: ['Terminal Console', 'Matplotlib Plots (PNG)', 'Source Code'],
+  },
 ];
 
 /**

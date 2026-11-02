@@ -7,6 +7,7 @@ import {
   Layers,
   Sparkles,
   PenTool,
+  Code2,
   Search,
 } from 'lucide-react';
 import { useToolTrack } from '../../context/ToolTrackContext';
@@ -133,7 +134,31 @@ export const Header: React.FC = () => {
                 </span>
               </button>
 
-              {/* 3. Category Dropdowns: PDF ▾, Convert ▾, Images ▾, Student ▾, Design ▾, Utilities ▾, All Tools ▾ */}
+              {/* 3. Compiler */}
+              <button
+                onClick={() => {
+                  setActiveToolId('compiler');
+                  setActiveDropdownCatId(null);
+                }}
+                className={`flex items-center gap-1.5 px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs 2xl:text-sm transition cursor-pointer shrink-0 whitespace-nowrap ${
+                  activeToolId === 'compiler'
+                    ? 'bg-[#2563EB] text-white font-semibold shadow-xs'
+                    : 'text-[#344054] dark:text-[#B8C4D6] hover:text-[#2563EB] dark:hover:text-[#3B82F6] hover:bg-[#EAF1FF]/70 dark:hover:bg-[#172338]/70 font-medium'
+                }`}
+                title="Online & Offline Compiler (Python 3, C++, C)"
+              >
+                <Code2 className="w-3.5 h-3.5" />
+                <span>Compiler</span>
+                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                  activeToolId === 'compiler'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47]'
+                }`}>
+                  IDE
+                </span>
+              </button>
+
+              {/* 4. Category Dropdowns: PDF ▾, Convert ▾, Images ▾, Student ▾, Design ▾, Utilities ▾, All Tools ▾ */}
               {HEADER_CATEGORIES.map((cat) => {
                 const isOpen = activeDropdownCatId === cat.id;
                 const isActiveCat = isToolInCat(activeToolId, cat.id);
@@ -305,6 +330,26 @@ export const Header: React.FC = () => {
                     </span>
                     <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-white/20">
                       PRO
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveToolId('compiler');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`p-2.5 rounded-xl border text-left text-xs font-semibold flex items-center justify-between cursor-pointer transition col-span-2 ${
+                      activeToolId === 'compiler'
+                        ? 'border-[#2563EB] bg-[#2563EB] text-white font-bold shadow-xs'
+                        : 'border-[#DCE3EF] dark:border-[#1E2D47] bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6]'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Code2 className="w-3.5 h-3.5" />
+                      <span>Compiler & IDE (Python, C++, C)</span>
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-white/20">
+                      IDE
                     </span>
                   </button>
                 </div>

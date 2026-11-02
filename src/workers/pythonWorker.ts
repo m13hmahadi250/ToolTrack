@@ -1,0 +1,320 @@
+/**
+ * ToolTrack Python 3 Pyodide WebAssembly Worker
+ * Runs real Python in an isolated Web Worker with genuine Pandas, NumPy,
+ * Matplotlib, Scikit-learn, SciPy, and SymPy support.
+ * Also provides virtual filesystem management for uploaded datasets (CSV, TXT, etc.)
+ * and automatic Matplotlib plot figure capture into PNG base64 images.
+ */
+
+// Global Pyodide reference
+let pyodideInstance: any = null;
+let isInitializing = false;
+let installedPackages = new Set<string>();
+
+const PYODIDE_VERSION = 'v0.26.4';
+const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/${PYODIDE_VERSION}/full/`;
+const CACHE_NAME = 'tooltrack-compiler-cache-v1';
+
+// Intercept fetch inside worker to serve Pyodide assets directly from CacheStorage when available
+const originalFetch = self.fetch;
+self.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString();
+
+  if (url.includes('cdn.jsdelivr.net/pyodide')) {
+    try {
+      if ('caches' in self) {
+        const cache = await caches.open(CACHE_NAME);
+        const cachedResponse = await cache.match(input);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        // If not cached, fetch online and optionally store in cache if offline mode is being prepared
+        const networkResponse = await originalFetch(input, init);
+        if (networkResponse.ok && networkResponse.status === 200) {
+          try {
+            cache.put(input, networkResponse.clone());
+          } catch {}
+        }
+        return networkResponse;
+      }
+    } catch (e) {
+      // Fallback to normal fetch
+    }
+  }
+
+  return originalFetch(input, init);
+};
+
+// Python initialization preamble to setup plot capturing and stdin/stdout hooks
+const PYTHON_PREAMBLE = `
+import sys
+import io
+import base64
+
+# Helper function to capture any generated matplotlib plots as base64 PNGs
+def _tooltrack_capture_plots():
+    figures = []
+    if 'matplotlib.pyplot' in sys.modules:
+        import matplotlib.pyplot as plt
+        for fig_num in plt.get_fignums():
+            fig = plt.figure(fig_num)
+            buf = io.BytesIO()
+            fig.savefig(buf, format='png', bbox_inches='tight', dpi=150)
+            buf.seek(0)
+            figures.append(base64.b64encode(buf.read()).decode('utf-8'))
+            plt.close(fig)
+    return figures
+`;
+
+async function initPyodide() {
+  if (pyodideInstance) return pyodideInstance;
+  if (isInitializing) {
+    while (isInitializing) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return pyodideInstance;
+  }
+
+  isInitializing = true;
+  postMessage({ type: 'status', message: 'Loading Pyodide WebAssembly runtime...' });
+
+  try {
+    // Import pyodide script
+    const pyodideScriptUrl = `${PYODIDE_INDEX_URL}pyodide.js`;
+    (self as any).importScripts(pyodideScriptUrl);
+
+    postMessage({ type: 'status', message: 'Initializing Python 3 engine...' });
+    const loadPyodideFn = (self as any).loadPyodide;
+
+    pyodideInstance = await loadPyodideFn({
+      indexURL: PYODIDE_INDEX_URL,
+      stdout: (text: string) => {
+        postMessage({ type: 'stdout', text });
+      },
+      stderr: (text: string) => {
+        postMessage({ type: 'stderr', text });
+      },
+    });
+
+    // Run preamble
+    await pyodideInstance.runPythonAsync(PYTHON_PREAMBLE);
+
+    postMessage({
+      type: 'initialized',
+      version: pyodideInstance.version || PYODIDE_VERSION,
+    });
+
+    return pyodideInstance;
+  } catch (err: any) {
+    console.error('[Pyodide Worker Error]:', err);
+    postMessage({
+      type: 'error',
+      message: `Failed to initialize Python runtime: ${err.message || String(err)}`,
+    });
+    throw err;
+  } finally {
+    isInitializing = false;
+  }
+}
+
+// Handle incoming messages from UI thread
+self.onmessage = async (event: MessageEvent) => {
+  const { action, payload, id } = event.data;
+
+  try {
+    if (action === 'init') {
+      await initPyodide();
+      return;
+    }
+
+    if (action === 'loadPackages') {
+      const py = await initPyodide();
+      const packages: string[] = payload.packages || [];
+      const toLoad = packages.filter((p) => !installedPackages.has(p));
+
+      if (toLoad.length > 0) {
+        postMessage({ type: 'status', message: `Loading packages: ${toLoad.join(', ')}...` });
+        for (const pkg of toLoad) {
+          postMessage({ type: 'packageLoading', package: pkg });
+          try {
+            await py.loadPackage(pkg);
+            installedPackages.add(pkg);
+            postMessage({ type: 'packageLoaded', package: pkg });
+          } catch (pkgErr: any) {
+            postMessage({
+              type: 'packageError',
+              package: pkg,
+              error: pkgErr.message || String(pkgErr),
+            });
+          }
+        }
+      }
+
+      postMessage({
+        type: 'packagesReady',
+        id,
+        installed: Array.from(installedPackages),
+      });
+      return;
+    }
+
+    if (action === 'installMicropip') {
+      const py = await initPyodide();
+      const pkgName = payload.package;
+      postMessage({ type: 'status', message: `Installing ${pkgName} via micropip...` });
+      try {
+        await py.loadPackage('micropip');
+        const micropip = py.pyimport('micropip');
+        await micropip.install(pkgName);
+        installedPackages.add(pkgName);
+        postMessage({ type: 'micropipSuccess', package: pkgName, id });
+      } catch (e: any) {
+        postMessage({ type: 'micropipError', package: pkgName, error: e.message, id });
+      }
+      return;
+    }
+
+    if (action === 'uploadFile') {
+      const py = await initPyodide();
+      const { name, data, isBinary } = payload;
+      // Write file into Pyodide virtual filesystem
+      if (isBinary) {
+        py.FS.writeFile(name, new Uint8Array(data));
+      } else {
+        py.FS.writeFile(name, data);
+      }
+      postMessage({
+        type: 'fileUploaded',
+        name,
+        path: `/${name}`,
+        id,
+      });
+      return;
+    }
+
+    if (action === 'listFiles') {
+      const py = await initPyodide();
+      try {
+        const files = py.FS.readdir('/').filter((f: string) => f !== '.' && f !== '..');
+        postMessage({ type: 'fileList', files, id });
+      } catch (err: any) {
+        postMessage({ type: 'fileListError', error: err.message, id });
+      }
+      return;
+    }
+
+    if (action === 'downloadFile') {
+      const py = await initPyodide();
+      const { name } = payload;
+      try {
+        const content = py.FS.readFile(name);
+        postMessage({ type: 'fileContent', name, content, id });
+      } catch (err: any) {
+        postMessage({ type: 'fileDownloadError', error: err.message, id });
+      }
+      return;
+    }
+
+    if (action === 'runCode') {
+      const py = await initPyodide();
+      const { code, stdin = '' } = payload;
+      const startTime = performance.now();
+
+      // Configure stdin lines queue
+      let stdinIndex = 0;
+      const stdinChars = stdin.length > 0 ? stdin : '';
+      py.setStdin({
+        stdin: () => {
+          if (stdinIndex < stdinChars.length) {
+            return stdinChars.charCodeAt(stdinIndex++);
+          }
+          return null;
+        },
+      });
+
+      // Scan code for imported packages and auto-load if compatible
+      const potentialPackages: { [key: string]: string } = {
+        pandas: 'pandas',
+        pd: 'pandas',
+        numpy: 'numpy',
+        np: 'numpy',
+        matplotlib: 'matplotlib',
+        plt: 'matplotlib',
+        sklearn: 'scikit-learn',
+        scipy: 'scipy',
+        sympy: 'sympy',
+      };
+
+      const pkgsToLoad = new Set<string>();
+      for (const [key, pkg] of Object.entries(potentialPackages)) {
+        const regex = new RegExp(`\\bimport\\s+${key}\\b|\\bfrom\\s+${key}\\b`);
+        if (regex.test(code) && !installedPackages.has(pkg)) {
+          pkgsToLoad.add(pkg);
+        }
+      }
+
+      if (pkgsToLoad.size > 0) {
+        postMessage({
+          type: 'status',
+          message: `Auto-loading required packages: ${Array.from(pkgsToLoad).join(', ')}...`,
+        });
+        for (const p of pkgsToLoad) {
+          try {
+            await py.loadPackage(p);
+            installedPackages.add(p);
+          } catch (loadErr: any) {
+            postMessage({
+              type: 'stderr',
+              text: `Warning: Could not auto-load package '${p}': ${loadErr.message}\n`,
+            });
+          }
+        }
+      }
+
+      postMessage({ type: 'status', message: 'Executing Python code...' });
+
+      let result: any = null;
+      let errorOccurred = false;
+
+      try {
+        result = await py.runPythonAsync(code);
+      } catch (execErr: any) {
+        errorOccurred = true;
+        const errMsg = execErr.message || String(execErr);
+        postMessage({ type: 'stderr', text: `\nTraceback (most recent call last):\n${errMsg}\n` });
+      }
+
+      // Check if any matplotlib figures were generated
+      let plots: string[] = [];
+      try {
+        const plotResult = await py.runPythonAsync('_tooltrack_capture_plots()');
+        if (plotResult && typeof plotResult.toJs === 'function') {
+          plots = plotResult.toJs();
+        } else if (Array.isArray(plotResult)) {
+          plots = plotResult;
+        }
+      } catch (plotErr) {
+        // Matplotlib was not imported or no plots generated
+      }
+
+      const executionTimeMs = Math.round(performance.now() - startTime);
+
+      postMessage({
+        type: 'runComplete',
+        id,
+        success: !errorOccurred,
+        executionTimeMs,
+        plots,
+        result: result !== undefined && result !== null ? String(result) : undefined,
+      });
+      return;
+    }
+  } catch (globalErr: any) {
+    postMessage({
+      type: 'error',
+      id,
+      message: globalErr.message || String(globalErr),
+    });
+  }
+};

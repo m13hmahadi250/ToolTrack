@@ -40,6 +40,7 @@ import { OcrPdfTool } from './components/tools/OcrPdfTool';
 import { PdfInspectorTool } from './components/tools/PdfInspectorTool';
 import { PdfCompareTool } from './components/tools/PdfCompareTool';
 import { WhiteboardView } from './components/whiteboard/WhiteboardView';
+import { CompilerTool } from './components/tools/CompilerTool';
 import { BatchProcessingDashboard } from './components/batch/BatchProcessingDashboard';
 import { OfflineIndicator } from './components/common/OfflineIndicator';
 import { TextUtilitiesTool } from './components/tools/TextUtilitiesTool';
@@ -211,6 +212,9 @@ function MainContent() {
         break;
       case 'whiteboard':
         toolComponent = <WhiteboardView />;
+        break;
+      case 'compiler':
+        toolComponent = <CompilerTool />;
         break;
       // Everyday Utilities Routing
       case 'text-utilities':
