@@ -47,6 +47,34 @@ import { runClientCpp } from '../../lib/clientCppRunner';
 
 export type SupportedLanguage = 'python' | 'cpp' | 'c';
 
+export type ExecutionState =
+  | 'idle'
+  | 'initializing'
+  | 'loading_packages'
+  | 'ready'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'stopped'
+  | 'timed_out';
+
+export const DEFAULT_HELLO_WORLD: Record<SupportedLanguage, string> = {
+  python: 'print("Hello World")',
+  cpp: `#include <iostream>
+using namespace std;
+
+int main() {
+    cout << "Hello World" << endl;
+    return 0;
+}`,
+  c: `#include <stdio.h>
+
+int main() {
+    printf("Hello World\\n");
+    return 0;
+}`,
+};
+
 export const CompilerTool: React.FC = () => {
   const { darkMode, showToast, addRecentActivity } = useToolTrack();
 
@@ -59,21 +87,24 @@ export const CompilerTool: React.FC = () => {
     return 'python';
   });
 
-  // Source code state for each language
+  // Source code state for each language (defaults to clean Hello World)
   const [codeMap, setCodeMap] = useState<Record<SupportedLanguage, string>>(() => {
-    const defaults: Record<SupportedLanguage, string> = {
-      python: COMPILER_TEMPLATES.find((t) => t.id === 'py-data-science')?.code || '',
-      cpp: COMPILER_TEMPLATES.find((t) => t.id === 'cpp-stdcxx')?.code || '',
-      c: COMPILER_TEMPLATES.find((t) => t.id === 'c-stdio')?.code || '',
-    };
+    const defaults: Record<SupportedLanguage, string> = { ...DEFAULT_HELLO_WORLD };
     if (typeof window !== 'undefined') {
       try {
         const savedPy = localStorage.getItem('tt_code_python');
         const savedCpp = localStorage.getItem('tt_code_cpp');
         const savedC = localStorage.getItem('tt_code_c');
-        if (savedPy) defaults.python = savedPy;
-        if (savedCpp) defaults.cpp = savedCpp;
-        if (savedC) defaults.c = savedC;
+        // Clean out legacy heavy code that caused infinite hangs
+        if (savedPy && !savedPy.includes("Department': ['Engineering'")) {
+          defaults.python = savedPy;
+        }
+        if (savedCpp && !savedCpp.includes("=== ToolTrack C++ STL Engine ===")) {
+          defaults.cpp = savedCpp;
+        }
+        if (savedC && !savedC.includes("=== ToolTrack C Compiler (GCC 12) ===")) {
+          defaults.c = savedC;
+        }
       } catch {}
     }
     return defaults;
@@ -92,11 +123,16 @@ export const CompilerTool: React.FC = () => {
   const [stdoutText, setStdoutText] = useState<string>('');
   const [stderrText, setStderrText] = useState<string>('');
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
+  const [executionState, setExecutionState] = useState<ExecutionState>('idle');
+  const [executionStatusText, setExecutionStatusText] = useState<string>('');
   const [executionStats, setExecutionStats] = useState<{
     durationMs?: number;
     exitCode?: number;
     compilerUsed?: string;
   } | null>(null);
+
+  // Preferred Engine: 'auto' (Fastest available), 'wasm' (In-Browser Pyodide / Client WASM), or 'server' (GCC / Python3 Native)
+  const [preferredEngine, setPreferredEngine] = useState<'auto' | 'wasm' | 'server'>('auto');
 
   // Active right pane tab
   const [activeTab, setActiveTab] = useState<'console' | 'stdin' | 'plots' | 'datasets' | 'packages' | 'offline'>('console');
@@ -120,9 +156,10 @@ export const CompilerTool: React.FC = () => {
     percent: number;
   } | null>(null);
 
-  // Python worker reference
+  // Python worker & timer references
   const pythonWorkerRef = useRef<Worker | null>(null);
   const activeJobIdRef = useRef<number>(0);
+  const timeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Custom micropip package input
   const [customPackageName, setCustomPackageName] = useState('');
@@ -169,80 +206,239 @@ export const CompilerTool: React.FC = () => {
     refreshCacheInfo();
   }, [refreshCacheInfo]);
 
-  // Initialize Pyodide Web Worker
+  // Clean timeout timer on unmount
   useEffect(() => {
-    const worker = new Worker(new URL('../../workers/pythonWorker.ts', import.meta.url), {
-      type: 'module',
-    });
-
-    worker.onmessage = (e: MessageEvent) => {
-      const { type, text, message, plots, executionTimeMs, success, files, package: pkg, error } = e.data;
-
-      if (type === 'stdout') {
-        setStdoutText((prev) => prev + text);
-      } else if (type === 'stderr') {
-        setStderrText((prev) => prev + text);
-      } else if (type === 'status') {
-        // Ephemeral progress
-      } else if (type === 'runComplete') {
-        setIsExecuting(false);
-        if (plots && Array.isArray(plots) && plots.length > 0) {
-          setGeneratedPlots(plots);
-          setActiveTab('plots');
-        }
-        setExecutionStats({
-          durationMs: executionTimeMs,
-          exitCode: success ? 0 : 1,
-          compilerUsed: 'Pyodide WebAssembly (Python 3.12)',
-        });
-      } else if (type === 'fileList') {
-        if (files) {
-          setVirtualFiles(files.map((name: string) => ({ name, size: 0 })));
-        }
-      } else if (type === 'fileUploaded') {
-        showToast('success', `Dataset ${e.data.name} mounted into virtual filesystem at ${e.data.path}`);
-        // Refresh list
-        worker.postMessage({ action: 'listFiles', id: Date.now() });
-      } else if (type === 'micropipSuccess') {
-        setIsInstallingCustomPkg(false);
-        showToast('success', `Python package '${pkg}' installed successfully.`);
-        refreshCacheInfo();
-      } else if (type === 'micropipError') {
-        setIsInstallingCustomPkg(false);
-        showToast('error', `Package '${pkg}' installation failed: ${error}`);
+    return () => {
+      if (timeoutTimerRef.current) {
+        clearTimeout(timeoutTimerRef.current);
       }
     };
+  }, []);
 
-    worker.postMessage({ action: 'init' });
-    worker.postMessage({ action: 'listFiles', id: Date.now() });
-    pythonWorkerRef.current = worker;
+  // Spawn Pyodide Web Worker with full error capture
+  const spawnWorker = useCallback(() => {
+    if (pythonWorkerRef.current) {
+      try {
+        pythonWorkerRef.current.terminate();
+      } catch {}
+      pythonWorkerRef.current = null;
+    }
 
+    try {
+      const worker = new Worker(new URL('../../workers/pythonWorker.ts', import.meta.url), {
+        type: 'module',
+      });
+
+      worker.onerror = (err) => {
+        console.error('[Pyodide Worker Error]:', err);
+        if (timeoutTimerRef.current) {
+          clearTimeout(timeoutTimerRef.current);
+          timeoutTimerRef.current = null;
+        }
+        setIsExecuting(false);
+        setExecutionState('failed');
+        setExecutionStatusText('');
+        setStderrText((prev) => prev + `\n[Runtime Worker Error]: ${err.message || 'Worker thread encountered an unhandled issue.'}\n`);
+      };
+
+      worker.onmessageerror = (err) => {
+        console.error('[Pyodide Message Error]:', err);
+        if (timeoutTimerRef.current) {
+          clearTimeout(timeoutTimerRef.current);
+          timeoutTimerRef.current = null;
+        }
+        setIsExecuting(false);
+        setExecutionState('failed');
+      };
+
+      worker.onmessage = (e: MessageEvent) => {
+        const { type, text, message, plots, executionTimeMs, success, files, package: pkg, error, state } = e.data;
+
+        if (type === 'stdout') {
+          setStdoutText((prev) => prev + text);
+        } else if (type === 'stderr') {
+          setStderrText((prev) => prev + text);
+        } else if (type === 'status') {
+          if (state) setExecutionState(state);
+          setExecutionStatusText(message || '');
+        } else if (type === 'initialized') {
+          setExecutionState((prev) => (prev === 'initializing' ? 'ready' : prev));
+          setExecutionStatusText('');
+        } else if (type === 'runComplete') {
+          if (timeoutTimerRef.current) {
+            clearTimeout(timeoutTimerRef.current);
+            timeoutTimerRef.current = null;
+          }
+          setIsExecuting(false);
+          setExecutionState(success ? 'completed' : 'failed');
+          setExecutionStatusText('');
+
+          if (plots && Array.isArray(plots) && plots.length > 0) {
+            setGeneratedPlots(plots);
+            setActiveTab('plots');
+          }
+          setExecutionStats({
+            durationMs: executionTimeMs,
+            exitCode: success ? 0 : 1,
+            compilerUsed: 'Pyodide WebAssembly (Python 3.12)',
+          });
+        } else if (type === 'error') {
+          if (timeoutTimerRef.current) {
+            clearTimeout(timeoutTimerRef.current);
+            timeoutTimerRef.current = null;
+          }
+          setIsExecuting(false);
+          setExecutionState('failed');
+          setExecutionStatusText('');
+          setStderrText((prev) => prev + `\n[Python Runtime Error]: ${message}\n`);
+        } else if (type === 'fileList') {
+          if (files) {
+            setVirtualFiles(files.map((name: string) => ({ name, size: 0 })));
+          }
+        } else if (type === 'fileUploaded') {
+          showToast('success', `Dataset ${e.data.name} mounted into virtual filesystem at ${e.data.path}`);
+          worker.postMessage({ action: 'listFiles', id: Date.now() });
+        } else if (type === 'micropipSuccess') {
+          setIsInstallingCustomPkg(false);
+          showToast('success', `Python package '${pkg}' installed successfully.`);
+          refreshCacheInfo();
+        } else if (type === 'micropipError') {
+          setIsInstallingCustomPkg(false);
+          showToast('error', `Package '${pkg}' installation failed: ${error}`);
+        }
+      };
+
+      worker.postMessage({ action: 'listFiles', id: Date.now() });
+      pythonWorkerRef.current = worker;
+      return worker;
+    } catch (err: any) {
+      console.error('[Failed to spawn Web Worker]:', err);
+      return null;
+    }
+  }, [showToast, refreshCacheInfo]);
+
+  // Initialize Worker on mount
+  useEffect(() => {
+    const worker = spawnWorker();
     return () => {
-      worker.terminate();
+      if (worker) {
+        worker.terminate();
+      }
       pythonWorkerRef.current = null;
     };
-  }, [showToast, refreshCacheInfo]);
+  }, [spawnWorker]);
+
+  // Handle execution timeout safely
+  const handleTimeout = (limitMs: number) => {
+    if (timeoutTimerRef.current) {
+      clearTimeout(timeoutTimerRef.current);
+      timeoutTimerRef.current = null;
+    }
+
+    if (language === 'python' && pythonWorkerRef.current) {
+      try {
+        pythonWorkerRef.current.terminate();
+      } catch {}
+      pythonWorkerRef.current = null;
+      setTimeout(() => spawnWorker(), 150);
+    }
+
+    setIsExecuting(false);
+    setExecutionState('timed_out');
+    setExecutionStatusText('');
+    setStderrText((prev) =>
+      prev +
+      `\n[Execution Timed Out]: Program exceeded the ${limitMs / 1000}s limit (e.g. possible infinite loop or blocked resource). Execution was stopped safely.\n`
+    );
+    showToast('error', `Execution timed out after ${limitMs / 1000} seconds.`);
+  };
 
   // Execute Code Action (Ctrl+Enter or Run Click)
   const handleRunCode = async () => {
     if (isExecuting) return;
+
+    const codeToRun = codeMap[language];
+    if (!codeToRun.trim()) {
+      showToast('info', 'Editor is empty. Enter code to execute.');
+      return;
+    }
 
     setIsExecuting(true);
     setStdoutText('');
     setStderrText('');
     setExecutionStats(null);
     setActiveTab('console');
+    setExecutionState('running');
 
-    const codeToRun = codeMap[language];
     const jobId = Date.now();
     activeJobIdRef.current = jobId;
 
     addRecentActivity('compiler', `${language.toUpperCase()} Execution`, `${language}-source`, 'completed');
 
+    // Dynamic execution timeout limit (15s for basic programs, 45s if downloading large scientific packages)
+    const requiresHeavyLibraries = language === 'python' && /(?:import|from)\s+(?:pandas|numpy|matplotlib|sklearn|scipy|sympy)/.test(codeToRun);
+    const timeoutLimitMs = requiresHeavyLibraries ? 45000 : 15000;
+
+    if (timeoutTimerRef.current) {
+      clearTimeout(timeoutTimerRef.current);
+    }
+
+    timeoutTimerRef.current = setTimeout(() => {
+      if (activeJobIdRef.current === jobId) {
+        handleTimeout(timeoutLimitMs);
+      }
+    }, timeoutLimitMs);
+
     if (language === 'python') {
-      // Execute in Web Worker via Pyodide
-      if (pythonWorkerRef.current) {
-        pythonWorkerRef.current.postMessage({
+      // Check if we should use high-speed Cloud Server or WebAssembly Pyodide
+      const wantsServer = preferredEngine === 'server' || (preferredEngine === 'auto' && isOnline && !codeToRun.includes('plt.show()'));
+
+      if (wantsServer) {
+        setExecutionStatusText('Running on Python 3 server engine...');
+        try {
+          const res = await fetch('/api/compile-run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              language: 'python',
+              code: codeToRun,
+              stdin: stdinText,
+            }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (timeoutTimerRef.current) {
+              clearTimeout(timeoutTimerRef.current);
+              timeoutTimerRef.current = null;
+            }
+            setStdoutText(data.stdout || '');
+            setStderrText(data.stderr || '');
+            setExecutionStats({
+              durationMs: data.executionTimeMs,
+              exitCode: data.exitCode,
+              compilerUsed: data.compiler || 'Python 3.11 Runtime (Native)',
+            });
+            setIsExecuting(false);
+            setExecutionState(data.success ? 'completed' : 'failed');
+            setExecutionStatusText('');
+            return;
+          }
+        } catch (serverErr) {
+          console.warn('[CompilerTool] Server compile error, switching to Pyodide WebAssembly:', serverErr);
+          setStderrText('[Notice: Server execution unavailable, switching to local WebAssembly engine...]\n');
+        }
+      }
+
+      // Execute via Pyodide WebAssembly Worker
+      let worker = pythonWorkerRef.current;
+      if (!worker) {
+        worker = spawnWorker();
+      }
+
+      if (worker) {
+        setExecutionStatusText(requiresHeavyLibraries ? 'Loading libraries and preparing Python WebAssembly...' : 'Running in WebAssembly Pyodide...');
+        worker.postMessage({
           action: 'runCode',
           id: jobId,
           payload: {
@@ -251,12 +447,19 @@ export const CompilerTool: React.FC = () => {
           },
         });
       } else {
+        if (timeoutTimerRef.current) {
+          clearTimeout(timeoutTimerRef.current);
+          timeoutTimerRef.current = null;
+        }
         setStderrText('Python runtime worker is unavailable. Please refresh.');
         setIsExecuting(false);
+        setExecutionState('failed');
+        setExecutionStatusText('');
       }
     } else {
       // C or C++: Try native server compiler if online, otherwise in-browser engine
       if (isOnline) {
+        setExecutionStatusText(`Compiling with ${language === 'cpp' ? 'G++ 12' : 'GCC 12'}...`);
         try {
           const res = await fetch('/api/compile-run', {
             method: 'POST',
@@ -271,6 +474,10 @@ export const CompilerTool: React.FC = () => {
 
           if (res.ok) {
             const data = await res.json();
+            if (timeoutTimerRef.current) {
+              clearTimeout(timeoutTimerRef.current);
+              timeoutTimerRef.current = null;
+            }
             setStdoutText(data.stdout || '');
             setStderrText(data.stderr || '');
             setExecutionStats({
@@ -279,6 +486,8 @@ export const CompilerTool: React.FC = () => {
               compilerUsed: data.compiler || (language === 'cpp' ? 'G++ 12 (Linux)' : 'GCC 12 (Linux)'),
             });
             setIsExecuting(false);
+            setExecutionState(data.success ? 'completed' : 'failed');
+            setExecutionStatusText('');
             return;
           }
         } catch (serverErr) {
@@ -287,6 +496,11 @@ export const CompilerTool: React.FC = () => {
       }
 
       // Offline In-Browser C/C++ Engine fallback
+      if (timeoutTimerRef.current) {
+        clearTimeout(timeoutTimerRef.current);
+        timeoutTimerRef.current = null;
+      }
+      setExecutionStatusText('Running offline in-browser parser...');
       const localResult = runClientCpp(codeToRun, stdinText, language);
       setStdoutText(localResult.stdout);
       setStderrText(localResult.stderr);
@@ -296,24 +510,39 @@ export const CompilerTool: React.FC = () => {
         compilerUsed: localResult.compiler,
       });
       setIsExecuting(false);
+      setExecutionState(localResult.exitCode === 0 ? 'completed' : 'failed');
+      setExecutionStatusText('');
     }
   };
 
   // Stop Execution
   const handleStop = () => {
-    if (!isExecuting) return;
-    if (language === 'python' && pythonWorkerRef.current) {
-      pythonWorkerRef.current.terminate();
-      // Restart fresh worker
-      const worker = new Worker(new URL('../../workers/pythonWorker.ts', import.meta.url), {
-        type: 'module',
-      });
-      worker.postMessage({ action: 'init' });
-      pythonWorkerRef.current = worker;
+    if (timeoutTimerRef.current) {
+      clearTimeout(timeoutTimerRef.current);
+      timeoutTimerRef.current = null;
     }
+
+    if (language === 'python' && pythonWorkerRef.current) {
+      try {
+        pythonWorkerRef.current.terminate();
+      } catch {}
+      pythonWorkerRef.current = null;
+      setTimeout(() => spawnWorker(), 100);
+    }
+
     setIsExecuting(false);
+    setExecutionState('stopped');
+    setExecutionStatusText('');
     setStderrText((prev) => prev + '\n[Execution aborted by user]\n');
     showToast('info', 'Execution stopped.');
+  };
+
+  // Reset to Minimal Hello World
+  const handleResetToHelloWorld = () => {
+    const hwCode = DEFAULT_HELLO_WORLD[language];
+    updateCode(hwCode);
+    setStdinText('');
+    showToast('info', `Reset ${language.toUpperCase()} to Hello World.`);
   };
 
   // Keyboard shortcut: Ctrl+Enter / Cmd+Enter to Run
@@ -530,8 +759,18 @@ export const CompilerTool: React.FC = () => {
           ))}
         </div>
 
-        {/* Templates Dropdown & Actions */}
+        {/* Templates Dropdown, Engine Selector & Actions */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Reset to Hello World Button */}
+          <button
+            onClick={handleResetToHelloWorld}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-xs font-bold transition cursor-pointer"
+            title="Reset code to clean, minimal Hello World"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+            <span>Hello World</span>
+          </button>
+
           {/* Templates Select */}
           <div className="relative">
             <select
@@ -550,6 +789,20 @@ export const CompilerTool: React.FC = () => {
                   {t.name}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Engine Selector */}
+          <div className="relative">
+            <select
+              value={preferredEngine}
+              onChange={(e) => setPreferredEngine(e.target.value as any)}
+              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              title="Execution Engine: Auto switches to cloud compiler when online, WebAssembly offline"
+            >
+              <option value="auto">Auto (Best Speed)</option>
+              <option value="server">Cloud Native (GCC / Python 3)</option>
+              <option value="wasm">WebAssembly (Pyodide / WASM)</option>
             </select>
           </div>
 
@@ -612,7 +865,7 @@ export const CompilerTool: React.FC = () => {
             {isExecuting ? (
               <>
                 <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                <span>Running...</span>
+                <span>{executionStatusText ? (executionStatusText.length > 20 ? executionStatusText.slice(0, 20) + '...' : executionStatusText) : 'Running...'}</span>
               </>
             ) : (
               <>
@@ -627,7 +880,7 @@ export const CompilerTool: React.FC = () => {
             <button
               onClick={handleStop}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
-              title="Stop execution"
+              title="Stop execution immediately"
             >
               <Square className="w-3.5 h-3.5 fill-current" />
               <span>Stop</span>
@@ -782,13 +1035,36 @@ export const CompilerTool: React.FC = () => {
                 {/* Console Actions Bar */}
                 <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-2">
-                    {executionStats ? (
+                    {isExecuting ? (
+                      <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1.5 animate-pulse">
+                        <div className="w-3 h-3 border-2 border-indigo-500/40 border-t-indigo-500 rounded-full animate-spin" />
+                        <span>{executionStatusText || 'Running...'}</span>
+                      </span>
+                    ) : executionState === 'completed' && executionStats ? (
                       <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         <span>Finished in {executionStats.durationMs}ms</span>
                         <span className="text-slate-400 font-normal">
                           (Exit {executionStats.exitCode})
                         </span>
+                      </span>
+                    ) : executionState === 'failed' ? (
+                      <span className="font-mono text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Execution Failed</span>
+                        {executionStats?.durationMs !== undefined && (
+                          <span className="text-slate-400 font-normal">({executionStats.durationMs}ms)</span>
+                        )}
+                      </span>
+                    ) : executionState === 'timed_out' ? (
+                      <span className="font-mono text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Timed Out</span>
+                      </span>
+                    ) : executionState === 'stopped' ? (
+                      <span className="font-mono text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
+                        <Square className="w-3 h-3 fill-current" />
+                        <span>Stopped</span>
                       </span>
                     ) : (
                       <span className="text-slate-400 font-medium">Console Output</span>
@@ -808,6 +1084,7 @@ export const CompilerTool: React.FC = () => {
                         setStdoutText('');
                         setStderrText('');
                         setExecutionStats(null);
+                        setExecutionState('idle');
                       }}
                       className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
                       title="Clear console"
@@ -818,10 +1095,19 @@ export const CompilerTool: React.FC = () => {
                 </div>
 
                 {/* Console Text Area */}
-                <div className="flex-1 rounded-xl bg-slate-950 p-3.5 font-mono text-xs text-slate-100 overflow-auto min-h-[420px] max-h-[460px] whitespace-pre-wrap select-text leading-relaxed">
+                <div className="flex-1 rounded-xl bg-slate-950 p-3.5 font-mono text-xs text-slate-100 overflow-auto min-h-[420px] max-h-[460px] whitespace-pre-wrap select-text leading-relaxed flex flex-col">
+                  {isExecuting && (
+                    <div className="flex items-center gap-2.5 p-2.5 mb-3 rounded-lg bg-indigo-950/90 border border-indigo-500/40 text-indigo-200 font-mono text-xs">
+                      <div className="w-3.5 h-3.5 border-2 border-indigo-400/40 border-t-indigo-400 rounded-full animate-spin flex-shrink-0" />
+                      <div>
+                        <span className="font-bold text-indigo-300">{executionStatusText || 'Executing program...'}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {stdoutText && <span className="text-emerald-300">{stdoutText}</span>}
                   {stderrText && <span className="text-rose-400 font-semibold">{stderrText}</span>}
-                  {!stdoutText && !stderrText && (
+                  {!stdoutText && !stderrText && !isExecuting && (
                     <span className="text-slate-500 italic">
                       Click 'Run' or press Ctrl+Enter to execute program...
                     </span>

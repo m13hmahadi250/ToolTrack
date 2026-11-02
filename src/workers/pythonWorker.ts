@@ -73,36 +73,56 @@ async function initPyodide() {
     while (isInitializing) {
       await new Promise((r) => setTimeout(r, 100));
     }
-    return pyodideInstance;
+    if (pyodideInstance) return pyodideInstance;
   }
 
   isInitializing = true;
-  postMessage({ type: 'status', message: 'Loading Pyodide WebAssembly runtime...' });
+  postMessage({ type: 'status', state: 'initializing', message: 'Loading Pyodide WebAssembly runtime...' });
 
   try {
-    // Import pyodide script
-    const pyodideScriptUrl = `${PYODIDE_INDEX_URL}pyodide.js`;
-    (self as any).importScripts(pyodideScriptUrl);
+    // In an ES module worker (type: 'module'), importScripts() throws TypeError.
+    // Instead, dynamically import the official pyodide.mjs ES module.
+    let loadPyodideFn: any = null;
+    try {
+      const pyodideModule = await import(/* @vite-ignore */ `${PYODIDE_INDEX_URL}pyodide.mjs`);
+      loadPyodideFn = pyodideModule.loadPyodide;
+    } catch (importErr: any) {
+      console.warn('[Pyodide Worker] ESM dynamic import failed, checking global:', importErr);
+      if (typeof (self as any).loadPyodide === 'function') {
+        loadPyodideFn = (self as any).loadPyodide;
+      } else {
+        throw new Error(`Failed to load Pyodide module: ${importErr?.message || String(importErr)}`);
+      }
+    }
 
-    postMessage({ type: 'status', message: 'Initializing Python 3 engine...' });
-    const loadPyodideFn = (self as any).loadPyodide;
+    if (!loadPyodideFn) {
+      throw new Error('Pyodide load function was not found.');
+    }
+
+    postMessage({ type: 'status', state: 'initializing', message: 'Initializing Python 3 engine...' });
 
     pyodideInstance = await loadPyodideFn({
       indexURL: PYODIDE_INDEX_URL,
       stdout: (text: string) => {
-        postMessage({ type: 'stdout', text });
+        postMessage({ type: 'stdout', text: text.endsWith('\n') ? text : text + '\n' });
       },
       stderr: (text: string) => {
-        postMessage({ type: 'stderr', text });
+        postMessage({ type: 'stderr', text: text.endsWith('\n') ? text : text + '\n' });
       },
     });
 
-    // Run preamble
-    await pyodideInstance.runPythonAsync(PYTHON_PREAMBLE);
+    // Run preamble to setup plot capturing
+    try {
+      await pyodideInstance.runPythonAsync(PYTHON_PREAMBLE);
+    } catch (preambleErr) {
+      console.warn('[Pyodide Worker] Preamble warning:', preambleErr);
+    }
 
     postMessage({
       type: 'initialized',
+      state: 'ready',
       version: pyodideInstance.version || PYODIDE_VERSION,
+      message: 'Python 3 runtime ready.',
     });
 
     return pyodideInstance;
@@ -110,6 +130,7 @@ async function initPyodide() {
     console.error('[Pyodide Worker Error]:', err);
     postMessage({
       type: 'error',
+      state: 'failed',
       message: `Failed to initialize Python runtime: ${err.message || String(err)}`,
     });
     throw err;
@@ -257,7 +278,8 @@ self.onmessage = async (event: MessageEvent) => {
       if (pkgsToLoad.size > 0) {
         postMessage({
           type: 'status',
-          message: `Auto-loading required packages: ${Array.from(pkgsToLoad).join(', ')}...`,
+          state: 'loading_packages',
+          message: `Loading required libraries: ${Array.from(pkgsToLoad).join(', ')}...`,
         });
         for (const p of pkgsToLoad) {
           try {
@@ -272,7 +294,7 @@ self.onmessage = async (event: MessageEvent) => {
         }
       }
 
-      postMessage({ type: 'status', message: 'Executing Python code...' });
+      postMessage({ type: 'status', state: 'running', message: 'Running program...' });
 
       let result: any = null;
       let errorOccurred = false;
@@ -302,6 +324,7 @@ self.onmessage = async (event: MessageEvent) => {
 
       postMessage({
         type: 'runComplete',
+        state: errorOccurred ? 'failed' : 'completed',
         id,
         success: !errorOccurred,
         executionTimeMs,

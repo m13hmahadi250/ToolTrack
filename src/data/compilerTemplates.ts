@@ -10,6 +10,13 @@ export interface CodeTemplate {
 export const COMPILER_TEMPLATES: CodeTemplate[] = [
   // --- PYTHON 3 TEMPLATES ---
   {
+    id: 'py-hello-world',
+    name: 'Hello World (Minimal)',
+    description: 'Instantaneous execution with standard print function.',
+    language: 'python',
+    code: `print("Hello World")`,
+  },
+  {
     id: 'py-data-science',
     name: 'Pandas & NumPy Data Science',
     description: 'Load datasets, compute aggregations, and perform vectorized mathematical transformations.',
@@ -150,6 +157,19 @@ print(f"\\nFirst 8 Fibonacci numbers: {list(fib(8))}")
 
   // --- C++ TEMPLATES ---
   {
+    id: 'cpp-hello-world',
+    name: 'Hello World (Minimal)',
+    description: 'Minimal C++ starter using iostream and std::cout.',
+    language: 'cpp',
+    code: `#include <iostream>
+using namespace std;
+
+int main() {
+    cout << "Hello World" << endl;
+    return 0;
+}`,
+  },
+  {
     id: 'cpp-stdcxx',
     name: 'Competitive Programming (<bits/stdc++.h>)',
     description: 'Fast I/O, vector manipulation, binary search, and STL algorithms using GCC/G++.',
@@ -242,6 +262,18 @@ int main() {
   },
 
   // --- C TEMPLATES ---
+  {
+    id: 'c-hello-world',
+    name: 'Hello World (Minimal)',
+    description: 'Standard C starter with printf and stdio.h.',
+    language: 'c',
+    code: `#include <stdio.h>
+
+int main() {
+    printf("Hello World\\n");
+    return 0;
+}`,
+  },
   {
     id: 'c-stdio',
     name: 'Standard C17 Console Program',
