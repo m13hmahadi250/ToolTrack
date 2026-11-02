@@ -377,6 +377,7 @@ export const CompilerTool: React.FC = () => {
     setIsExecuting(true);
     setStdoutText('');
     setStderrText('');
+    setGeneratedPlots([]);
     setExecutionStats(null);
     setActiveTab('console');
     setExecutionState('running');
@@ -1169,10 +1170,16 @@ export const CompilerTool: React.FC = () => {
                       <BarChart3 className="w-4 h-4 text-indigo-600" />
                       <span>Matplotlib Visualizations</span>
                     </h3>
-                    <p className="text-[11px] text-slate-500">
-                      Plots captured from <code className="font-mono">plt.show()</code> rendered in crisp high-DPI.
-                    </p>
                   </div>
+                  {generatedPlots.length > 0 && (
+                    <button
+                      onClick={() => setGeneratedPlots([])}
+                      className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer font-semibold flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Clear Plots</span>
+                    </button>
+                  )}
                 </div>
 
                 {generatedPlots.length > 0 ? (

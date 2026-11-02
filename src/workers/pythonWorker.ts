@@ -16,10 +16,15 @@ const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/${PYODIDE_VERSION}/f
 
 // Python initialization preamble to setup plot capturing, warning filters, and stdin/stdout hooks
 const PYTHON_PREAMBLE = `
+import os
 import sys
 import io
 import base64
 import warnings
+
+# Configure non-interactive Agg backend before Matplotlib or Pyplot is imported
+os.environ['MPLBACKEND'] = 'Agg'
+os.environ['MPLCONFIGDIR'] = '/tmp/matplotlib'
 
 # Suppress Pyarrow deprecation warnings from pandas and other noisy library notices
 warnings.filterwarnings('ignore', category=DeprecationWarning)
@@ -27,19 +32,48 @@ warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', message='.*Pyarrow.*')
 warnings.filterwarnings('ignore', message='.*pyarrow.*')
 
-# Helper function to capture any generated matplotlib plots as base64 PNGs
+_tooltrack_plots = []
+
+def _tooltrack_setup_matplotlib():
+    global _tooltrack_plots
+    _tooltrack_plots = []
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+
+        def _custom_show(*args, **kwargs):
+            global _tooltrack_plots
+            for fig_num in plt.get_fignums():
+                fig = plt.figure(fig_num)
+                buf = io.BytesIO()
+                fig.savefig(buf, format='png', bbox_inches='tight', dpi=150)
+                buf.seek(0)
+                b64 = base64.b64encode(buf.read()).decode('utf-8')
+                _tooltrack_plots.append(b64)
+                plt.close(fig)
+
+        plt.show = _custom_show
+    except Exception:
+        pass
+
 def _tooltrack_capture_plots():
-    figures = []
-    if 'matplotlib.pyplot' in sys.modules:
+    global _tooltrack_plots
+    plots = list(_tooltrack_plots) if '_tooltrack_plots' in globals() else []
+    try:
         import matplotlib.pyplot as plt
         for fig_num in plt.get_fignums():
             fig = plt.figure(fig_num)
             buf = io.BytesIO()
             fig.savefig(buf, format='png', bbox_inches='tight', dpi=150)
             buf.seek(0)
-            figures.append(base64.b64encode(buf.read()).decode('utf-8'))
+            b64 = base64.b64encode(buf.read()).decode('utf-8')
+            plots.append(b64)
             plt.close(fig)
-    return figures
+    except Exception:
+        pass
+    _tooltrack_plots = []
+    return plots
 `;
 
 async function initPyodide() {
@@ -300,13 +334,17 @@ self.onmessage = async (event: MessageEvent) => {
       let errorOccurred = false;
 
       try {
-        // Enforce warning suppression right before running user code
+        // Enforce non-interactive Agg backend and warning suppression right before running user code
         await py.runPythonAsync(`
-import warnings
+import os, warnings
+os.environ['MPLBACKEND'] = 'Agg'
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', message='.*Pyarrow.*')
 warnings.filterwarnings('ignore', message='.*pyarrow.*')
+
+if '_tooltrack_setup_matplotlib' in globals():
+    _tooltrack_setup_matplotlib()
 `);
         result = await py.runPythonAsync(code);
       } catch (execErr: any) {
