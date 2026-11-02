@@ -43,7 +43,25 @@ const PYTHON_PATTERNS: Array<{
   trigger: RegExp;
   getCompletions: (context: ContextInfo) => CompletionSuggestion[];
 }> = [
-  // Import statements
+  // 1. Imports & Aliases
+  {
+    trigger: /^import\s+pandas\s*$/i,
+    getCompletions: () => [
+      { text: ' as pd', displayText: 'import pandas as pd', kind: 'import', detail: 'Pandas alias', boost: 20 },
+    ],
+  },
+  {
+    trigger: /^import\s+numpy\s*$/i,
+    getCompletions: () => [
+      { text: ' as np', displayText: 'import numpy as np', kind: 'import', detail: 'NumPy alias', boost: 20 },
+    ],
+  },
+  {
+    trigger: /^import\s+matplotlib\s*$/i,
+    getCompletions: () => [
+      { text: '.pyplot as plt', displayText: 'import matplotlib.pyplot as plt', kind: 'import', detail: 'Pyplot alias', boost: 20 },
+    ],
+  },
   {
     trigger: /^imp?o?r?t?\s*$/i,
     getCompletions: () => [
@@ -58,128 +76,246 @@ const PYTHON_PATTERNS: Array<{
     ],
   },
   {
+    trigger: /^from\s+sklearn\.\s*$/i,
+    getCompletions: () => [
+      { text: 'model_selection import train_test_split', displayText: 'model_selection import train_test_split', kind: 'import', detail: 'Train/test split', boost: 20 },
+      { text: 'preprocessing import StandardScaler', displayText: 'preprocessing import StandardScaler', kind: 'import', detail: 'Feature scaling', boost: 20 },
+      { text: 'linear_model import LogisticRegression, LinearRegression', displayText: 'linear_model import LinearRegression...', kind: 'import', detail: 'Linear models', boost: 18 },
+      { text: 'ensemble import RandomForestClassifier', displayText: 'ensemble import RandomForestClassifier', kind: 'import', detail: 'Random forest', boost: 18 },
+      { text: 'metrics import accuracy_score, classification_report', displayText: 'metrics import accuracy_score...', kind: 'import', detail: 'Evaluation metrics', boost: 18 },
+    ],
+  },
+  {
     trigger: /^from\s*$/i,
     getCompletions: () => [
       { text: 'from sklearn.model_selection import train_test_split', displayText: 'from sklearn.model_selection import train_test_split', kind: 'import', detail: 'Split arrays into train/test subsets', boost: 10 },
+      { text: 'from sklearn.preprocessing import StandardScaler', displayText: 'from sklearn.preprocessing import StandardScaler', kind: 'import', detail: 'Feature scaling', boost: 10 },
       { text: 'from sklearn.linear_model import LinearRegression', displayText: 'from sklearn.linear_model import LinearRegression', kind: 'import', detail: 'Ordinary least squares Linear Regression', boost: 9 },
       { text: 'from sklearn.ensemble import RandomForestClassifier', displayText: 'from sklearn.ensemble import RandomForestClassifier', kind: 'import', detail: 'Random Forest Classifier', boost: 9 },
-      { text: 'from sklearn.metrics import accuracy_score, classification_report', displayText: 'from sklearn.metrics import accuracy_score...', kind: 'import', detail: 'Model evaluation metrics', boost: 9 },
-      { text: 'from sklearn.preprocessing import StandardScaler', displayText: 'from sklearn.preprocessing import StandardScaler', kind: 'import', detail: 'Feature scaling', boost: 8 },
     ],
   },
 
-  // Pandas Methods (when typing `pd.` or `df.`)
+  // 2. Pandas Methods (`pd.` or `df.`)
   {
     trigger: /\bpd\.$/i,
     getCompletions: () => [
-      { text: 'read_csv("dataset.csv")', displayText: 'read_csv(filepath)', kind: 'method', detail: 'pd.read_csv', documentation: 'Read a comma-separated values (csv) file into DataFrame.' },
       { text: 'DataFrame(data)', displayText: 'DataFrame(data)', kind: 'method', detail: 'pd.DataFrame', documentation: 'Two-dimensional, size-mutable, potentially heterogeneous tabular data.' },
-      { text: 'Series(data)', displayText: 'Series(data)', kind: 'method', detail: 'pd.Series', documentation: 'One-dimensional ndarray with axis labels.' },
-      { text: 'date_range(start="2024-01-01", periods=10)', displayText: 'date_range(...)', kind: 'method', detail: 'pd.date_range' },
+      { text: 'read_csv("dataset.csv")', displayText: 'read_csv(filepath)', kind: 'method', detail: 'pd.read_csv', documentation: 'Read a comma-separated values (csv) file into DataFrame.' },
+      { text: 'Series(data)', displayText: 'Series(data)', kind: 'method', detail: 'pd.Series' },
       { text: 'concat([df1, df2], axis=0)', displayText: 'concat([df1, df2])', kind: 'method', detail: 'pd.concat' },
       { text: 'merge(df1, df2, on="key")', displayText: 'merge(df1, df2, on=...)', kind: 'method', detail: 'pd.merge' },
     ],
   },
   {
+    trigger: /\b(?:df|data|dataset|frame)\.(?:he?|hea?d?)$/i,
+    getCompletions: () => [
+      { text: 'head(3)', displayText: 'df.head(3)', kind: 'method', detail: 'First 3 rows', boost: 25 },
+      { text: 'head()', displayText: 'df.head()', kind: 'method', detail: 'First 5 rows', boost: 20 },
+    ],
+  },
+  {
+    trigger: /\b(?:df|data|dataset|frame)\.(?:is?|isn?u?l?l?)$/i,
+    getCompletions: () => [
+      { text: 'isnull().sum()', displayText: 'df.isnull().sum()', kind: 'method', detail: 'Count null values per column', boost: 25 },
+      { text: 'isnull()', displayText: 'df.isnull()', kind: 'method', detail: 'Missing value boolean mask', boost: 20 },
+    ],
+  },
+  {
+    trigger: /\b(?:df|data|dataset|frame)\.(?:id?|idx?m?a?x?)$/i,
+    getCompletions: () => [
+      { text: 'idxmax()', displayText: 'df.idxmax()', kind: 'method', detail: 'Index of maximum value', boost: 25 },
+    ],
+  },
+  {
+    trigger: /\b(?:df|data|dataset|frame)\["[^"]+"\]\.(?:fi?|fil?l?n?a?)$/i,
+    getCompletions: (ctx) => {
+      const match = ctx.linePrefix.match(/\b(?:df|data|dataset|frame)\["([^"]+)"\]/);
+      const col = match ? match[1] : 'col';
+      return [
+        { text: `fillna(df["${col}"].mean())`, displayText: `fillna(df["${col}"].mean())`, kind: 'method', detail: 'Impute missing values with column mean', boost: 30 },
+        { text: 'fillna(0)', displayText: 'fillna(0)', kind: 'method', detail: 'Fill missing with 0', boost: 20 },
+      ];
+    },
+  },
+  {
+    trigger: /\b(?:df|data|dataset|frame)\["[^"]+"\]\.(?:st?|str?\.)/i,
+    getCompletions: () => [
+      { text: 'strip().str.title()', displayText: 'str.strip().str.title()', kind: 'method', detail: 'Clean whitespace & capitalize title case', boost: 30 },
+      { text: 'lower()', displayText: 'str.lower()', kind: 'method', detail: 'Convert to lowercase', boost: 20 },
+      { text: 'upper()', displayText: 'str.upper()', kind: 'method', detail: 'Convert to uppercase', boost: 20 },
+    ],
+  },
+  {
     trigger: /\b(?:df|data|dataset|frame)\.$/i,
     getCompletions: () => [
-      { text: 'head()', displayText: 'head(n=5)', kind: 'method', detail: 'df.head()', documentation: 'Return the first n rows.' },
-      { text: 'tail()', displayText: 'tail(n=5)', kind: 'method', detail: 'df.tail()', documentation: 'Return the last n rows.' },
-      { text: 'info()', displayText: 'info()', kind: 'method', detail: 'df.info()', documentation: 'Print a concise summary of a DataFrame.' },
-      { text: 'describe()', displayText: 'describe()', kind: 'method', detail: 'df.describe()', documentation: 'Generate descriptive statistics.' },
+      { text: 'head(3)', displayText: 'head(3)', kind: 'method', detail: 'df.head(3)', documentation: 'Return first n rows.' },
       { text: 'isnull().sum()', displayText: 'isnull().sum()', kind: 'method', detail: 'df.isnull().sum()', documentation: 'Count missing values per column.' },
-      { text: 'dropna()', displayText: 'dropna()', kind: 'method', detail: 'df.dropna()', documentation: 'Remove missing values.' },
-      { text: 'fillna(0)', displayText: 'fillna(value)', kind: 'method', detail: 'df.fillna()', documentation: 'Fill NA/NaN values using specified method.' },
+      { text: 'describe()', displayText: 'describe()', kind: 'method', detail: 'df.describe()', documentation: 'Generate descriptive statistics.' },
+      { text: 'info()', displayText: 'info()', kind: 'method', detail: 'df.info()', documentation: 'Print concise summary of DataFrame.' },
+      { text: 'loc[0]', displayText: 'loc[row_indexer, col_indexer]', kind: 'method', detail: 'df.loc[]' },
+      { text: 'iloc[0]', displayText: 'iloc[row_index, col_index]', kind: 'method', detail: 'df.iloc[]' },
+      { text: 'dropna()', displayText: 'dropna()', kind: 'method', detail: 'df.dropna()' },
       { text: 'groupby("column").mean()', displayText: 'groupby("col").mean()', kind: 'method', detail: 'df.groupby()' },
-      { text: 'sort_values(by="column", ascending=False)', displayText: 'sort_values(by=...)', kind: 'method', detail: 'df.sort_values()' },
       { text: 'to_csv("output.csv", index=False)', displayText: 'to_csv(filepath)', kind: 'method', detail: 'df.to_csv()' },
-      { text: 'columns', displayText: 'columns', kind: 'variable', detail: 'df.columns' },
-      { text: 'shape', displayText: 'shape', kind: 'variable', detail: 'df.shape' },
     ],
   },
 
-  // NumPy Methods (when typing `np.`)
+  // 3. Matplotlib Methods (`plt.`)
   {
-    trigger: /\bnp\.$/i,
+    trigger: /\bplt\.(?:ba?|bar?)$/i,
+    getCompletions: (ctx) => {
+      const hasDf = ctx.declaredVariables.includes('df');
+      return [
+        {
+          text: hasDf ? 'bar(df["Product"], df["Sales"])' : 'bar(x, y)',
+          displayText: 'bar(df["Product"], df["Sales"])',
+          kind: 'method',
+          detail: 'Vertical bar chart',
+          boost: 30,
+        },
+      ];
+    },
+  },
+  {
+    trigger: /\bplt\.(?:xl?|xla?b?e?l?)$/i,
     getCompletions: () => [
-      { text: 'array([1, 2, 3, 4, 5])', displayText: 'array(object)', kind: 'method', detail: 'np.array' },
-      { text: 'linspace(0, 10, 100)', displayText: 'linspace(start, stop, num)', kind: 'method', detail: 'np.linspace' },
-      { text: 'arange(0, 10, 1)', displayText: 'arange(start, stop, step)', kind: 'method', detail: 'np.arange' },
-      { text: 'zeros((3, 3))', displayText: 'zeros(shape)', kind: 'method', detail: 'np.zeros' },
-      { text: 'ones((3, 3))', displayText: 'ones(shape)', kind: 'method', detail: 'np.ones' },
-      { text: 'mean(data)', displayText: 'mean(a)', kind: 'method', detail: 'np.mean' },
-      { text: 'std(data)', displayText: 'std(a)', kind: 'method', detail: 'np.std' },
-      { text: 'random.rand(5)', displayText: 'random.rand(d0, d1...)', kind: 'method', detail: 'np.random.rand' },
-      { text: 'random.randn(100)', displayText: 'random.randn(d0, d1...)', kind: 'method', detail: 'np.random.randn' },
-      { text: 'dot(a, b)', displayText: 'dot(a, b)', kind: 'method', detail: 'np.dot' },
+      { text: 'xlabel("Product")', displayText: 'xlabel("Product")', kind: 'method', detail: 'Set X-axis label', boost: 25 },
+      { text: 'xlabel("X Axis")', displayText: 'xlabel("X Axis")', kind: 'method', detail: 'Set X-axis label', boost: 20 },
     ],
   },
-
-  // Matplotlib Methods (when typing `plt.`)
+  {
+    trigger: /\bplt\.(?:yl?|yla?b?e?l?)$/i,
+    getCompletions: () => [
+      { text: 'ylabel("Sales")', displayText: 'ylabel("Sales")', kind: 'method', detail: 'Set Y-axis label', boost: 25 },
+      { text: 'ylabel("Y Axis")', displayText: 'ylabel("Y Axis")', kind: 'method', detail: 'Set Y-axis label', boost: 20 },
+    ],
+  },
+  {
+    trigger: /\bplt\.(?:ti?|tit?l?e?)$/i,
+    getCompletions: () => [
+      { text: 'title("Product vs Sales")', displayText: 'title("Product vs Sales")', kind: 'method', detail: 'Set chart title', boost: 25 },
+      { text: 'title("Title")', displayText: 'title("Title")', kind: 'method', detail: 'Set chart title', boost: 20 },
+    ],
+  },
+  {
+    trigger: /\bplt\.(?:sh?|sho?w?)$/i,
+    getCompletions: () => [
+      { text: 'show()', displayText: 'show()', kind: 'method', detail: 'Display figure', boost: 30 },
+    ],
+  },
   {
     trigger: /\bplt\.$/i,
     getCompletions: () => [
-      { text: 'plot(x, y, label="Data")', displayText: 'plot(x, y, ...)', kind: 'method', detail: 'plt.plot' },
-      { text: 'scatter(x, y, color="blue")', displayText: 'scatter(x, y)', kind: 'method', detail: 'plt.scatter' },
-      { text: 'bar(categories, values)', displayText: 'bar(x, height)', kind: 'method', detail: 'plt.bar' },
-      { text: 'hist(data, bins=20)', displayText: 'hist(x, bins=...)', kind: 'method', detail: 'plt.hist' },
-      { text: 'title("Graph Title")', displayText: 'title(label)', kind: 'method', detail: 'plt.title' },
-      { text: 'xlabel("X Axis")', displayText: 'xlabel(xlabel)', kind: 'method', detail: 'plt.xlabel' },
-      { text: 'ylabel("Y Axis")', displayText: 'ylabel(ylabel)', kind: 'method', detail: 'plt.ylabel' },
-      { text: 'grid(True)', displayText: 'grid(b=True)', kind: 'method', detail: 'plt.grid' },
+      { text: 'plot(x, y)', displayText: 'plot(x, y)', kind: 'method', detail: 'plt.plot' },
+      { text: 'bar(x, y)', displayText: 'bar(x, y)', kind: 'method', detail: 'plt.bar' },
+      { text: 'scatter(x, y)', displayText: 'scatter(x, y)', kind: 'method', detail: 'plt.scatter' },
+      { text: 'title("Title")', displayText: 'title(label)', kind: 'method', detail: 'plt.title' },
+      { text: 'xlabel("X Axis")', displayText: 'xlabel(label)', kind: 'method', detail: 'plt.xlabel' },
+      { text: 'ylabel("Y Axis")', displayText: 'ylabel(label)', kind: 'method', detail: 'plt.ylabel' },
+      { text: 'grid(True)', displayText: 'grid(True)', kind: 'method', detail: 'plt.grid' },
       { text: 'legend()', displayText: 'legend()', kind: 'method', detail: 'plt.legend' },
-      { text: 'figure(figsize=(8, 5))', displayText: 'figure(figsize=...)', kind: 'method', detail: 'plt.figure' },
       { text: 'show()', displayText: 'show()', kind: 'method', detail: 'plt.show()' },
     ],
   },
 
-  // Scikit-Learn Model & Evaluation
+  // 4. Scikit-Learn Model Preprocessing & Training
   {
-    trigger: /\b(?:model|clf|reg|estimator)\.$/i,
+    trigger: /\btrain_test_split\($/i,
     getCompletions: () => [
-      { text: 'fit(X_train, y_train)', displayText: 'fit(X, y)', kind: 'method', detail: 'Fit model to training data' },
-      { text: 'predict(X_test)', displayText: 'predict(X)', kind: 'method', detail: 'Predict class/values for X' },
-      { text: 'score(X_test, y_test)', displayText: 'score(X, y)', kind: 'method', detail: 'Return mean accuracy / R^2' },
-      { text: 'predict_proba(X_test)', displayText: 'predict_proba(X)', kind: 'method', detail: 'Probability estimates' },
+      {
+        text: 'X, y, test_size=0.25, random_state=42)',
+        displayText: 'X, y, test_size=0.25, random_state=42)',
+        kind: 'snippet',
+        detail: 'Standard train/test split parameters',
+        boost: 30,
+      },
+    ],
+  },
+  {
+    trigger: /\bscaler\.(?:fi?|fit?_?t?r?a?n?s?f?o?r?m?)$/i,
+    getCompletions: () => [
+      { text: 'fit_transform(X_train)', displayText: 'fit_transform(X_train)', kind: 'method', detail: 'Fit to X_train and transform', boost: 30 },
+      { text: 'fit_transform(X)', displayText: 'fit_transform(X)', kind: 'method', detail: 'Fit and transform X', boost: 25 },
+    ],
+  },
+  {
+    trigger: /\bscaler\.(?:tr?|tra?n?s?f?o?r?m?)$/i,
+    getCompletions: () => [
+      { text: 'transform(X_test)', displayText: 'transform(X_test)', kind: 'method', detail: 'Transform test set using fitted mean & std', boost: 30 },
+    ],
+  },
+  {
+    trigger: /^scaler\s*=\s*$/i,
+    getCompletions: () => [
+      { text: 'StandardScaler()', displayText: 'StandardScaler()', kind: 'snippet', detail: 'Instantiate StandardScaler', boost: 30 },
+    ],
+  },
+  {
+    trigger: /^model\s*=\s*$/i,
+    getCompletions: () => [
+      { text: 'LogisticRegression()', displayText: 'LogisticRegression()', kind: 'snippet', detail: 'Instantiate LogisticRegression classifier', boost: 25 },
+      { text: 'LinearRegression()', displayText: 'LinearRegression()', kind: 'snippet', detail: 'Instantiate LinearRegression model', boost: 25 },
+      { text: 'RandomForestClassifier()', displayText: 'RandomForestClassifier()', kind: 'snippet', detail: 'Instantiate RandomForestClassifier', boost: 20 },
+    ],
+  },
+  {
+    trigger: /\bmodel\.(?:fi?|fit?)$/i,
+    getCompletions: () => [
+      { text: 'fit(X_train_scaled, y_train)', displayText: 'fit(X_train_scaled, y_train)', kind: 'method', detail: 'Fit model on scaled training data', boost: 30 },
+      { text: 'fit(X_train, y_train)', displayText: 'fit(X_train, y_train)', kind: 'method', detail: 'Fit model on training data', boost: 25 },
+    ],
+  },
+  {
+    trigger: /\bmodel\.(?:pr?|pre?d?i?c?t?)$/i,
+    getCompletions: () => [
+      { text: 'predict(X_test_scaled)', displayText: 'predict(X_test_scaled)', kind: 'method', detail: 'Predict class/target on scaled test set', boost: 30 },
+      { text: 'predict(X_test)', displayText: 'predict(X_test)', kind: 'method', detail: 'Predict class/target on test set', boost: 25 },
     ],
   },
 
-  // Common Control Flow & Python Structures
+  // 5. Signature Help & Function Continuation (`print(`)
   {
-    trigger: /^for\s*$/i,
+    trigger: /^print\($/i,
+    getCompletions: (ctx) => {
+      const candidates: CompletionSuggestion[] = [];
+      if (ctx.fullCode.includes('average_sales')) {
+        candidates.push({ text: '"Average Sales:", average_sales)', displayText: '"Average Sales:", average_sales)', kind: 'snippet', boost: 25 });
+      }
+      if (ctx.fullCode.includes('X_train')) {
+        candidates.push({ text: '"\nX_train shape:", X_train.shape)', displayText: '"X_train shape:", X_train.shape)', kind: 'snippet', boost: 25 });
+      }
+      if (ctx.declaredVariables.includes('df')) {
+        candidates.push({ text: 'df.head(3))', displayText: 'df.head(3))', kind: 'snippet', boost: 20 });
+        candidates.push({ text: 'df)', displayText: 'df)', kind: 'snippet', boost: 18 });
+      }
+      candidates.push({ text: 'f"Result: {val}")', displayText: 'f"Result: {val}")', kind: 'snippet', boost: 10 });
+      return candidates;
+    },
+  },
+
+  // 6. Multiline Next-Line Prediction (High Confidence Continuation)
+  {
+    trigger: /^scaler\s*=\s*StandardScaler\(\)\s*$/i,
     getCompletions: () => [
-      { text: 'i in range(n):', displayText: 'for i in range(n):', kind: 'snippet', detail: 'Standard indexed loop' },
-      { text: 'item in sequence:', displayText: 'for item in sequence:', kind: 'snippet', detail: 'Sequence iteration' },
-      { text: 'idx, val in enumerate(items):', displayText: 'for idx, val in enumerate(items):', kind: 'snippet', detail: 'Enumerate loop' },
-      { text: 'key, value in data.items():', displayText: 'for key, value in dict.items():', kind: 'snippet', detail: 'Dictionary key-value iteration' },
+      {
+        text: '\n\nX_train_scaled = scaler.fit_transform(X_train)\nX_test_scaled = scaler.transform(X_test)',
+        displayText: '→ Next: X_train_scaled = scaler.fit_transform(X_train) ...',
+        kind: 'pattern',
+        detail: 'StandardScaler pipeline continuation',
+        boost: 35,
+      },
     ],
   },
   {
-    trigger: /^def\s*$/i,
+    trigger: /^model\s*=\s*(?:LogisticRegression|LinearRegression|RandomForestClassifier)\(\)\s*$/i,
     getCompletions: () => [
-      { text: 'main():\n    pass', displayText: 'def main():', kind: 'snippet', detail: 'Main function definition' },
-      { text: 'process_data(df):\n    return df', displayText: 'def process_data(df):', kind: 'snippet', detail: 'Data processing function' },
-      { text: 'calculate_stats(numbers):\n    total = sum(numbers)\n    return total / len(numbers)', displayText: 'def calculate_stats(numbers):', kind: 'snippet', detail: 'Statistical calculation function' },
-    ],
-  },
-  {
-    trigger: /^if\s*$/i,
-    getCompletions: () => [
-      { text: '__name__ == "__main__":\n    main()', displayText: 'if __name__ == "__main__":', kind: 'snippet', detail: 'Python script entry point' },
-      { text: 'condition:\n    pass', displayText: 'if condition:', kind: 'snippet', detail: 'Basic conditional statement' },
-    ],
-  },
-  {
-    trigger: /^try\s*$/i,
-    getCompletions: () => [
-      { text: ':\n    # Code block\n    pass\nexcept Exception as e:\n    print(f"Error: {e}")', displayText: 'try: ... except Exception as e:', kind: 'snippet', detail: 'Error handling block' },
-    ],
-  },
-  {
-    trigger: /^with\s*$/i,
-    getCompletions: () => [
-      { text: 'open("file.txt", "r") as f:\n    content = f.read()', displayText: 'with open(...) as f:', kind: 'snippet', detail: 'File reader block' },
-      { text: 'open("output.txt", "w") as f:\n    f.write("data")', displayText: 'with open(..., "w") as f:', kind: 'snippet', detail: 'File writer block' },
+      {
+        text: '\nmodel.fit(X_train_scaled, y_train)\ny_pred = model.predict(X_test_scaled)',
+        displayText: '→ Next: model.fit(...) & y_pred = model.predict(...)',
+        kind: 'pattern',
+        detail: 'Model training and prediction pipeline',
+        boost: 35,
+      },
     ],
   },
 ];
@@ -197,19 +333,13 @@ const CPP_PATTERNS: Array<{
       { text: '#include <string>', displayText: '#include <string>', kind: 'import', detail: 'Std::string class' },
       { text: '#include <algorithm>', displayText: '#include <algorithm>', kind: 'import', detail: 'STL algorithms (sort, find)' },
       { text: '#include <map>', displayText: '#include <map>', kind: 'import', detail: 'Ordered associative container' },
-      { text: '#include <set>', displayText: '#include <set>', kind: 'import', detail: 'Unique elements container' },
-      { text: '#include <queue>', displayText: '#include <queue>', kind: 'import', detail: 'FIFO Queue container' },
-      { text: '#include <bits/stdc++.h>', displayText: '#include <bits/stdc++.h>', kind: 'import', detail: 'Competitive programming header' },
       { text: '#include <stdio.h>', displayText: '#include <stdio.h>', kind: 'import', detail: 'Standard C I/O' },
-      { text: '#include <stdlib.h>', displayText: '#include <stdlib.h>', kind: 'import', detail: 'C standard library (malloc, free)' },
-      { text: '#include <math.h>', displayText: '#include <math.h>', kind: 'import', detail: 'C math functions' },
     ],
   },
   {
     trigger: /^int\s*$/i,
     getCompletions: () => [
       { text: 'int main() {\n    std::cout << "Hello World" << std::endl;\n    return 0;\n}', displayText: 'int main() { ... }', kind: 'snippet', detail: 'Main entry function' },
-      { text: 'int main(int argc, char* argv[]) {\n    return 0;\n}', displayText: 'int main(argc, argv)', kind: 'snippet', detail: 'Command-line main function' },
     ],
   },
   {
@@ -226,21 +356,8 @@ const CPP_PATTERNS: Array<{
       { text: 'cin >> ', displayText: 'std::cin >>', kind: 'method', detail: 'Input stream' },
       { text: 'vector<int> ', displayText: 'std::vector<T>', kind: 'keyword', detail: 'Dynamic array' },
       { text: 'string ', displayText: 'std::string', kind: 'keyword', detail: 'String' },
-      { text: 'sort(', displayText: 'std::sort(first, last)', kind: 'function', detail: 'Sort elements' },
+      { text: 'sort(v.begin(), v.end());', displayText: 'std::sort(first, last)', kind: 'function', detail: 'Sort elements' },
       { text: 'endl', displayText: 'std::endl', kind: 'keyword', detail: 'Newline and flush' },
-      { text: 'max(', displayText: 'std::max(a, b)', kind: 'function', detail: 'Maximum value' },
-      { text: 'min(', displayText: 'std::min(a, b)', kind: 'function', detail: 'Minimum value' },
-    ],
-  },
-  {
-    trigger: /\b(?:v|vec|arr|container)\.$/i,
-    getCompletions: () => [
-      { text: 'push_back(val)', displayText: 'push_back(value)', kind: 'method', detail: 'Add element to end' },
-      { text: 'size()', displayText: 'size()', kind: 'method', detail: 'Return element count' },
-      { text: 'empty()', displayText: 'empty()', kind: 'method', detail: 'Check if empty' },
-      { text: 'clear()', displayText: 'clear()', kind: 'method', detail: 'Remove all elements' },
-      { text: 'begin()', displayText: 'begin()', kind: 'method', detail: 'Iterator to beginning' },
-      { text: 'end()', displayText: 'end()', kind: 'method', detail: 'Iterator to end' },
     ],
   },
 ];
@@ -329,20 +446,20 @@ export function predictGhostText(context: ContextInfo): { textToInsert: string; 
   let candidates: CompletionSuggestion[] = [];
 
   for (const pat of patterns) {
-    if (pat.trigger.test(trimmedPrefix)) {
+    if (pat.trigger.test(trimmedPrefix) || pat.trigger.test(linePrefix)) {
       candidates.push(...pat.getCompletions(context));
     }
   }
 
-  // 2. Variable-based dynamic completions (e.g. typing `df` -> suggest `.head()`)
+  // 2. Variable-based dynamic completions (e.g. typing `df` -> suggest `.head(3)`)
   if (context.language === 'python') {
     for (const v of context.declaredVariables) {
-      if (trimmedPrefix.endsWith(`${v}.`)) {
+      if (trimmedPrefix === `${v}.` || trimmedPrefix.endsWith(` ${v}.`)) {
         candidates.push(
-          { text: 'head()', displayText: `${v}.head()`, kind: 'method', detail: 'DataFrame preview' },
-          { text: 'describe()', displayText: `${v}.describe()`, kind: 'method', detail: 'DataFrame summary' },
-          { text: 'info()', displayText: `${v}.info()`, kind: 'method', detail: 'DataFrame metadata' },
-          { text: 'isnull().sum()', displayText: `${v}.isnull().sum()`, kind: 'method', detail: 'Count nulls' }
+          { text: 'head(3)', displayText: `${v}.head(3)`, kind: 'method', detail: 'DataFrame preview', boost: 15 },
+          { text: 'describe()', displayText: `${v}.describe()`, kind: 'method', detail: 'DataFrame summary', boost: 12 },
+          { text: 'info()', displayText: `${v}.info()`, kind: 'method', detail: 'DataFrame metadata', boost: 12 },
+          { text: 'isnull().sum()', displayText: `${v}.isnull().sum()`, kind: 'method', detail: 'Count nulls', boost: 15 }
         );
       }
     }
@@ -352,7 +469,6 @@ export function predictGhostText(context: ContextInfo): { textToInsert: string; 
   const lastWordMatch = trimmedPrefix.match(/([a-zA-Z_][a-zA-Z0-9_]*)$/);
   if (lastWordMatch && lastWordMatch[1].length >= 2) {
     const word = lastWordMatch[1];
-    // Match against variables
     for (const v of context.declaredVariables) {
       if (v.startsWith(word) && v !== word) {
         candidates.push({

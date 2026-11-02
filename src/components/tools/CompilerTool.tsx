@@ -3,6 +3,8 @@ import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { cpp } from '@codemirror/lang-cpp';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
+import { keymap } from '@codemirror/view';
 import {
   Play,
   Square,
@@ -699,11 +701,13 @@ export const CompilerTool: React.FC = () => {
     showToast('success', `${label} copied to clipboard!`);
   };
 
-  // CodeMirror language extension with VS Code-style ghost text & IntelliSense autocomplete
+  // CodeMirror language extension with auto bracket closing, VS Code-style ghost text & IntelliSense autocomplete
   const getLanguageExtension = () => {
     const langExt = language === 'python' ? python() : cpp();
     return [
       langExt,
+      closeBrackets(),
+      keymap.of(closeBracketsKeymap),
       ghostTextExtension(language),
       intelliSenseExtension(language),
     ];
