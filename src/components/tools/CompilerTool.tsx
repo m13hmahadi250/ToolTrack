@@ -933,15 +933,8 @@ export const CompilerTool: React.FC = () => {
                 </span>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-[10px] font-sans font-semibold">
-                  <Sparkles className="w-3 h-3 text-indigo-500" />
-                  <span>Smart Ghost Autocomplete (Tab to accept)</span>
-                </div>
-
-                <div className="text-[11px] text-slate-400">
-                  {currentCode.split('\n').length} lines · {currentCode.length} chars
-                </div>
+              <div className="text-[11px] text-slate-400">
+                {currentCode.split('\n').length} lines · {currentCode.length} chars
               </div>
             </div>
 
