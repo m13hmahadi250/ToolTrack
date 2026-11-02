@@ -390,8 +390,13 @@ export const CompilerTool: React.FC = () => {
     }, timeoutLimitMs);
 
     if (language === 'python') {
-      // Check if we should use high-speed Cloud Server or WebAssembly Pyodide
-      const wantsServer = preferredEngine === 'server' || (preferredEngine === 'auto' && isOnline && !codeToRun.includes('plt.show()'));
+      // Check if code imports packages that require Pyodide WebAssembly (NumPy, Pandas, Scikit-learn, etc.)
+      const hasExternalPackages = /(?:import|from)\s+(?:pandas|numpy|matplotlib|sklearn|scipy|sympy|micropip|requests|bs4|PIL)/.test(codeToRun);
+
+      // Only attempt server if the user explicitly chose server AND there are no heavy external packages,
+      // or in auto mode for simple standard-library scripts.
+      const wantsServer = (preferredEngine === 'server' && !hasExternalPackages) ||
+                          (preferredEngine === 'auto' && isOnline && !hasExternalPackages && !codeToRun.includes('plt.show()'));
 
       if (wantsServer) {
         setExecutionStatusText('Running on Python 3 server engine...');
@@ -408,25 +413,31 @@ export const CompilerTool: React.FC = () => {
 
           if (res.ok) {
             const data = await res.json();
-            if (timeoutTimerRef.current) {
-              clearTimeout(timeoutTimerRef.current);
-              timeoutTimerRef.current = null;
+            // If the server failed because a module is missing, seamlessly fall through to Pyodide WebAssembly
+            if (!data.success && data.stderr && data.stderr.includes('ModuleNotFoundError')) {
+              console.log('[CompilerTool] Server missing package, falling back to WebAssembly Pyodide...');
+              setExecutionStatusText('Loading library in WebAssembly runtime...');
+              // Fall through to Pyodide worker below
+            } else {
+              if (timeoutTimerRef.current) {
+                clearTimeout(timeoutTimerRef.current);
+                timeoutTimerRef.current = null;
+              }
+              setStdoutText(data.stdout || '');
+              setStderrText(data.stderr || '');
+              setExecutionStats({
+                durationMs: data.executionTimeMs,
+                exitCode: data.exitCode,
+                compilerUsed: data.compiler || 'Python 3.11 Runtime (Native)',
+              });
+              setIsExecuting(false);
+              setExecutionState(data.success ? 'completed' : 'failed');
+              setExecutionStatusText('');
+              return;
             }
-            setStdoutText(data.stdout || '');
-            setStderrText(data.stderr || '');
-            setExecutionStats({
-              durationMs: data.executionTimeMs,
-              exitCode: data.exitCode,
-              compilerUsed: data.compiler || 'Python 3.11 Runtime (Native)',
-            });
-            setIsExecuting(false);
-            setExecutionState(data.success ? 'completed' : 'failed');
-            setExecutionStatusText('');
-            return;
           }
         } catch (serverErr) {
           console.warn('[CompilerTool] Server compile error, switching to Pyodide WebAssembly:', serverErr);
-          setStderrText('[Notice: Server execution unavailable, switching to local WebAssembly engine...]\n');
         }
       }
 

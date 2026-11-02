@@ -1528,7 +1528,7 @@ app.post('/api/compile-run', async (req: Request, res: Response) => {
       const scriptPath = path.join(tmpDir, 'script.py');
       await fs.promises.writeFile(scriptPath, code, 'utf-8');
 
-      const pyProc = execFile('python3', [scriptPath], {
+      const pyProc = execFile('python3', ['-W', 'ignore::DeprecationWarning', scriptPath], {
         cwd: tmpDir,
         timeout: EXECUTION_TIMEOUT_MS,
         maxBuffer: MAX_OUTPUT_BYTES,
@@ -1544,7 +1544,10 @@ app.post('/api/compile-run', async (req: Request, res: Response) => {
       }
       if (pyProc.stderr) {
         pyProc.stderr.on('data', (d) => {
-          if (stderr.length < MAX_OUTPUT_BYTES) stderr += d.toString();
+          const chunk = d.toString();
+          if (!chunk.includes('Pyarrow will become a required dependency of pandas')) {
+            if (stderr.length < MAX_OUTPUT_BYTES) stderr += chunk;
+          }
         });
       }
 

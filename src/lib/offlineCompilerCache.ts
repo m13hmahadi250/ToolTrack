@@ -19,6 +19,7 @@ export interface OfflinePackageInfo {
 }
 
 export const CORE_PYODIDE_FILES = [
+  'pyodide.mjs',
   'pyodide.js',
   'pyodide.asm.js',
   'pyodide.asm.wasm',
@@ -42,10 +43,11 @@ export const PYTHON_PACKAGES: OfflinePackageInfo[] = [
     sizeEstimateMb: 11.2,
     isCached: false,
     files: [
-      'pandas-2.2.2-cp312-cp312-pyodide_2024_0_wasm32.whl',
+      'pandas-2.2.0-cp312-cp312-pyodide_2024_0_wasm32.whl',
+      'numpy-1.26.4-cp312-cp312-pyodide_2024_0_wasm32.whl',
       'python_dateutil-2.9.0.post0-py2.py3-none-any.whl',
-      'pytz-2024.1-py2.py3-none-any.whl',
       'six-1.16.0-py2.py3-none-any.whl',
+      'pytz-2024.1-py2.py3-none-any.whl',
     ],
   },
   {
@@ -55,14 +57,18 @@ export const PYTHON_PACKAGES: OfflinePackageInfo[] = [
     sizeEstimateMb: 8.5,
     isCached: false,
     files: [
-      'matplotlib-3.8.4-cp312-cp312-pyodide_2024_0_wasm32.whl',
-      'matplotlib_pyodide-0.2.2-py3-none-any.whl',
-      'kiwisolver-1.4.5-cp312-cp312-pyodide_2024_0_wasm32.whl',
-      'pillow-10.2.0-cp312-cp312-pyodide_2024_0_wasm32.whl',
-      'fonttools-4.51.0-py3-none-any.whl',
+      'matplotlib-3.5.2-cp312-cp312-pyodide_2024_0_wasm32.whl',
       'cycler-0.12.1-py3-none-any.whl',
-      'contourpy-1.2.1-cp312-cp312-pyodide_2024_0_wasm32.whl',
+      'six-1.16.0-py2.py3-none-any.whl',
+      'fonttools-4.51.0-py3-none-any.whl',
+      'kiwisolver-1.4.5-cp312-cp312-pyodide_2024_0_wasm32.whl',
+      'numpy-1.26.4-cp312-cp312-pyodide_2024_0_wasm32.whl',
+      'packaging-23.2-py3-none-any.whl',
+      'pillow-10.2.0-cp312-cp312-pyodide_2024_0_wasm32.whl',
       'pyparsing-3.1.2-py3-none-any.whl',
+      'python_dateutil-2.9.0.post0-py2.py3-none-any.whl',
+      'pytz-2024.1-py2.py3-none-any.whl',
+      'matplotlib_pyodide-0.2.2-py3-none-any.whl',
     ],
   },
   {
@@ -74,6 +80,8 @@ export const PYTHON_PACKAGES: OfflinePackageInfo[] = [
     files: [
       'scikit_learn-1.4.2-cp312-cp312-pyodide_2024_0_wasm32.whl',
       'scipy-1.12.0-cp312-cp312-pyodide_2024_0_wasm32.whl',
+      'numpy-1.26.4-cp312-cp312-pyodide_2024_0_wasm32.whl',
+      'openblas-0.3.26.zip',
       'joblib-1.4.0-py3-none-any.whl',
       'threadpoolctl-3.4.0-py3-none-any.whl',
     ],
@@ -84,7 +92,11 @@ export const PYTHON_PACKAGES: OfflinePackageInfo[] = [
     description: 'Advanced mathematics, science, and engineering algorithms built on NumPy.',
     sizeEstimateMb: 14.5,
     isCached: false,
-    files: ['scipy-1.12.0-cp312-cp312-pyodide_2024_0_wasm32.whl'],
+    files: [
+      'scipy-1.12.0-cp312-cp312-pyodide_2024_0_wasm32.whl',
+      'numpy-1.26.4-cp312-cp312-pyodide_2024_0_wasm32.whl',
+      'openblas-0.3.26.zip',
+    ],
   },
   {
     id: 'sympy',
@@ -92,7 +104,10 @@ export const PYTHON_PACKAGES: OfflinePackageInfo[] = [
     description: 'Full-featured computer algebra system for symbolic mathematics and calculus.',
     sizeEstimateMb: 6.1,
     isCached: false,
-    files: ['sympy-1.12-py3-none-any.whl', 'mpmath-1.3.0-py3-none-any.whl'],
+    files: [
+      'sympy-1.12-py3-none-any.whl',
+      'mpmath-1.3.0-py3-none-any.whl',
+    ],
   },
 ];
 
@@ -189,11 +204,13 @@ export async function downloadFilesToCache(
     throw new Error('Cache Storage API is not supported in this browser.');
   }
 
+  // Deduplicate and filter out empty items
+  const uniqueUrls = Array.from(new Set(relativeUrls.filter(Boolean)));
   const cache = await caches.open(COMPILER_CACHE_NAME);
-  const total = relativeUrls.length;
+  const total = uniqueUrls.length;
   let loaded = 0;
 
-  for (const rel of relativeUrls) {
+  for (const rel of uniqueUrls) {
     const fullUrl = `${PYODIDE_BASE_URL}${rel}`;
     if (onProgress) {
       onProgress({
@@ -207,9 +224,27 @@ export async function downloadFilesToCache(
     // Check if already in cache
     const existing = await cache.match(fullUrl);
     if (!existing) {
-      const response = await fetch(fullUrl, { mode: 'cors' });
-      if (!response.ok) {
-        throw new Error(`Failed to download ${rel}: status ${response.status}`);
+      let response: Response | null = null;
+      let lastErr: any = null;
+
+      // Try fetching with retry for transient network dropouts
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await fetch(fullUrl, { mode: 'cors' });
+          if (res.ok) {
+            response = res;
+            break;
+          } else {
+            lastErr = new Error(`status ${res.status}`);
+          }
+        } catch (fetchErr: any) {
+          lastErr = fetchErr;
+          await new Promise((r) => setTimeout(r, 400));
+        }
+      }
+
+      if (!response) {
+        throw new Error(`Failed to download ${rel}: ${lastErr?.message || 'network error'}`);
       }
       await cache.put(fullUrl, response);
     }

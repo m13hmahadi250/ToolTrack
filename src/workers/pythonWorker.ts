@@ -46,11 +46,18 @@ self.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Prom
   return originalFetch(input, init);
 };
 
-// Python initialization preamble to setup plot capturing and stdin/stdout hooks
+// Python initialization preamble to setup plot capturing, warning filters, and stdin/stdout hooks
 const PYTHON_PREAMBLE = `
 import sys
 import io
 import base64
+import warnings
+
+# Suppress Pyarrow deprecation warnings from pandas and other noisy library notices
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', message='.*Pyarrow.*')
+warnings.filterwarnings('ignore', message='.*pyarrow.*')
 
 # Helper function to capture any generated matplotlib plots as base64 PNGs
 def _tooltrack_capture_plots():
@@ -107,6 +114,15 @@ async function initPyodide() {
         postMessage({ type: 'stdout', text: text.endsWith('\n') ? text : text + '\n' });
       },
       stderr: (text: string) => {
+        // Filter out noisy library deprecation warnings like pandas pyarrow notice
+        if (
+          text.includes('Pyarrow will become a required dependency of pandas') ||
+          text.includes('DeprecationWarning: Pyarrow') ||
+          text.includes('issues/54466') ||
+          text.includes('Arrow string type')
+        ) {
+          return;
+        }
         postMessage({ type: 'stderr', text: text.endsWith('\n') ? text : text + '\n' });
       },
     });
@@ -254,14 +270,25 @@ self.onmessage = async (event: MessageEvent) => {
         },
       });
 
-      // Scan code for imported packages and auto-load if compatible
+      // 1. Pyodide built-in AST import scanner & dependency loader
+      try {
+        if (typeof py.loadPackagesFromImports === 'function') {
+          postMessage({
+            type: 'status',
+            state: 'loading_packages',
+            message: 'Checking and loading imported libraries...',
+          });
+          await py.loadPackagesFromImports(code);
+        }
+      } catch (autoPkgErr) {
+        console.warn('[Pyodide Worker] loadPackagesFromImports notice:', autoPkgErr);
+      }
+
+      // 2. Explicit package check for common scientific libraries
       const potentialPackages: { [key: string]: string } = {
         pandas: 'pandas',
-        pd: 'pandas',
         numpy: 'numpy',
-        np: 'numpy',
         matplotlib: 'matplotlib',
-        plt: 'matplotlib',
         sklearn: 'scikit-learn',
         scipy: 'scipy',
         sympy: 'sympy',
@@ -269,7 +296,7 @@ self.onmessage = async (event: MessageEvent) => {
 
       const pkgsToLoad = new Set<string>();
       for (const [key, pkg] of Object.entries(potentialPackages)) {
-        const regex = new RegExp(`\\bimport\\s+${key}\\b|\\bfrom\\s+${key}\\b`);
+        const regex = new RegExp(`(?:import|from)\\s+${key}(?:\\s|\\.|,|$)`);
         if (regex.test(code) && !installedPackages.has(pkg)) {
           pkgsToLoad.add(pkg);
         }
@@ -279,17 +306,14 @@ self.onmessage = async (event: MessageEvent) => {
         postMessage({
           type: 'status',
           state: 'loading_packages',
-          message: `Loading required libraries: ${Array.from(pkgsToLoad).join(', ')}...`,
+          message: `Loading libraries: ${Array.from(pkgsToLoad).join(', ')}...`,
         });
         for (const p of pkgsToLoad) {
           try {
             await py.loadPackage(p);
             installedPackages.add(p);
           } catch (loadErr: any) {
-            postMessage({
-              type: 'stderr',
-              text: `Warning: Could not auto-load package '${p}': ${loadErr.message}\n`,
-            });
+            console.warn(`[Pyodide Worker] loadPackage('${p}') warning:`, loadErr);
           }
         }
       }
@@ -300,6 +324,14 @@ self.onmessage = async (event: MessageEvent) => {
       let errorOccurred = false;
 
       try {
+        // Enforce warning suppression right before running user code
+        await py.runPythonAsync(`
+import warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', message='.*Pyarrow.*')
+warnings.filterwarnings('ignore', message='.*pyarrow.*')
+`);
         result = await py.runPythonAsync(code);
       } catch (execErr: any) {
         errorOccurred = true;
