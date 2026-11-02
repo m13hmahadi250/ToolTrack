@@ -1526,9 +1526,36 @@ app.post('/api/compile-run', async (req: Request, res: Response) => {
 
     if (language === 'python') {
       const scriptPath = path.join(tmpDir, 'script.py');
+      const runnerPath = path.join(tmpDir, 'runner.py');
       await fs.promises.writeFile(scriptPath, code, 'utf-8');
 
-      const pyProc = execFile('python3', ['-W', 'ignore::DeprecationWarning', scriptPath], {
+      // Headless execution wrapper that catches Matplotlib plt.show() and saves figures to PNG
+      const runnerCode = `import os, sys, warnings
+os.environ['MPLBACKEND'] = 'Agg'
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', message='.*Pyarrow.*')
+
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    _fig_id = [0]
+    def _tooltrack_show(*args, **kwargs):
+        _fig_id[0] += 1
+        plt.savefig(f"_plot_{_fig_id[0]}.png", bbox_inches='tight', dpi=150)
+        plt.close()
+    plt.show = _tooltrack_show
+except Exception:
+    pass
+
+with open(${JSON.stringify(scriptPath)}, 'rb') as _f:
+    code_obj = compile(_f.read(), ${JSON.stringify(scriptPath)}, 'exec')
+    exec(code_obj, {'__name__': '__main__'})
+`;
+      await fs.promises.writeFile(runnerPath, runnerCode, 'utf-8');
+
+      const pyProc = execFile('python3', ['-W', 'ignore::DeprecationWarning', runnerPath], {
         cwd: tmpDir,
         timeout: EXECUTION_TIMEOUT_MS,
         maxBuffer: MAX_OUTPUT_BYTES,
@@ -1566,6 +1593,18 @@ app.post('/api/compile-run', async (req: Request, res: Response) => {
         });
       });
 
+      // Collect any generated plots
+      const plots: string[] = [];
+      try {
+        const files = await fs.promises.readdir(tmpDir);
+        for (const file of files) {
+          if (file.endsWith('.png') && (file.startsWith('_plot_') || file.includes('plot'))) {
+            const imgBuf = await fs.promises.readFile(path.join(tmpDir, file));
+            plots.push(imgBuf.toString('base64'));
+          }
+        }
+      } catch {}
+
       const execDuration = Date.now() - startTime;
       return res.json({
         success: exitCode === 0,
@@ -1573,8 +1612,9 @@ app.post('/api/compile-run', async (req: Request, res: Response) => {
         stdout,
         stderr,
         exitCode,
+        plots,
         executionTimeMs: execDuration,
-        compiler: 'Python 3.11 Runtime',
+        compiler: 'Python 3.11 High-Speed Engine',
       });
     }
 

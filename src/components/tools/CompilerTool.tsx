@@ -34,7 +34,6 @@ import {
   Plus
 } from 'lucide-react';
 import { useToolTrack } from '../../context/ToolTrackContext';
-import { COMPILER_TEMPLATES, type CodeTemplate } from '../../data/compilerTemplates';
 import {
   inspectCompilerCache,
   downloadFullDataScienceBundle,
@@ -254,7 +253,19 @@ export const CompilerTool: React.FC = () => {
       worker.onmessage = (e: MessageEvent) => {
         const { type, text, message, plots, executionTimeMs, success, files, package: pkg, error, state } = e.data;
 
-        if (type === 'stdout') {
+        if (type === 'executionStarted') {
+          // Packages & runtime are ready; start real code execution timeout timer
+          if (timeoutTimerRef.current) {
+            clearTimeout(timeoutTimerRef.current);
+          }
+          timeoutTimerRef.current = setTimeout(() => {
+            if (activeJobIdRef.current === e.data.id) {
+              handleTimeout(25000);
+            }
+          }, 25000);
+          setExecutionState('running');
+          setExecutionStatusText(message || 'Executing program...');
+        } else if (type === 'stdout') {
           setStdoutText((prev) => prev + text);
         } else if (type === 'stderr') {
           setStderrText((prev) => prev + text);
@@ -375,32 +386,28 @@ export const CompilerTool: React.FC = () => {
 
     addRecentActivity('compiler', `${language.toUpperCase()} Execution`, `${language}-source`, 'completed');
 
-    // Dynamic execution timeout limit (15s for basic programs, 45s if downloading large scientific packages)
-    const requiresHeavyLibraries = language === 'python' && /(?:import|from)\s+(?:pandas|numpy|matplotlib|sklearn|scipy|sympy)/.test(codeToRun);
-    const timeoutLimitMs = requiresHeavyLibraries ? 45000 : 15000;
-
     if (timeoutTimerRef.current) {
       clearTimeout(timeoutTimerRef.current);
+      timeoutTimerRef.current = null;
     }
 
-    timeoutTimerRef.current = setTimeout(() => {
-      if (activeJobIdRef.current === jobId) {
-        handleTimeout(timeoutLimitMs);
-      }
-    }, timeoutLimitMs);
-
     if (language === 'python') {
-      // Check if code imports packages that require Pyodide WebAssembly (NumPy, Pandas, Scikit-learn, etc.)
-      const hasExternalPackages = /(?:import|from)\s+(?:pandas|numpy|matplotlib|sklearn|scipy|sympy|micropip|requests|bs4|PIL)/.test(codeToRun);
+      // 1. When online (in 'auto' or 'server' mode), use the high-speed server engine.
+      // Host server has native NumPy, Pandas, Matplotlib, Scikit-learn, Scipy preinstalled.
+      const canUseServer = (preferredEngine === 'server' || preferredEngine === 'auto') && isOnline;
 
-      // Only attempt server if the user explicitly chose server AND there are no heavy external packages,
-      // or in auto mode for simple standard-library scripts.
-      const wantsServer = (preferredEngine === 'server' && !hasExternalPackages) ||
-                          (preferredEngine === 'auto' && isOnline && !hasExternalPackages && !codeToRun.includes('plt.show()'));
+      if (canUseServer) {
+        setExecutionStatusText('Running on high-speed Python 3 engine...');
+        timeoutTimerRef.current = setTimeout(() => {
+          if (activeJobIdRef.current === jobId) {
+            handleTimeout(15000);
+          }
+        }, 15000);
 
-      if (wantsServer) {
-        setExecutionStatusText('Running on Python 3 server engine...');
         try {
+          const controller = new AbortController();
+          const serverTimer = setTimeout(() => controller.abort(), 12000);
+
           const res = await fetch('/api/compile-run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -409,46 +416,59 @@ export const CompilerTool: React.FC = () => {
               code: codeToRun,
               stdin: stdinText,
             }),
+            signal: controller.signal,
           });
+          clearTimeout(serverTimer);
 
           if (res.ok) {
             const data = await res.json();
-            // If the server failed because a module is missing, seamlessly fall through to Pyodide WebAssembly
-            if (!data.success && data.stderr && data.stderr.includes('ModuleNotFoundError')) {
-              console.log('[CompilerTool] Server missing package, falling back to WebAssembly Pyodide...');
-              setExecutionStatusText('Loading library in WebAssembly runtime...');
-              // Fall through to Pyodide worker below
-            } else {
-              if (timeoutTimerRef.current) {
-                clearTimeout(timeoutTimerRef.current);
-                timeoutTimerRef.current = null;
-              }
-              setStdoutText(data.stdout || '');
-              setStderrText(data.stderr || '');
-              setExecutionStats({
-                durationMs: data.executionTimeMs,
-                exitCode: data.exitCode,
-                compilerUsed: data.compiler || 'Python 3.11 Runtime (Native)',
-              });
-              setIsExecuting(false);
-              setExecutionState(data.success ? 'completed' : 'failed');
-              setExecutionStatusText('');
-              return;
+            if (timeoutTimerRef.current) {
+              clearTimeout(timeoutTimerRef.current);
+              timeoutTimerRef.current = null;
             }
+
+            setStdoutText(data.stdout || '');
+            setStderrText(data.stderr || '');
+
+            if (data.plots && Array.isArray(data.plots) && data.plots.length > 0) {
+              setGeneratedPlots(data.plots);
+              setActiveTab('plots');
+            }
+
+            setExecutionStats({
+              durationMs: data.executionTimeMs,
+              exitCode: data.exitCode,
+              compilerUsed: data.compiler || 'Python 3.11 High-Speed Engine',
+            });
+            setIsExecuting(false);
+            setExecutionState(data.success ? 'completed' : 'failed');
+            setExecutionStatusText('');
+            return;
           }
         } catch (serverErr) {
-          console.warn('[CompilerTool] Server compile error, switching to Pyodide WebAssembly:', serverErr);
+          console.warn('[CompilerTool] Server engine error, switching to Pyodide WebAssembly:', serverErr);
         }
       }
 
-      // Execute via Pyodide WebAssembly Worker
+      // 2. Offline or WebAssembly mode fallback: Run via Pyodide WebAssembly Worker
       let worker = pythonWorkerRef.current;
       if (!worker) {
         worker = spawnWorker();
       }
 
       if (worker) {
-        setExecutionStatusText(requiresHeavyLibraries ? 'Loading libraries and preparing Python WebAssembly...' : 'Running in WebAssembly Pyodide...');
+        setExecutionStatusText('Preparing Python WebAssembly runtime & packages...');
+        // Generous 90s watchdog for package downloads over network; the real 25s execution timer
+        // will be armed once the worker fires 'executionStarted'
+        if (timeoutTimerRef.current) {
+          clearTimeout(timeoutTimerRef.current);
+        }
+        timeoutTimerRef.current = setTimeout(() => {
+          if (activeJobIdRef.current === jobId) {
+            handleTimeout(90000);
+          }
+        }, 90000);
+
         worker.postMessage({
           action: 'runCode',
           id: jobId,
@@ -627,14 +647,6 @@ export const CompilerTool: React.FC = () => {
     e.target.value = '';
   };
 
-  // Apply Starter Template
-  const handleApplyTemplate = (tmpl: CodeTemplate) => {
-    updateCode(tmpl.code);
-    if (tmpl.defaultStdin !== undefined) {
-      setStdinText(tmpl.defaultStdin);
-    }
-    showToast('info', `Applied template: ${tmpl.name}`);
-  };
 
   // Download Offline Data Science Bundle
   const handleDownloadOfflineBundle = async () => {
@@ -770,7 +782,7 @@ export const CompilerTool: React.FC = () => {
           ))}
         </div>
 
-        {/* Templates Dropdown, Engine Selector & Actions */}
+        {/* Toolbar Controls: Reset to Hello World, Engine Selector & Actions */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Reset to Hello World Button */}
           <button
@@ -781,27 +793,6 @@ export const CompilerTool: React.FC = () => {
             <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
             <span>Hello World</span>
           </button>
-
-          {/* Templates Select */}
-          <div className="relative">
-            <select
-              onChange={(e) => {
-                const tmpl = COMPILER_TEMPLATES.find((t) => t.id === e.target.value);
-                if (tmpl) handleApplyTemplate(tmpl);
-              }}
-              value=""
-              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            >
-              <option value="" disabled>
-                Starter Templates...
-              </option>
-              {COMPILER_TEMPLATES.filter((t) => t.language === language).map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
 
           {/* Engine Selector */}
           <div className="relative">
@@ -1217,7 +1208,7 @@ export const CompilerTool: React.FC = () => {
                     <BarChart3 className="w-10 h-10 stroke-1 text-slate-300 dark:text-slate-600" />
                     <p className="text-xs font-semibold">No Matplotlib plots generated yet.</p>
                     <p className="text-[11px] max-w-xs">
-                      Try the <span className="font-bold text-indigo-500">Matplotlib Data Visualization</span> template from the dropdown to see graphs rendered here.
+                      Run Python code with Matplotlib (e.g. <span className="font-mono text-indigo-500 font-semibold">plt.show()</span>) to generate and view plots here.
                     </p>
                   </div>
                 )}

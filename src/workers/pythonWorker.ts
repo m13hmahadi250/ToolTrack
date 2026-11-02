@@ -13,38 +13,6 @@ let installedPackages = new Set<string>();
 
 const PYODIDE_VERSION = 'v0.26.4';
 const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/${PYODIDE_VERSION}/full/`;
-const CACHE_NAME = 'tooltrack-compiler-cache-v1';
-
-// Intercept fetch inside worker to serve Pyodide assets directly from CacheStorage when available
-const originalFetch = self.fetch;
-self.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString();
-
-  if (url.includes('cdn.jsdelivr.net/pyodide')) {
-    try {
-      if ('caches' in self) {
-        const cache = await caches.open(CACHE_NAME);
-        const cachedResponse = await cache.match(input);
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-
-        // If not cached, fetch online and optionally store in cache if offline mode is being prepared
-        const networkResponse = await originalFetch(input, init);
-        if (networkResponse.ok && networkResponse.status === 200) {
-          try {
-            cache.put(input, networkResponse.clone());
-          } catch {}
-        }
-        return networkResponse;
-      }
-    } catch (e) {
-      // Fallback to normal fetch
-    }
-  }
-
-  return originalFetch(input, init);
-};
 
 // Python initialization preamble to setup plot capturing, warning filters, and stdin/stdout hooks
 const PYTHON_PREAMBLE = `
@@ -77,8 +45,10 @@ def _tooltrack_capture_plots():
 async function initPyodide() {
   if (pyodideInstance) return pyodideInstance;
   if (isInitializing) {
-    while (isInitializing) {
+    let waitCount = 0;
+    while (isInitializing && waitCount < 120) {
       await new Promise((r) => setTimeout(r, 100));
+      waitCount++;
     }
     if (pyodideInstance) return pyodideInstance;
   }
@@ -318,7 +288,13 @@ self.onmessage = async (event: MessageEvent) => {
         }
       }
 
-      postMessage({ type: 'status', state: 'running', message: 'Running program...' });
+      postMessage({
+        type: 'executionStarted',
+        id,
+        state: 'running',
+        message: 'Executing program...',
+      });
+      postMessage({ type: 'status', state: 'running', message: 'Executing program...' });
 
       let result: any = null;
       let errorOccurred = false;
