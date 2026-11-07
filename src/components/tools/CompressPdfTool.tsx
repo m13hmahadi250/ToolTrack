@@ -326,7 +326,7 @@ export const CompressPdfTool: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-300">
       <div className="space-y-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 text-xs font-bold">
+        <div className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider">
           <ToolIcon className="w-3.5 h-3.5" />
           <span>{meta.badge}</span>
         </div>
@@ -360,7 +360,7 @@ export const CompressPdfTool: React.FC = () => {
                 <span className="font-bold text-sm text-slate-900 dark:text-white truncate max-w-sm">
                   {file.name}
                 </span>
-                <span className="text-xs text-slate-400 ml-2">
+                <span className="text-xs text-slate-400 ml-2 tabular-nums">
                   Original: {formatBytes(file.size)}
                 </span>
               </div>
@@ -613,7 +613,9 @@ export const CompressPdfTool: React.FC = () => {
                     ? 'Flattening complete! All interactive form elements have been locked into vector graphics.'
                     : isCleanTool
                     ? 'Sanitization complete! All author, application, and tracking tags have been purged.'
-                    : `Optimization complete (${level.toUpperCase()})! Reduced size from ${formatBytes(file.size)} to ${formatBytes(outputSize || 0)}`
+                    : isAlreadyOptimized
+                    ? `Already optimized (${level.toUpperCase()}) — Original size (${formatBytes(file.size)}) preserved to prevent file bloat.`
+                    : `Optimization complete (${level.toUpperCase()})! Reduced size from ${formatBytes(file.size)} to ${formatBytes(outputSize || 0)} (${calculateSavedPercent()}% saved)`
                 }
                 fileName={resultFileName}
                 fileSize={formatBytes(outputSize || 0)}

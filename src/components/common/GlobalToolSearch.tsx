@@ -445,7 +445,7 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
 
                         {/* Tool Details */}
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-snug break-words">
                               {nameChunks.map((chunk, cIdx) =>
                                 chunk.isMatch ? (
@@ -460,22 +460,12 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
                                 )
                               )}
                             </p>
-                            <span
-                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-md shrink-0 ${
-                                isSelected
-                                  ? 'bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6]'
-                                  : 'bg-[#EAF1FF]/60 dark:bg-[#172338]/80 text-[#344054] dark:text-[#B8C4D6] border border-[#DCE3EF] dark:border-[#1E2D47]'
-                              }`}
-                            >
-                              {getCategoryLabel(tool.category)}
+                            <span className="text-xs font-medium text-[#64748B] dark:text-[#94A3B8] shrink-0">
+                              · {getCategoryLabel(tool.category)}
+                              {tool.badge ? ` · ${tool.badge}` : ''}
                             </span>
-                            {tool.badge && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47] shrink-0">
-                                {tool.badge}
-                              </span>
-                            )}
                           </div>
-                          <p className="text-xs text-[#667085] dark:text-[#8292A9] line-clamp-2 mt-1 leading-relaxed">
+                          <p className="text-xs text-[#64748B] dark:text-[#94A3B8] line-clamp-2 mt-1 leading-relaxed">
                             {tool.description}
                           </p>
                         </div>

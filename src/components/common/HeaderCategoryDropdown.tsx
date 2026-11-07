@@ -125,17 +125,17 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Category Header */}
-        <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#DCE3EF] dark:border-[#1E2D47]">
+        <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#E2E8F0] dark:border-[#1E293B]">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold uppercase tracking-wider text-[#2563EB] dark:text-[#3B82F6]">
                 {config.name}
               </span>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47]">
-                {tools.length} Tools
+              <span className="text-xs font-medium text-[#64748B] dark:text-[#94A3B8] tabular-nums">
+                · {tools.length} Tools
               </span>
             </div>
-            <p className="text-xs text-[#667085] dark:text-[#8292A9] mt-0.5 leading-snug">
+            <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-0.5 leading-snug">
               {config.description}
             </p>
           </div>
@@ -154,24 +154,24 @@ export const HeaderCategoryDropdown: React.FC<HeaderCategoryDropdownProps> = ({
                   onClose();
                 }}
                 role="menuitem"
-                className="p-2.5 sm:p-3 rounded-xl flex items-start gap-3 hover:bg-[#EAF1FF]/60 dark:hover:bg-[#172338]/80 transition-all group text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] border border-transparent hover:border-[#DCE3EF] dark:hover:border-[#1E2D47]"
+                className="p-2.5 sm:p-3 rounded-xl flex items-start gap-3 hover:bg-[#EFF6FF]/70 dark:hover:bg-[#1E293B]/80 transition-all group text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] border border-transparent hover:border-[#E2E8F0] dark:hover:border-[#1E293B]"
               >
-                <div className="w-9 h-9 rounded-xl bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] group-hover:bg-[#2563EB] group-hover:text-white dark:group-hover:bg-[#2563EB] dark:group-hover:text-white flex items-center justify-center shrink-0 transition-colors mt-0.5 shadow-2xs">
+                <div className="w-9 h-9 rounded-xl bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#3B82F6] group-hover:bg-[#2563EB] group-hover:text-white dark:group-hover:bg-[#2563EB] dark:group-hover:text-white flex items-center justify-center shrink-0 transition-colors mt-0.5">
                   <Icon className="w-4.5 h-4.5" />
                 </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-semibold text-sm text-[#101828] dark:text-[#F2F4F7] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition-colors leading-snug break-words">
+                    <span className="font-semibold text-sm text-[#0F172A] dark:text-[#F8FAFC] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition-colors leading-snug break-words">
                       {tool.name}
                     </span>
                     {tool.badge && (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47] shrink-0">
-                        {tool.badge}
+                      <span className="text-[11px] font-medium text-[#64748B] dark:text-[#94A3B8] shrink-0">
+                        · {tool.badge}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-[#667085] dark:text-[#8292A9] line-clamp-2 mt-1 leading-relaxed">
+                  <p className="text-xs text-[#64748B] dark:text-[#94A3B8] line-clamp-2 mt-1 leading-relaxed">
                     {tool.description}
                   </p>
                 </div>

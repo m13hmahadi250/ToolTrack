@@ -154,11 +154,11 @@ export const HomePage: React.FC = () => {
       'compress-pdf',
       'merge-pdf',
       'pdf-to-word',
-      'images-to-pdf',
-      'image-background-remover',
       'image-compressor',
       'image-resizer',
+      'image-background-remover',
       'whiteboard',
+      'image-converter',
     ];
     return curatedIds.map((id) => TOOLS_LIST.find((t) => t.id === id)).filter(Boolean) as typeof TOOLS_LIST;
   }, []);
@@ -231,14 +231,14 @@ export const HomePage: React.FC = () => {
 
         {/* Primary Headline */}
         <div className="space-y-3">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#101828] dark:text-[#F2F4F7] tracking-tight leading-[1.08] text-balance">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight leading-[1.08] text-balance">
             Every file. Every task.{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2563EB] via-[#1D4ED8] to-[#7C3AED] dark:from-[#3B82F6] dark:via-[#60A5FA] dark:to-[#8B5CF6]">
               One workspace.
             </span>
           </h1>
-          <p className="text-base sm:text-lg text-[#344054] dark:text-[#B8C4D6] leading-relaxed max-w-2xl mx-auto text-balance font-normal">
-            Convert, organize, optimize, and work with PDFs, documents, images, and more — all in one place. Fast, client-side, and 100% private.
+          <p className="text-base sm:text-lg text-[#475569] dark:text-[#CBD5E1] leading-relaxed max-w-2xl mx-auto text-balance font-normal">
+            Convert, compress, organize, edit, and work with PDFs, documents, spreadsheets, images, Whiteboard, and everyday utilities in one convenient place.
           </p>
         </div>
 
@@ -250,22 +250,22 @@ export const HomePage: React.FC = () => {
           />
 
           {/* Quick Jump Suggestions */}
-          <div className="flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-[#667085] dark:text-[#8292A9]">
-            <span className="font-semibold text-[#344054] dark:text-[#B8C4D6] shrink-0">Popular:</span>
+          <div className="flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+            <span className="font-semibold text-[#475569] dark:text-[#CBD5E1] shrink-0">Popular:</span>
             {[
               { id: 'compress-pdf', label: 'Compress PDF' },
+              { id: 'merge-pdf', label: 'Merge PDF' },
               { id: 'pdf-to-word', label: 'PDF to Word' },
+              { id: 'image-compressor', label: 'Compress Image' },
               { id: 'image-background-remover', label: 'Remove BG' },
               { id: 'whiteboard', label: 'Whiteboard' },
               { id: 'compiler', label: 'Compiler IDE' },
               { id: 'qr-code-generator', label: 'QR Generator' },
-              { id: 'word-counter', label: 'Word Count' },
-              { id: 'calculator', label: 'Calculator' },
             ].map((s) => (
               <button
                 key={s.id}
                 onClick={() => setActiveToolId(s.id)}
-                className="px-2.5 py-1 rounded-lg bg-[#EAF1FF] hover:bg-[#DCE3EF] dark:bg-[#172338] dark:hover:bg-[#1E2D47] text-[#101828] dark:text-[#F2F4F7] transition cursor-pointer text-[11px] font-medium border border-[#DCE3EF] dark:border-[#1E2D47]"
+                className="px-2.5 py-1 rounded-lg bg-[#F1F5F9] hover:bg-[#E2E8F0] dark:bg-[#1E293B] dark:hover:bg-[#334155] text-[#0F172A] dark:text-[#F8FAFC] transition cursor-pointer text-[11px] font-medium border border-[#E2E8F0] dark:border-[#1E293B]"
               >
                 {s.label}
               </button>
@@ -274,16 +274,16 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* Core Value Props Guarantee Strip */}
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-[#667085] dark:text-[#8292A9] pt-4 border-t border-[#DCE3EF]/80 dark:border-[#1E2D47]/80">
-          <div className="flex items-center gap-1.5 text-[#344054] dark:text-[#B8C4D6]">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-[#64748B] dark:text-[#94A3B8] pt-4 border-t border-[#E2E8F0]/80 dark:border-[#1E293B]/80">
+          <div className="flex items-center gap-1.5 text-[#475569] dark:text-[#CBD5E1]">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
             <span>Zero Server Uploads</span>
           </div>
-          <div className="flex items-center gap-1.5 text-[#344054] dark:text-[#B8C4D6]">
+          <div className="flex items-center gap-1.5 text-[#475569] dark:text-[#CBD5E1]">
             <CheckCircle2 className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#3B82F6] shrink-0" />
-            <span>60+ Built-In Utilities</span>
+            <span className="tabular-nums">{TOOLS_LIST.length}+ Built-In Utilities</span>
           </div>
-          <div className="flex items-center gap-1.5 text-[#344054] dark:text-[#B8C4D6]">
+          <div className="flex items-center gap-1.5 text-[#475569] dark:text-[#CBD5E1]">
             <CheckCircle2 className="w-3.5 h-3.5 text-sky-500 shrink-0" />
             <span>Free & Offline-Ready</span>
           </div>
@@ -296,11 +296,11 @@ export const HomePage: React.FC = () => {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-              Frequently Used Tools
+            <h2 className="text-lg sm:text-xl font-bold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">
+              Popular Tools
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Direct access to high-utility file converters, calculators, and media editors
+            <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
+              Direct access to our most used PDF, image, document, and canvas tools
             </p>
           </div>
           <button
@@ -309,7 +309,7 @@ export const HomePage: React.FC = () => {
               const el = document.getElementById('tools-directory');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             }}
-            className="text-xs font-semibold text-[#2563EB] dark:text-[#3B82F6] hover:underline flex items-center gap-1 cursor-pointer"
+            className="text-xs font-semibold text-[#2563EB] dark:text-[#3B82F6] hover:underline flex items-center gap-1 cursor-pointer tabular-nums"
           >
             <span>View All {TOOLS_LIST.length} Tools</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -333,11 +333,11 @@ export const HomePage: React.FC = () => {
                     setActiveToolId(tool.id);
                   }
                 }}
-                className="p-4 rounded-2xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] hover:border-indigo-400 dark:hover:border-[#2563EB] hover:shadow-md tool-card-interactive text-left group cursor-pointer flex flex-col justify-between min-h-[148px] relative"
+                className="p-4 rounded-2xl bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#2563EB] dark:hover:border-[#3B82F6] hover:shadow-md tool-card-interactive text-left group cursor-pointer flex flex-col justify-between min-h-[148px] relative"
               >
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 text-[#2563EB] dark:text-[#3B82F6] flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs">
+                    <div className="w-9 h-9 rounded-xl bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#3B82F6] flex items-center justify-center group-hover:scale-105 transition-transform">
                       <Icon className="w-4.5 h-4.5" />
                     </div>
 
@@ -354,15 +354,13 @@ export const HomePage: React.FC = () => {
                   </div>
 
                   <div>
-                    {tool.id === 'whiteboard' && (
-                      <div className="text-[10px] font-bold text-[#2563EB] dark:text-[#3B82F6] mb-0.5">
-                        Flagship Canvas
-                      </div>
-                    )}
-                    <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition leading-snug break-words">
+                    <div className="text-[11px] font-medium text-[#64748B] dark:text-[#94A3B8] mb-0.5">
+                      {getCategoryLabel(tool.category)}
+                    </div>
+                    <h3 className="font-bold text-sm text-[#0F172A] dark:text-[#F8FAFC] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition leading-snug break-words">
                       {tool.name}
                     </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1 leading-relaxed">
+                    <p className="text-xs text-[#64748B] dark:text-[#94A3B8] line-clamp-2 mt-1 leading-relaxed">
                       {tool.description}
                     </p>
                   </div>
@@ -381,15 +379,12 @@ export const HomePage: React.FC = () => {
       {/* ========================================================================= */}
       {/* 3. FEATURED FLAGSHIP: INTERACTIVE WHITEBOARD                               */}
       {/* ========================================================================= */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#101828] via-[#172338] to-[#0B1220] border border-[#1E2D47] p-6 sm:p-8 text-white shadow-xl">
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0B1220] border border-[#1E293B] p-6 sm:p-8 text-white shadow-xl">
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-3 max-w-2xl text-left">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-indigo-500/20 text-[#93C5FD] border border-[#2563EB]/30">
-                <Sparkles className="w-3.5 h-3.5 text-[#60A5FA]" />
-                Flagship Workspace
-              </span>
-              <span className="text-xs text-slate-400">· 100% Client-Side Vector Canvas</span>
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#60A5FA]">
+              <Sparkles className="w-3.5 h-3.5 text-[#60A5FA]" />
+              <span>Flagship Workspace · 100% Client-Side Vector Canvas</span>
             </div>
 
             <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
@@ -451,10 +446,10 @@ export const HomePage: React.FC = () => {
       <section id="tools-directory" className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
           <div>
-            <h2 className="text-lg sm:text-xl font-bold text-[#101828] dark:text-[#F2F4F7] tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">
               All Tool Categories
             </h2>
-            <p className="text-xs text-[#667085] dark:text-[#8292A9]">
+            <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
               Browse by domain or filter instantly with keyword search
             </p>
           </div>
@@ -462,24 +457,24 @@ export const HomePage: React.FC = () => {
           {/* Dedicated Directory Filter Bar */}
           <div className="flex items-center gap-2">
             <div className="relative w-48 sm:w-60">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#667085] dark:text-[#8292A9]" />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B] dark:text-[#94A3B8]" />
               <input
                 type="text"
                 value={directoryFilter}
                 onChange={(e) => setDirectoryFilter(e.target.value)}
                 placeholder="Filter tools..."
-                className="w-full pl-8 pr-7 py-1.5 rounded-xl bg-white dark:bg-[#111C2E] text-xs text-[#101828] dark:text-[#F2F4F7] border border-[#DCE3EF] dark:border-[#1E2D47] focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                className="w-full pl-8 pr-7 py-1.5 rounded-xl bg-white dark:bg-[#111827] text-xs text-[#0F172A] dark:text-[#F8FAFC] border border-[#E2E8F0] dark:border-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
               />
               {directoryFilter && (
                 <button
                   onClick={() => setDirectoryFilter('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#667085] hover:text-[#101828] dark:hover:text-[#F2F4F7]"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#0F172A] dark:hover:text-[#F8FAFC]"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
-            <span className="text-xs text-[#667085] dark:text-[#8292A9] font-semibold whitespace-nowrap">
+            <span className="text-xs text-[#64748B] dark:text-[#94A3B8] font-semibold whitespace-nowrap tabular-nums">
               {displayedTools.length} {displayedTools.length === 1 ? 'Tool' : 'Tools'}
             </span>
           </div>
@@ -487,7 +482,7 @@ export const HomePage: React.FC = () => {
 
         {/* Category Segmented Tabs */}
         <div
-          className="p-1 bg-[#EAF1FF] dark:bg-[#111C2E] rounded-xl flex items-center gap-1 overflow-x-auto scrollbar-none border border-[#DCE3EF] dark:border-[#1E2D47]"
+          className="p-1 bg-[#F1F5F9] dark:bg-[#111827] rounded-xl flex items-center gap-1 overflow-x-auto scrollbar-none border border-[#E2E8F0] dark:border-[#1E293B]"
           role="tablist"
         >
           {categories.map((cat) => (
@@ -496,19 +491,19 @@ export const HomePage: React.FC = () => {
               onClick={() => handleCategorySelect(cat.id)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
                 activeCategory === cat.id
-                  ? 'bg-white dark:bg-[#172338] text-[#101828] dark:text-[#F2F4F7] shadow-2xs font-bold border border-[#DCE3EF] dark:border-[#1E2D47]'
-                  : 'text-[#344054] dark:text-[#B8C4D6] hover:text-[#101828] dark:hover:text-[#F2F4F7] hover:bg-white/60 dark:hover:bg-[#172338]/60'
+                  ? 'bg-white dark:bg-[#1E293B] text-[#0F172A] dark:text-[#F8FAFC] shadow-2xs font-bold border border-[#E2E8F0] dark:border-[#334155]'
+                  : 'text-[#475569] dark:text-[#CBD5E1] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] hover:bg-white/60 dark:hover:bg-[#1E293B]/60'
               }`}
               role="tab"
               aria-selected={activeCategory === cat.id}
             >
               <span>{cat.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+              <span className={`text-[11px] tabular-nums ${
                 activeCategory === cat.id
-                  ? 'bg-[#EAF1FF] dark:bg-[#111C2E] text-[#2563EB] dark:text-[#3B82F6] font-bold'
-                  : 'bg-[#DCE3EF]/60 dark:bg-[#172338] text-[#667085] dark:text-[#8292A9]'
+                  ? 'text-[#2563EB] dark:text-[#3B82F6] font-bold'
+                  : 'text-[#64748B] dark:text-[#94A3B8] font-normal'
               }`}>
-                {cat.count}
+                · {cat.count}
               </span>
             </button>
           ))}
@@ -518,15 +513,15 @@ export const HomePage: React.FC = () => {
         {isSwitchingCategory ? (
           <ToolCardSkeletonGrid count={8} />
         ) : displayedTools.length === 0 ? (
-          <div className="p-12 text-center rounded-2xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] flex items-center justify-center mx-auto">
+          <div className="p-12 text-center rounded-2xl bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1E293B] space-y-3">
+            <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#3B82F6] flex items-center justify-center mx-auto">
               <FileQuestion className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-[#101828] dark:text-[#F2F4F7]">
+              <h3 className="font-bold text-sm text-[#0F172A] dark:text-[#F8FAFC]">
                 No tools found for "{directoryFilter}"
               </h3>
-              <p className="text-xs text-[#667085] dark:text-[#8292A9] mt-1 max-w-sm mx-auto">
+              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-1 max-w-sm mx-auto">
                 Try searching for common tools like PDF, Image, Word, Compress, Resize, OCR, QR, or Calculator.
               </p>
             </div>
@@ -559,26 +554,21 @@ export const HomePage: React.FC = () => {
                       setActiveToolId(tool.id);
                     }
                   }}
-                  className={`p-4 rounded-2xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] hover:border-[#2563EB] dark:hover:border-[#3B82F6] hover:shadow-md tool-card-interactive text-left group flex flex-col justify-between h-40 cursor-pointer relative stagger-card-enter ${staggerDelayClass}`}
+                  className={`p-4 rounded-2xl bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#2563EB] dark:hover:border-[#3B82F6] hover:shadow-md tool-card-interactive text-left group flex flex-col justify-between h-40 cursor-pointer relative stagger-card-enter ${staggerDelayClass}`}
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <div className="w-8 h-8 rounded-xl bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] group-hover:bg-[#2563EB] group-hover:text-white dark:group-hover:bg-[#2563EB] dark:group-hover:text-white transition-colors flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-xl bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#3B82F6] group-hover:bg-[#2563EB] group-hover:text-white dark:group-hover:bg-[#2563EB] dark:group-hover:text-white transition-colors flex items-center justify-center">
                         <Icon className="w-4 h-4" />
                       </div>
 
                       <div className="flex items-center gap-1.5">
-                        {tool.badge && (
-                          <span className="text-[10px] font-bold text-[#2563EB] dark:text-[#3B82F6]">
-                            {tool.badge}
-                          </span>
-                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleFavoriteTool(tool.id);
                           }}
-                          className="p-1 rounded-md text-[#667085] dark:text-[#8292A9] hover:text-amber-500 transition cursor-pointer"
+                          className="p-1 rounded-md text-[#64748B] dark:text-[#94A3B8] hover:text-amber-500 transition cursor-pointer"
                           title={isFav ? 'Remove favorite' : 'Add to favorites'}
                         >
                           <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-amber-400 text-amber-500' : ''}`} />
@@ -587,19 +577,20 @@ export const HomePage: React.FC = () => {
                     </div>
 
                     <div>
-                      <div className="text-[10px] font-semibold text-[#667085] dark:text-[#8292A9] mb-0.5">
+                      <div className="text-[11px] font-medium text-[#64748B] dark:text-[#94A3B8] mb-0.5">
                         {getCategoryLabel(tool.category)}
+                        {tool.badge ? ` · ${tool.badge}` : ''}
                       </div>
-                      <h3 className="font-bold text-sm text-[#101828] dark:text-[#F2F4F7] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition truncate">
+                      <h3 className="font-bold text-sm text-[#0F172A] dark:text-[#F8FAFC] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition truncate">
                         {tool.name}
                       </h3>
-                      <p className="text-xs text-[#667085] dark:text-[#8292A9] line-clamp-2 mt-1 leading-snug">
+                      <p className="text-xs text-[#64748B] dark:text-[#94A3B8] line-clamp-2 mt-1 leading-snug">
                         {tool.description}
                       </p>
                     </div>
                   </div>
 
-                  <div className="text-xs font-semibold text-[#667085] dark:text-[#8292A9] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] flex items-center gap-1 transition">
+                  <div className="text-xs font-semibold text-[#64748B] dark:text-[#94A3B8] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] flex items-center gap-1 transition">
                     <span>Use Tool</span>
                     <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                   </div>
@@ -618,13 +609,13 @@ export const HomePage: React.FC = () => {
           {favoriteTools.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-[#101828] dark:text-[#F2F4F7] flex items-center gap-1.5">
+                <h3 className="text-sm font-bold text-[#0F172A] dark:text-[#F8FAFC] flex items-center gap-1.5 tabular-nums">
                   <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
-                  <span>Favorite Shortcuts ({favoriteTools.length})</span>
+                  <span>Favorite Shortcuts · {favoriteTools.length}</span>
                 </h3>
                 <button
                   onClick={clearFavoriteTools}
-                  className="text-[11px] text-[#667085] hover:text-[#DC2626] cursor-pointer flex items-center gap-1 transition"
+                  className="text-[11px] text-[#64748B] hover:text-[#DC2626] cursor-pointer flex items-center gap-1 transition"
                 >
                   <Trash2 className="w-3 h-3" />
                   <span>Clear</span>
@@ -638,10 +629,10 @@ export const HomePage: React.FC = () => {
                     <div
                       key={t.id}
                       onClick={() => setActiveToolId(t.id)}
-                      className="p-2.5 rounded-xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] hover:border-amber-400 transition flex items-center gap-2 cursor-pointer"
+                      className="p-2.5 rounded-xl bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1E293B] hover:border-amber-400 transition flex items-center gap-2 cursor-pointer"
                     >
                       <Icon className="w-4 h-4 text-amber-500 shrink-0" />
-                      <span className="text-xs font-semibold text-[#101828] dark:text-[#F2F4F7] truncate">
+                      <span className="text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] truncate">
                         {t.name}
                       </span>
                     </div>
@@ -654,13 +645,13 @@ export const HomePage: React.FC = () => {
           {recentTools.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-[#101828] dark:text-[#F2F4F7] flex items-center gap-1.5">
+                <h3 className="text-sm font-bold text-[#0F172A] dark:text-[#F8FAFC] flex items-center gap-1.5 tabular-nums">
                   <Clock className="w-4 h-4 text-[#2563EB] dark:text-[#3B82F6]" />
-                  <span>Recently Used ({recentTools.length})</span>
+                  <span>Recently Used · {recentTools.length}</span>
                 </h3>
                 <button
                   onClick={clearRecentTools}
-                  className="text-[11px] text-[#667085] hover:text-[#DC2626] cursor-pointer flex items-center gap-1 transition"
+                  className="text-[11px] text-[#64748B] hover:text-[#DC2626] cursor-pointer flex items-center gap-1 transition"
                 >
                   <Trash2 className="w-3 h-3" />
                   <span>Clear History</span>
@@ -674,10 +665,10 @@ export const HomePage: React.FC = () => {
                     <div
                       key={t.id}
                       onClick={() => setActiveToolId(t.id)}
-                      className="p-2.5 rounded-xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] hover:border-[#2563EB] dark:hover:border-[#3B82F6] transition flex items-center gap-2 cursor-pointer"
+                      className="p-2.5 rounded-xl bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#2563EB] dark:hover:border-[#3B82F6] transition flex items-center gap-2 cursor-pointer"
                     >
                       <Icon className="w-4 h-4 text-[#2563EB] dark:text-[#3B82F6] shrink-0" />
-                      <span className="text-xs font-semibold text-[#101828] dark:text-[#F2F4F7] truncate">
+                      <span className="text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC] truncate">
                         {t.name}
                       </span>
                     </div>

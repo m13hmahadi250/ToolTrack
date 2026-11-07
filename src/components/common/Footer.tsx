@@ -55,8 +55,8 @@ export const Footer: React.FC = () => {
           />
           <span className="truncate">{label}</span>
           {badge && (
-            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#EAF1FF] text-[#2563EB] dark:bg-[#172338] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47] ml-auto shrink-0">
-              {badge}
+            <span className="text-[10px] font-medium text-[#8292A9] ml-1 shrink-0">
+              · {badge}
             </span>
           )}
         </button>
@@ -90,19 +90,19 @@ export const Footer: React.FC = () => {
   };
 
   return (
-    <footer className="w-full bg-[#101828] text-[#F2F4F7] border-t border-[#1E2D47] transition-colors mt-auto">
+    <footer className="w-full bg-[#0F172A] text-[#F8FAFC] border-t border-[#1E293B] transition-colors mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-8">
         {/* Engineering Guarantees Strip */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 rounded-2xl bg-[#111C2E] border border-[#1E2D47] mb-14 shadow-lg">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 rounded-2xl bg-[#111827] border border-[#1E293B] mb-14 shadow-lg">
           <div className="flex items-start gap-3.5">
             <div className="p-2.5 rounded-xl bg-emerald-950/70 border border-emerald-800/60 text-emerald-400 shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-semibold text-sm text-[#F2F4F7]">
+              <h4 className="font-semibold text-sm text-[#F8FAFC]">
                 100% In-Browser Privacy
               </h4>
-              <p className="text-xs text-[#B8C4D6] mt-1 leading-relaxed">
+              <p className="text-xs text-[#CBD5E1] mt-1 leading-relaxed">
                 Your files never touch external servers. All rendering and conversions occur strictly inside your local browser memory streams.
               </p>
             </div>
@@ -113,10 +113,10 @@ export const Footer: React.FC = () => {
               <Cpu className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-semibold text-sm text-[#F2F4F7]">
+              <h4 className="font-semibold text-sm text-[#F8FAFC]">
                 High-Fidelity Vector Engine
               </h4>
-              <p className="text-xs text-[#B8C4D6] mt-1 leading-relaxed">
+              <p className="text-xs text-[#CBD5E1] mt-1 leading-relaxed">
                 Page geometry, vector paths, text layers, and embedded media are parsed with sub-pixel precision to prevent distortion or quality loss.
               </p>
             </div>
@@ -127,10 +127,10 @@ export const Footer: React.FC = () => {
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-semibold text-sm text-[#F2F4F7]">
+              <h4 className="font-semibold text-sm text-[#F8FAFC]">
                 Instant Batch Processing
               </h4>
-              <p className="text-xs text-[#B8C4D6] mt-1 leading-relaxed">
+              <p className="text-xs text-[#CBD5E1] mt-1 leading-relaxed">
                 Asynchronous worker pipelines and automatic memory garbage-collection ensure fast, seamless execution even with heavy multi-page files.
               </p>
             </div>
@@ -138,7 +138,7 @@ export const Footer: React.FC = () => {
         </div>
 
         {/* Primary Multi-Column Directory */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-8 lg:gap-8 pb-12 border-b border-[#1E2D47]">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-8 lg:gap-8 pb-12 border-b border-[#1E293B]">
           {/* Brand & Overview Column */}
           <div className="col-span-2 md:col-span-3 lg:col-span-3 space-y-4 pr-0 lg:pr-4">
             <button
@@ -152,24 +152,12 @@ export const Footer: React.FC = () => {
               <ToolTrackBrand iconClassName="w-9 h-9" showTextOnMobile={true} />
             </button>
 
-            <p className="text-xs text-[#B8C4D6] leading-relaxed max-w-sm">
+            <p className="text-xs text-[#CBD5E1] leading-relaxed max-w-sm">
               All-in-one file, document, image and productivity toolkit. Work with PDFs, Word, Excel, images, OCR, notes and an interactive Whiteboard directly in your browser with complete privacy and zero server storage.
             </p>
 
-            {/* Quiet Status Indicator */}
-            <div className="pt-2 flex flex-col gap-2 text-xs">
-              <div className="inline-flex items-center gap-2 text-[#B8C4D6]">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="font-medium text-[#F2F4F7]">
-                  Client Engine: Operational
-                </span>
-              </div>
-              <div className="text-[11px] text-[#8292A9]">
-                Zero server uploads · 100% private in-browser memory
-              </div>
+            <div className="pt-1 text-[11px] text-[#94A3B8]">
+              Zero server uploads · 100% private in-browser memory
             </div>
           </div>
 

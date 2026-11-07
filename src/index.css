@@ -1,46 +1,47 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --color-navy-950: #0B1220;
-  --color-navy-900: #101828;
+  --color-navy-900: #0F172A;
   --color-navy-850: #111C2E;
   --color-navy-800: #172338;
   --color-navy-750: #1C2B44;
-  --color-navy-700: #1E2D47;
+  --color-navy-700: #1E293B;
   --color-navy-600: #26395A;
   --color-slate-850: #111C2E;
 
   --color-brand-blue: #2563EB;
   --color-brand-blue-hover: #1D4ED8;
-  --color-brand-blue-light: #EAF1FF;
-  --color-brand-blue-surface: #F5F8FF;
-  --color-brand-border: #DCE3EF;
-  --color-brand-border-dark: #1E2D47;
-  --color-brand-muted: #667085;
-  --color-brand-secondary: #344054;
+  --color-brand-blue-light: #EFF6FF;
+  --color-brand-blue-surface: #F8FAFC;
+  --color-brand-border: #E2E8F0;
+  --color-brand-border-dark: #1E293B;
+  --color-brand-muted: #64748B;
+  --color-brand-secondary: #475569;
   --color-brand-violet: #7C3AED;
 }
 
 @layer base {
   :root {
-    --background: #F5F8FF;
-    --foreground: #101828;
+    --background: #F8FAFC;
+    --foreground: #0F172A;
     --card: #FFFFFF;
-    --card-foreground: #101828;
-    --surface-soft: #EAF1FF;
-    --muted: #EDF3FC;
-    --muted-foreground: #667085;
-    --secondary-text: #344054;
+    --card-foreground: #0F172A;
+    --surface-soft: #F1F5F9;
+    --muted: #F1F5F9;
+    --muted-foreground: #64748B;
+    --secondary-text: #475569;
     --primary: #2563EB;
     --primary-hover: #1D4ED8;
     --primary-foreground: #FFFFFF;
-    --border: #DCE3EF;
-    --input: #DCE3EF;
+    --border: #E2E8F0;
+    --input: #E2E8F0;
     --ring: #2563EB;
     --destructive: #DC2626;
     --destructive-foreground: #FFFFFF;
-    --success: #15803D;
-    --warning: #B45309;
+    --success: #16A34A;
+    --warning: #D97706;
     --accent-violet: #7C3AED;
 
     /* Unified Animation Design Tokens */
@@ -60,18 +61,18 @@
 
   .dark {
     --background: #0B1220;
-    --foreground: #F2F4F7;
-    --card: #111C2E;
-    --card-foreground: #F2F4F7;
-    --surface-soft: #172338;
+    --foreground: #F8FAFC;
+    --card: #111827;
+    --card-foreground: #F8FAFC;
+    --surface-soft: #1E293B;
     --muted: #131E33;
-    --muted-foreground: #8292A9;
-    --secondary-text: #B8C4D6;
+    --muted-foreground: #94A3B8;
+    --secondary-text: #CBD5E1;
     --primary: #3B82F6;
     --primary-hover: #2563EB;
     --primary-foreground: #FFFFFF;
-    --border: #1E2D47;
-    --input: #1E2D47;
+    --border: #1E293B;
+    --input: #1E293B;
     --ring: #3B82F6;
     --destructive: #EF4444;
     --destructive-foreground: #FFFFFF;
@@ -88,6 +89,11 @@
 
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 
   /* Universal select and option contrast */

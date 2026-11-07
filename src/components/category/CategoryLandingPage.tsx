@@ -42,26 +42,26 @@ export const CategoryLandingPage: React.FC<CategoryLandingPageProps> = ({ catego
       </nav>
 
       {/* Hero Header */}
-      <header className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] shadow-xs space-y-3">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF1FF] dark:bg-[#172338] border border-[#DCE3EF] dark:border-[#1E2D47] text-[#2563EB] dark:text-[#3B82F6] text-xs font-bold">
+      <header className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1E293B] shadow-xs space-y-3">
+        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#2563EB] dark:text-[#3B82F6]">
           <Sparkles className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#3B82F6]" />
-          <span>ToolTrack Category Directory</span>
+          <span>ToolTrack Category Directory · <span className="tabular-nums">{categoryTools.length}</span> Tools</span>
         </div>
 
-        <h1 className="text-2xl sm:text-4xl font-extrabold text-[#101828] dark:text-[#F2F4F7] tracking-tight">
+        <h1 className="text-2xl sm:text-4xl font-extrabold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">
           {categoryData.h1}
         </h1>
 
-        <p className="text-sm sm:text-base text-[#344054] dark:text-[#B8C4D6] max-w-3xl leading-relaxed">
+        <p className="text-sm sm:text-base text-[#475569] dark:text-[#CBD5E1] max-w-3xl leading-relaxed">
           {categoryData.seoDescription}
         </p>
 
-        <div className="pt-2 flex flex-wrap items-center gap-4 text-xs font-medium text-[#667085] dark:text-[#8292A9]">
+        <div className="pt-2 flex flex-wrap items-center gap-4 text-xs font-medium text-[#64748B] dark:text-[#94A3B8]">
           <span className="flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-[#15803D] dark:text-emerald-400" />
+            <ShieldCheck className="w-4 h-4 text-[#16A34A] dark:text-emerald-400" />
             100% In-Browser Privacy
           </span>
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1.5 tabular-nums">
             <Layers className="w-4 h-4 text-[#2563EB] dark:text-[#3B82F6]" />
             {categoryTools.length} Specialized Utilities Available
           </span>
@@ -70,11 +70,11 @@ export const CategoryLandingPage: React.FC<CategoryLandingPageProps> = ({ catego
 
       {/* Grid of Tools in Category */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-[#DCE3EF] dark:border-[#1E2D47]">
-          <h2 className="text-base sm:text-lg font-bold text-[#101828] dark:text-[#F2F4F7]">
+        <div className="flex items-center justify-between pb-2 border-b border-[#E2E8F0] dark:border-[#1E293B]">
+          <h2 className="text-base sm:text-lg font-bold text-[#0F172A] dark:text-[#F8FAFC]">
             Available {categoryData.name}
           </h2>
-          <span className="text-xs text-[#667085] dark:text-[#8292A9]">
+          <span className="text-xs text-[#64748B] dark:text-[#94A3B8] tabular-nums">
             {categoryTools.length} tools
           </span>
         </div>
@@ -94,25 +94,25 @@ export const CategoryLandingPage: React.FC<CategoryLandingPageProps> = ({ catego
                   e.preventDefault();
                   setActiveToolId(tool.id);
                 }}
-                className={`group p-5 rounded-2xl bg-white dark:bg-[#111C2E] border border-[#DCE3EF] dark:border-[#1E2D47] hover:border-[#2563EB] dark:hover:border-[#3B82F6] hover:shadow-md transition flex flex-col justify-between space-y-4 cursor-pointer tool-card-interactive stagger-card-enter ${staggerDelayClass}`}
+                className={`group p-5 rounded-2xl bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#1E293B] hover:border-[#2563EB] dark:hover:border-[#3B82F6] hover:shadow-md transition flex flex-col justify-between space-y-4 cursor-pointer tool-card-interactive stagger-card-enter ${staggerDelayClass}`}
               >
                 <div className="space-y-3">
                   <div className="flex items-start justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] group-hover:bg-[#2563EB] group-hover:text-white dark:group-hover:bg-[#2563EB] dark:group-hover:text-white transition-colors flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#3B82F6] group-hover:bg-[#2563EB] group-hover:text-white dark:group-hover:bg-[#2563EB] dark:group-hover:text-white transition-colors flex items-center justify-center">
                       <Icon className="w-5 h-5" />
                     </div>
                     {tool.badge && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EAF1FF] dark:bg-[#172338] text-[#2563EB] dark:text-[#3B82F6] border border-[#DCE3EF] dark:border-[#1E2D47]">
+                      <span className="text-[11px] font-medium text-[#64748B] dark:text-[#94A3B8]">
                         {tool.badge}
                       </span>
                     )}
                   </div>
 
                   <div>
-                    <h3 className="font-bold text-sm text-[#101828] dark:text-[#F2F4F7] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition-colors">
+                    <h3 className="font-bold text-sm text-[#0F172A] dark:text-[#F8FAFC] group-hover:text-[#2563EB] dark:group-hover:text-[#3B82F6] transition-colors">
                       {tool.name}
                     </h3>
-                    <p className="text-xs text-[#667085] dark:text-[#8292A9] mt-1 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-1 line-clamp-2 leading-relaxed">
                       {tool.description}
                     </p>
                   </div>

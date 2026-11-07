@@ -340,25 +340,25 @@ function MainContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F5F8FF] dark:bg-[#0B1220] text-[#101828] dark:text-[#F2F4F7] transition-colors">
+    <div className="min-h-screen flex flex-col bg-[#F8FAFC] dark:bg-[#0B1220] text-[#0F172A] dark:text-[#F8FAFC] transition-colors">
       <Header />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Breadcrumb navigation for category page */}
         {!activeToolId && activeCategoryKey && (
-          <nav className="flex items-center gap-2 text-xs font-semibold text-[#667085] dark:text-[#8292A9] mb-6 pb-3 border-b border-[#DCE3EF] dark:border-[#1E2D47]">
+          <nav className="flex items-center gap-2 text-xs font-semibold text-[#64748B] dark:text-[#94A3B8] mb-6 pb-3 border-b border-[#E2E8F0] dark:border-[#1E293B]">
             <button
               onClick={() => {
                 setActiveCategoryKey(null);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#EAF1FF] dark:bg-[#172338] hover:bg-[#DCE3EF] dark:hover:bg-[#1E2D47] text-[#101828] dark:text-[#F2F4F7] border border-[#DCE3EF] dark:border-[#1E2D47] transition cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F1F5F9] dark:bg-[#1E293B] hover:bg-[#E2E8F0] dark:hover:bg-[#334155] text-[#0F172A] dark:text-[#F8FAFC] border border-[#E2E8F0] dark:border-[#1E293B] transition cursor-pointer"
             >
               <Home className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#3B82F6]" />
               <span>All Tools</span>
             </button>
-            <ChevronRight className="w-3.5 h-3.5 text-[#667085] dark:text-[#8292A9]" />
-            <span className="text-[#101828] dark:text-[#F2F4F7] font-bold">
+            <ChevronRight className="w-3.5 h-3.5 text-[#64748B] dark:text-[#94A3B8]" />
+            <span className="text-[#0F172A] dark:text-[#F8FAFC] font-bold">
               {CATEGORIES_SEO[activeCategoryKey]?.name || activeCategoryKey}
             </span>
           </nav>
@@ -366,39 +366,74 @@ function MainContent() {
 
         {/* Breadcrumb navigation if on tool page */}
         {activeToolId && currentTool && (
-          <nav className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[#667085] dark:text-[#8292A9] mb-6 pb-3 border-b border-[#DCE3EF] dark:border-[#1E2D47]">
+          <nav className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[#64748B] dark:text-[#94A3B8] mb-6 pb-3 border-b border-[#E2E8F0] dark:border-[#1E293B]">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {
                   setActiveToolId(null);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#EAF1FF] dark:bg-[#172338] hover:bg-[#DCE3EF] dark:hover:bg-[#1E2D47] text-[#101828] dark:text-[#F2F4F7] border border-[#DCE3EF] dark:border-[#1E2D47] transition cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F1F5F9] dark:bg-[#1E293B] hover:bg-[#E2E8F0] dark:hover:bg-[#334155] text-[#0F172A] dark:text-[#F8FAFC] border border-[#E2E8F0] dark:border-[#1E293B] transition cursor-pointer"
               >
                 <Home className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#3B82F6]" />
                 <span>All Tools</span>
               </button>
-              <ChevronRight className="w-3.5 h-3.5 text-[#667085] dark:text-[#8292A9]" />
+              <ChevronRight className="w-3.5 h-3.5 text-[#64748B] dark:text-[#94A3B8]" />
               {currentTool.category && (
                 <>
-                  <span className="text-[#667085] dark:text-[#8292A9] font-medium">
+                  <span className="text-[#64748B] dark:text-[#94A3B8] font-medium">
                     {currentTool.category.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                   </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-[#667085] dark:text-[#8292A9]" />
+                  <ChevronRight className="w-3.5 h-3.5 text-[#64748B] dark:text-[#94A3B8]" />
                 </>
               )}
-              <span className="text-[#101828] dark:text-[#F2F4F7] font-bold truncate max-w-xs sm:max-w-md">
+              <span className="text-[#0F172A] dark:text-[#F8FAFC] font-bold truncate max-w-xs sm:max-w-md">
                 {currentTool.name}
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {(() => {
+                const capability = getToolOfflineCapability(currentTool);
+                if (capability === 'offline') {
+                  return (
+                    <span
+                      className="hidden sm:inline-flex items-center gap-1 text-[11px] text-[#16A34A] dark:text-emerald-400 font-medium"
+                      title="This tool runs 100% locally in your browser and works completely offline"
+                    >
+                      <Wifi className="w-3 h-3 text-emerald-500" />
+                      <span>Works Offline</span>
+                    </span>
+                  );
+                }
+                if (capability === 'partial') {
+                  return (
+                    <span
+                      className="hidden sm:inline-flex items-center gap-1 text-[11px] text-[#2563EB] dark:text-[#60A5FA] font-medium"
+                      title="Core browser tools work offline; deep cloud models benefit from an active connection"
+                    >
+                      <Wifi className="w-3 h-3 text-[#2563EB] dark:text-[#60A5FA]" />
+                      <span>Offline Ready</span>
+                    </span>
+                  );
+                }
+                return (
+                  <span
+                    className="hidden sm:inline-flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium"
+                    title="This tool requires an active internet connection"
+                  >
+                    <Cloud className="w-3 h-3 text-amber-500" />
+                    <span>Internet Required</span>
+                  </span>
+                );
+              })()}
+
               <button
                 onClick={() => toggleFavoriteTool(currentTool.id)}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer border ${
                   isFavoriteTool(currentTool.id)
                     ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700/60'
-                    : 'bg-white dark:bg-[#111C2E] text-[#667085] dark:text-[#8292A9] border-[#DCE3EF] dark:border-[#1E2D47] hover:text-amber-500 hover:border-amber-300'
+                    : 'bg-white dark:bg-[#111827] text-[#64748B] dark:text-[#94A3B8] border-[#E2E8F0] dark:border-[#1E293B] hover:text-amber-500 hover:border-amber-300'
                 }`}
                 title={isFavoriteTool(currentTool.id) ? 'Remove from favorites' : 'Add to favorites'}
                 aria-label={isFavoriteTool(currentTool.id) ? 'Remove from favorites' : 'Add to favorites'}
@@ -412,41 +447,6 @@ function MainContent() {
                   {isFavoriteTool(currentTool.id) ? 'Favorited' : 'Favorite'}
                 </span>
               </button>
-
-              {(() => {
-                const capability = getToolOfflineCapability(currentTool);
-                if (capability === 'offline') {
-                  return (
-                    <div
-                      className="hidden sm:flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50/80 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-900/60"
-                      title="This tool runs 100% locally in your browser and works completely offline"
-                    >
-                      <Wifi className="w-3 h-3 text-emerald-500" />
-                      <span>Works Offline</span>
-                    </div>
-                  );
-                }
-                if (capability === 'partial') {
-                  return (
-                    <div
-                      className="hidden sm:flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 font-medium bg-indigo-50/80 dark:bg-indigo-950/40 px-2.5 py-0.5 rounded-full border border-indigo-200/60 dark:border-indigo-900/60"
-                      title="Core browser tools work offline; deep cloud models benefit from an active connection"
-                    >
-                      <Wifi className="w-3 h-3 text-indigo-500" />
-                      <span>Offline Ready</span>
-                    </div>
-                  );
-                }
-                return (
-                  <div
-                    className="hidden sm:flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-400 font-medium bg-amber-50/80 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200/60 dark:border-amber-900/60"
-                    title="This tool requires an active internet connection"
-                  >
-                    <Cloud className="w-3 h-3 text-amber-500" />
-                    <span>Internet Required</span>
-                  </div>
-                );
-              })()}
             </div>
           </nav>
         )}

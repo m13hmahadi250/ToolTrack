@@ -337,7 +337,7 @@ export const OrganizePdfTool: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 text-xs font-bold mb-2">
+          <div className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider mb-2">
             <Layers className="w-3.5 h-3.5" />
             <span>Interactive Visual Page Studio</span>
           </div>
@@ -377,7 +377,7 @@ export const OrganizePdfTool: React.FC = () => {
           {/* Action Toolbar */}
           <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-2 tabular-nums">
                 Selection ({selectedIndices.length}/{pages.length}):
               </span>
 
@@ -464,11 +464,11 @@ export const OrganizePdfTool: React.FC = () => {
                   >
                     {/* Header Tag */}
                     <div className="w-full flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 tabular-nums">
                         Page {idx + 1}
                       </span>
                       {p.rotation !== 0 && (
-                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 tabular-nums">
                           {p.rotation}°
                         </span>
                       )}
@@ -503,21 +503,30 @@ export const OrganizePdfTool: React.FC = () => {
                     {/* Quick Page Action Toolbar */}
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      className="w-full grid grid-cols-4 gap-1 mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80"
+                      className="w-full grid grid-cols-5 gap-1 mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80"
                     >
                       <button
                         title="Move Left / Earlier"
                         disabled={idx === 0}
                         onClick={() => movePage(idx, idx - 1)}
-                        className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 disabled:opacity-20 flex items-center justify-center"
+                        className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 disabled:opacity-20 flex items-center justify-center cursor-pointer"
                       >
                         <ArrowLeft className="w-3.5 h-3.5" />
                       </button>
 
                       <button
+                        title="Move Right / Later"
+                        disabled={idx === pages.length - 1}
+                        onClick={() => movePage(idx, idx + 1)}
+                        className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 disabled:opacity-20 flex items-center justify-center cursor-pointer"
+                      >
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
                         title="Rotate 90°"
                         onClick={() => rotatePage(idx, 90)}
-                        className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center"
+                        className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center cursor-pointer"
                       >
                         <RotateCw className="w-3.5 h-3.5" />
                       </button>
@@ -525,7 +534,7 @@ export const OrganizePdfTool: React.FC = () => {
                       <button
                         title="Duplicate Page"
                         onClick={() => duplicatePage(idx)}
-                        className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center"
+                        className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center cursor-pointer"
                       >
                         <Copy className="w-3.5 h-3.5" />
                       </button>
@@ -534,7 +543,7 @@ export const OrganizePdfTool: React.FC = () => {
                         title="Delete Page"
                         disabled={pages.length <= 1}
                         onClick={() => deletePage(idx)}
-                        className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/50 text-red-600 dark:text-red-400 disabled:opacity-20 flex items-center justify-center"
+                        className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/50 text-red-600 dark:text-red-400 disabled:opacity-20 flex items-center justify-center cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -591,11 +600,11 @@ export const OrganizePdfTool: React.FC = () => {
                 <FileCheck className="w-5 h-5 text-emerald-500" />
                 <span>Ready to Download Organized PDF</span>
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap tabular-nums">
                 <span>Total Pages: {pages.length}</span>
                 {resultSize !== null && (
                   <>
-                    <span>•</span>
+                    <span>·</span>
                     <span>
                       Output: {(resultSize / (1024 * 1024)).toFixed(2)} MB ({resultSize.toLocaleString()} bytes)
                     </span>
