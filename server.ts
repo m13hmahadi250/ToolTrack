@@ -1843,6 +1843,444 @@ if _mpl_loaded or 'matplotlib.pyplot' in sys.modules:
   }
 });
 
+// ============================================================================
+// CLASSROOM / CODING ASSESSMENT API (Server-Backed Persistent Storage & Grader)
+// ============================================================================
+interface ClassroomTestCase {
+  id: string;
+  input: string;
+  expectedOutput: string;
+  isHidden: boolean;
+}
+
+interface ClassroomAssignment {
+  id: string;
+  teacherKey: string;
+  title: string;
+  description: string;
+  language: 'python' | 'cpp' | 'c';
+  starterCode: string;
+  sampleInput: string;
+  sampleOutput: string;
+  durationMinutes?: number;
+  testCases: ClassroomTestCase[];
+  createdAt: number;
+}
+
+interface ClassroomSubmission {
+  submissionId: string;
+  assignmentId: string;
+  studentName: string;
+  studentId: string;
+  language: 'python' | 'cpp' | 'c';
+  code: string;
+  passedCount: number;
+  totalCount: number;
+  scorePercent: number;
+  status: 'accepted' | 'partial' | 'wrong_answer' | 'compile_error' | 'runtime_error';
+  compilationError?: string;
+  testResults: Array<{
+    testCaseId: string;
+    isHidden: boolean;
+    passed: boolean;
+    executionTimeMs: number;
+    actualOutput?: string;
+    expectedOutput?: string;
+    error?: string;
+  }>;
+  submittedAt: number;
+}
+
+const CLASSROOM_STORE_PATH = path.join(os.tmpdir(), 'tooltrack-classroom-store-v1.json');
+
+function loadClassroomStore(): {
+  assignments: Record<string, ClassroomAssignment>;
+  submissions: Record<string, ClassroomSubmission[]>;
+} {
+  try {
+    if (fs.existsSync(CLASSROOM_STORE_PATH)) {
+      const raw = fs.readFileSync(CLASSROOM_STORE_PATH, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          assignments: parsed.assignments || {},
+          submissions: parsed.submissions || {},
+        };
+      }
+    }
+  } catch {}
+  return { assignments: {}, submissions: {} };
+}
+
+function saveClassroomStore(store: {
+  assignments: Record<string, ClassroomAssignment>;
+  submissions: Record<string, ClassroomSubmission[]>;
+}): void {
+  try {
+    fs.writeFileSync(CLASSROOM_STORE_PATH, JSON.stringify(store, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[ClassroomStore] Failed to persist store:', err);
+  }
+}
+
+/**
+ * Compare actual stdout against expected output with line-ending/trailing-space normalization
+ * and floating-point tolerance (1e-5) for numeric tokens.
+ */
+function compareProgramOutputs(actualRaw: string, expectedRaw: string): boolean {
+  const norm = (s: string) =>
+    s
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .join('\n')
+      .trim();
+
+  const actual = norm(actualRaw);
+  const expected = norm(expectedRaw);
+  if (actual === expected) return true;
+
+  // Token-level comparison with 1e-5 floating-point tolerance
+  const actTokens = actual.split(/\s+/).filter(Boolean);
+  const expTokens = expected.split(/\s+/).filter(Boolean);
+  if (actTokens.length !== expTokens.length || actTokens.length === 0) return false;
+
+  for (let i = 0; i < actTokens.length; i++) {
+    if (actTokens[i] === expTokens[i]) continue;
+    const na = Number(actTokens[i]);
+    const nb = Number(expTokens[i]);
+    if (!Number.isNaN(na) && !Number.isNaN(nb) && Math.abs(na - nb) <= 1e-5) {
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Execute a single test case in an isolated temp workspace with strict timeout & output bounds
+ */
+async function runSingleGradingCase(
+  language: 'python' | 'cpp' | 'c',
+  code: string,
+  stdin: string
+): Promise<{
+  phase: 'compilation' | 'execution';
+  success: boolean;
+  stdout: string;
+  stderr: string;
+  executionTimeMs: number;
+}> {
+  const t0 = Date.now();
+  let tmpDir = '';
+  try {
+    const id = `grade-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `tt-grade-${id}-`));
+
+    if (language === 'python') {
+      const scriptPath = path.join(tmpDir, 'main.py');
+      await fs.promises.writeFile(scriptPath, code, 'utf-8');
+      const pyProc = execFile('python3', ['-W', 'ignore', scriptPath], {
+        cwd: tmpDir,
+        timeout: 4500,
+        maxBuffer: 128 * 1024,
+      });
+
+      let stdout = '';
+      let stderr = '';
+      pyProc.stdout?.on('data', (d) => {
+        if (stdout.length < 128 * 1024) stdout += d.toString();
+      });
+      pyProc.stderr?.on('data', (d) => {
+        if (stderr.length < 128 * 1024) stderr += d.toString();
+      });
+      if (pyProc.stdin) {
+        if (stdin) pyProc.stdin.write(stdin.endsWith('\n') ? stdin : stdin + '\n');
+        pyProc.stdin.end();
+      }
+      const exitCode = await new Promise<number>((resolve) => {
+        pyProc.on('close', (c) => resolve(c ?? 0));
+        pyProc.on('error', () => resolve(1));
+      });
+      const isSyntaxErr = /SyntaxError:|IndentationError:/i.test(stderr);
+      return {
+        phase: isSyntaxErr ? 'compilation' : 'execution',
+        success: exitCode === 0,
+        stdout,
+        stderr,
+        executionTimeMs: Date.now() - t0,
+      };
+    }
+
+    // C or C++
+    const res = await runClientCpp(code, stdin, language);
+    return {
+      phase: res.phase,
+      success: res.success,
+      stdout: res.stdout,
+      stderr: res.stderr,
+      executionTimeMs: Date.now() - t0,
+    };
+  } finally {
+    if (tmpDir) {
+      try {
+        await fs.promises.rm(tmpDir, { recursive: true, force: true });
+      } catch {}
+    }
+  }
+}
+
+// 1. Teacher creates a classroom coding assignment
+app.post('/api/classroom/assignments', (req: Request, res: Response) => {
+  try {
+    const {
+      title,
+      description,
+      language = 'python',
+      starterCode = '',
+      sampleInput = '',
+      sampleOutput = '',
+      durationMinutes,
+      testCases = [],
+    } = req.body || {};
+
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({ error: 'Assignment title is required.' });
+    }
+
+    const id = `asgn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const teacherKey = `tkey-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
+
+    const normalizedCases: ClassroomTestCase[] = Array.isArray(testCases)
+      ? testCases
+          .filter((tc: any) => tc && typeof tc.expectedOutput === 'string')
+          .map((tc: any, idx: number) => ({
+            id: `tc-${idx + 1}`,
+            input: String(tc.input || ''),
+            expectedOutput: String(tc.expectedOutput || ''),
+            isHidden: Boolean(tc.isHidden),
+          }))
+      : [];
+
+    if (normalizedCases.length === 0 && sampleOutput.trim()) {
+      normalizedCases.push({
+        id: 'tc-1',
+        input: String(sampleInput || ''),
+        expectedOutput: String(sampleOutput || ''),
+        isHidden: false,
+      });
+    }
+
+    const assignment: ClassroomAssignment = {
+      id,
+      teacherKey,
+      title: title.trim(),
+      description: String(description || '').trim(),
+      language: language === 'cpp' || language === 'c' ? language : 'python',
+      starterCode: String(starterCode || ''),
+      sampleInput: String(sampleInput || ''),
+      sampleOutput: String(sampleOutput || ''),
+      durationMinutes: durationMinutes ? Number(durationMinutes) : undefined,
+      testCases: normalizedCases,
+      createdAt: Date.now(),
+    };
+
+    const store = loadClassroomStore();
+    store.assignments[id] = assignment;
+    store.submissions[id] = [];
+    saveClassroomStore(store);
+
+    return res.json({
+      success: true,
+      assignmentId: id,
+      teacherKey,
+      assignment: {
+        ...assignment,
+        teacherKey: undefined,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
+// 2. Student fetches assignment (hidden test cases are stripped)
+app.get('/api/classroom/assignments/:id', (req: Request, res: Response) => {
+  const store = loadClassroomStore();
+  const asgn = store.assignments[req.params.id];
+  if (!asgn) {
+    return res.status(404).json({ error: 'Classroom assignment not found.' });
+  }
+
+  const publicCases = asgn.testCases
+    .filter((tc) => !tc.isHidden)
+    .map((tc) => ({
+      id: tc.id,
+      input: tc.input,
+      expectedOutput: tc.expectedOutput,
+      isHidden: false,
+    }));
+
+  return res.json({
+    id: asgn.id,
+    title: asgn.title,
+    description: asgn.description,
+    language: asgn.language,
+    starterCode: asgn.starterCode,
+    sampleInput: asgn.sampleInput,
+    sampleOutput: asgn.sampleOutput,
+    durationMinutes: asgn.durationMinutes,
+    totalTestCasesCount: asgn.testCases.length,
+    hiddenTestCasesCount: asgn.testCases.filter((tc) => tc.isHidden).length,
+    sampleTestCases: publicCases,
+    createdAt: asgn.createdAt,
+  });
+});
+
+// 3. Student submits solution for server-side grading & persistent confirmation
+app.post('/api/classroom/assignments/:id/submit', async (req: Request, res: Response) => {
+  try {
+    const store = loadClassroomStore();
+    const asgn = store.assignments[req.params.id];
+    if (!asgn) {
+      return res.status(404).json({ error: 'Classroom assignment not found.' });
+    }
+
+    const { studentName = '', studentId = '', code = '', language } = req.body || {};
+    if (!studentName || typeof studentName !== 'string' || !studentName.trim()) {
+      return res.status(400).json({ error: 'Student name is required to submit.' });
+    }
+    if (!code || typeof code !== 'string' || !code.trim()) {
+      return res.status(400).json({ error: 'Submitted source code cannot be empty.' });
+    }
+
+    const evalLang: 'python' | 'cpp' | 'c' =
+      language === 'cpp' || language === 'c' ? language : asgn.language;
+
+    const testResults: ClassroomSubmission['testResults'] = [];
+    let passedCount = 0;
+    let compilationError: string | undefined = undefined;
+    let hadRuntimeError = false;
+
+    const casesToRun =
+      asgn.testCases.length > 0
+        ? asgn.testCases
+        : [
+            {
+              id: 'tc-1',
+              input: asgn.sampleInput || '',
+              expectedOutput: asgn.sampleOutput || '',
+              isHidden: false,
+            },
+          ];
+
+    for (const tc of casesToRun) {
+      const runRes = await runSingleGradingCase(evalLang, code, tc.input);
+      if (runRes.phase === 'compilation' && !runRes.success) {
+        compilationError = runRes.stderr || 'Compilation failed.';
+        testResults.push({
+          testCaseId: tc.id,
+          isHidden: tc.isHidden,
+          passed: false,
+          executionTimeMs: runRes.executionTimeMs,
+          error: compilationError,
+        });
+        break;
+      }
+
+      if (!runRes.success) {
+        hadRuntimeError = true;
+      }
+
+      const matched =
+        runRes.success &&
+        (tc.expectedOutput.trim() === ''
+          ? true
+          : compareProgramOutputs(runRes.stdout, tc.expectedOutput));
+
+      if (matched) passedCount++;
+
+      testResults.push({
+        testCaseId: tc.id,
+        isHidden: tc.isHidden,
+        passed: matched,
+        executionTimeMs: runRes.executionTimeMs,
+        actualOutput: tc.isHidden ? undefined : runRes.stdout,
+        expectedOutput: tc.isHidden ? undefined : tc.expectedOutput,
+        error: runRes.stderr ? (tc.isHidden ? 'Runtime Error' : runRes.stderr) : undefined,
+      });
+    }
+
+    const totalCount = casesToRun.length;
+    const scorePercent = totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 100;
+    const status: ClassroomSubmission['status'] = compilationError
+      ? 'compile_error'
+      : passedCount === totalCount
+      ? 'accepted'
+      : hadRuntimeError && passedCount === 0
+      ? 'runtime_error'
+      : passedCount > 0
+      ? 'partial'
+      : 'wrong_answer';
+
+    const submissionId = `sub-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const submittedAt = Date.now();
+
+    const fullSubmissionRecord: ClassroomSubmission = {
+      submissionId,
+      assignmentId: asgn.id,
+      studentName: studentName.trim(),
+      studentId: String(studentId || '').trim(),
+      language: evalLang,
+      code,
+      passedCount,
+      totalCount,
+      scorePercent,
+      status,
+      compilationError,
+      testResults,
+      submittedAt,
+    };
+
+    if (!store.submissions[asgn.id]) {
+      store.submissions[asgn.id] = [];
+    }
+    store.submissions[asgn.id].unshift(fullSubmissionRecord);
+    saveClassroomStore(store);
+
+    return res.json({
+      confirmed: true,
+      submission: fullSubmissionRecord,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to grade and record submission: ' + String(err) });
+  }
+});
+
+// 4. Teacher views all submissions for an assignment (requires teacherAccessKey)
+app.get('/api/classroom/assignments/:id/submissions', (req: Request, res: Response) => {
+  const store = loadClassroomStore();
+  const asgn = store.assignments[req.params.id];
+  if (!asgn) {
+    return res.status(404).json({ error: 'Classroom assignment not found.' });
+  }
+
+  const providedKey = String(req.query.teacherKey || req.headers['x-teacher-key'] || '').trim();
+  if (!providedKey || providedKey !== asgn.teacherKey) {
+    return res.status(403).json({
+      error: 'Valid Teacher Access Key is required to view student submissions.',
+    });
+  }
+
+  const list = store.submissions[asgn.id] || [];
+  return res.json({
+    assignmentId: asgn.id,
+    title: asgn.title,
+    totalSubmissions: list.length,
+    submissions: list,
+  });
+});
+
 // Mount Vite middleware in development with unified HTTP/WebSocket server
 async function startServer() {
   const httpServer = http.createServer(app);

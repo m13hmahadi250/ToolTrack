@@ -41,6 +41,8 @@ import {
   Search,
   Database,
   Cpu,
+  GraduationCap,
+  Share2,
 } from 'lucide-react';
 
 import {
@@ -98,6 +100,51 @@ interface ExecutionHistoryItem {
 type JobLifecycleState = 'idle' | 'preparing' | 'running' | 'completed' | 'failed' | 'cancelled';
 type OutputTab = 'console' | 'plots' | 'dataframes' | 'stdin';
 type MaximizedPanel = 'none' | 'editor' | 'output';
+
+interface ActiveClassroomAssignment {
+  id: string;
+  title: string;
+  description: string;
+  language: CompilerLanguage;
+  starterCode: string;
+  sampleInput: string;
+  sampleOutput: string;
+  durationMinutes?: number;
+  totalTestCasesCount: number;
+  hiddenTestCasesCount: number;
+  sampleTestCases: Array<{ id: string; input: string; expectedOutput: string }>;
+}
+
+function getStudentErrorHint(stderrText: string): { line?: number; hint?: string } {
+  if (!stderrText) return {};
+  let line: number | undefined;
+  const pyMatches = [...stderrText.matchAll(/File\s+"(?:<exec>|main\.py|script\.py|[^"]*)",\s+line\s+(\d+)/g)];
+  if (pyMatches.length > 0) {
+    line = Number(pyMatches[pyMatches.length - 1][1]);
+  } else {
+    const cppMatch = stderrText.match(/(?:main\.(?:cpp|c)|<source>):(\d+):(?:\d+:)?\s*error:/i);
+    if (cppMatch) {
+      line = Number(cppMatch[1]);
+    }
+  }
+
+  let hint: string | undefined;
+  if (/EOFError:\s*EOF when reading a line/i.test(stderrText)) {
+    hint = 'Your program called input(), but no more input lines were available. Open the "Input (STDIN)" tab and enter one value per line before clicking Run.';
+  } else if (/IndentationError:/i.test(stderrText)) {
+    hint = 'Check your indentation (spaces/tabs) at the highlighted line — blocks inside if, for, while, and def must be indented consistently.';
+  } else if (/SyntaxError:/i.test(stderrText)) {
+    hint = 'Check for missing colons (:), unclosed parentheses/quotes, or typos on or right before the reported line.';
+  } else if (/NameError:\s*name\s+'([^']+)'\s+is not defined/i.test(stderrText)) {
+    const m = stderrText.match(/NameError:\s*name\s+'([^']+)'\s+is not defined/i);
+    hint = `Variable or function '${m ? m[1] : ''}' was used before being assigned or imported. Check spelling and capitalization.`;
+  } else if (/ZeroDivisionError:/i.test(stderrText)) {
+    hint = 'A division or modulo operation attempted to divide by 0. Check your denominator values.';
+  } else if (/expected\s+';'/i.test(stderrText)) {
+    hint = 'C/C++ statement is missing a semicolon (;) at the end of the preceding line.';
+  }
+  return { line, hint };
+}
 
 export function CompilerTool() {
   // 1. Projects & Active File State
@@ -196,6 +243,39 @@ export function CompilerTool() {
   const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
   const autoSetupTriggeredRef = useRef<boolean>(false);
 
+  // Classroom & Exercise Sharing State
+  const [showClassroomModal, setShowClassroomModal] = useState<boolean>(false);
+  const [classroomTab, setClassroomTab] = useState<'student' | 'teacher'>('student');
+  const [activeAssignment, setActiveAssignment] = useState<ActiveClassroomAssignment | null>(null);
+  const [assignmentLookupId, setAssignmentLookupId] = useState<string>('');
+  const [studentName, setStudentName] = useState<string>('');
+  const [studentIdInput, setStudentIdInput] = useState<string>('');
+  const [submittingSolution, setSubmittingSolution] = useState<boolean>(false);
+  const [submissionReceipt, setSubmissionReceipt] = useState<any | null>(null);
+  const [submissionError, setSubmissionError] = useState<string>('');
+  const [copiedShareLink, setCopiedShareLink] = useState<boolean>(false);
+
+  // Teacher Assignment Creator & Submissions Viewer State
+  const [teacherTitle, setTeacherTitle] = useState<string>('');
+  const [teacherDesc, setTeacherDesc] = useState<string>('');
+  const [teacherLang, setTeacherLang] = useState<CompilerLanguage>('python');
+  const [teacherStarterCode, setTeacherStarterCode] = useState<string>(MINIMAL_HELLO_WORLD.python);
+  const [teacherSampleIn, setTeacherSampleIn] = useState<string>('');
+  const [teacherSampleOut, setTeacherSampleOut] = useState<string>('');
+  const [teacherHiddenIn, setTeacherHiddenIn] = useState<string>('');
+  const [teacherHiddenOut, setTeacherHiddenOut] = useState<string>('');
+  const [createdAssignmentInfo, setCreatedAssignmentInfo] = useState<{
+    assignmentId: string;
+    teacherKey: string;
+  } | null>(null);
+  const [teacherReviewAsgnId, setTeacherReviewAsgnId] = useState<string>('');
+  const [teacherReviewKey, setTeacherReviewKey] = useState<string>('');
+  const [teacherSubmissionsList, setTeacherSubmissionsList] = useState<any[] | null>(null);
+  const [teacherStatusMsg, setTeacherStatusMsg] = useState<string>('');
+
+  const projectsRef = useRef<CompilerProject[]>(projects);
+  projectsRef.current = projects;
+
   const isRunning = jobState === 'preparing' || jobState === 'running';
 
   // Persist explorer open/closed state
@@ -205,10 +285,65 @@ export function CompilerTool() {
     } catch {}
   }, [showExplorer]);
 
-  // Persist projects whenever updated
+  // Debounced autosave (avoids synchronous storage writes on every keystroke or during code execution)
   useEffect(() => {
-    saveCompilerProjects(projects);
-  }, [projects]);
+    if (isRunning) return;
+    const timer = setTimeout(() => {
+      saveCompilerProjects(projects);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [projects, isRunning]);
+
+  // Immediate flush on page unload/refresh so students never lose work during exams or labs
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      saveCompilerProjects(projectsRef.current);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // Load shared exercise or classroom assignment from URL query parameters (?assignment=... or ?exercise=...)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const asgnParam = params.get('assignment');
+    const exerciseParam = params.get('exercise');
+
+    if (asgnParam) {
+      setAssignmentLookupId(asgnParam);
+      fetch(`/api/classroom/assignments/${encodeURIComponent(asgnParam)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data && data.id) {
+            setActiveAssignment(data);
+          }
+        })
+        .catch(() => {});
+    } else if (exerciseParam) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(atob(exerciseParam)));
+        if (decoded && decoded.code && decoded.language) {
+          const lang: CompilerLanguage =
+            decoded.language === 'cpp' || decoded.language === 'c' ? decoded.language : 'python';
+          const fileName = getDefaultFileName(lang);
+          const sharedProjId = `proj-shared-${Date.now()}`;
+          const newProj: CompilerProject = {
+            id: sharedProjId,
+            name: decoded.title || 'Shared Exercise',
+            language: lang,
+            activeFileName: fileName,
+            stdin: String(decoded.stdin || ''),
+            files: [{ name: fileName, content: String(decoded.code), updatedAt: Date.now() }],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          setProjects((prev) => [newProj, ...prev]);
+          setActiveProjIdState(sharedProjId);
+        }
+      } catch {}
+    }
+  }, []);
 
   // Online / Offline listener
   useEffect(() => {
@@ -1270,6 +1405,191 @@ export function CompilerTool() {
       ? 'cpp'
       : 'c';
 
+  // Detect if current code expects standard input while STDIN is empty
+  const codeReadsInput = useMemo(() => {
+    const src = activeFile?.content || '';
+    if (!src) return false;
+    if (activeProject?.language === 'python') {
+      return /\binput\s*\(|\bsys\.stdin\b/.test(src);
+    }
+    return /\bcin\s*>>|\bgetline\s*\(|\bscanf\s*\(|\bfgets\s*\(/.test(src);
+  }, [activeFile?.content, activeProject?.language]);
+
+  const errorDiagnostic = useMemo(() => getStudentErrorHint(stderr), [stderr]);
+
+  const jumpToEditorLine = useCallback((line: number) => {
+    if (!editorRef.current || !line || line < 1) return;
+    editorRef.current.revealLineInCenter(line);
+    editorRef.current.setPosition({ lineNumber: line, column: 1 });
+    editorRef.current.focus();
+  }, []);
+
+  // Copy self-contained shareable exercise URL
+  const handleCopyExerciseShareLink = useCallback(() => {
+    if (!activeProject || !activeFile) return;
+    const payload = {
+      title: activeProject.name,
+      language: activeProject.language,
+      code: activeFile.content,
+      stdin: activeProject.stdin || '',
+    };
+    const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
+    const shareUrl = `${window.location.origin}/compiler?exercise=${encoded}`;
+    navigator.clipboard.writeText(shareUrl);
+    setCopiedShareLink(true);
+    setTimeout(() => setCopiedShareLink(false), 2000);
+  }, [activeProject, activeFile]);
+
+  // Classroom Mode Handlers
+  const handleLoadAssignmentById = useCallback(async (idToLoad: string) => {
+    const cleanId = idToLoad.trim();
+    if (!cleanId) return;
+    setSubmissionError('');
+    try {
+      const res = await fetch(`/api/classroom/assignments/${encodeURIComponent(cleanId)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setSubmissionError(data.error || 'Assignment not found.');
+        return;
+      }
+      setActiveAssignment(data);
+      setSubmissionReceipt(null);
+      if (data.starterCode) {
+        handleSelectLanguage(data.language);
+        setTimeout(() => {
+          updateActiveFileContent(data.starterCode);
+          if (data.sampleInput) updateStdin(data.sampleInput);
+        }, 50);
+      }
+    } catch (err: any) {
+      setSubmissionError(err.message || 'Could not load assignment.');
+    }
+  }, [handleSelectLanguage, updateActiveFileContent, updateStdin]);
+
+  const handleStudentSubmitAssignment = useCallback(async () => {
+    if (!activeAssignment || !activeFile) return;
+    if (!studentName.trim()) {
+      setSubmissionError('Please enter your name before submitting.');
+      return;
+    }
+    setSubmittingSolution(true);
+    setSubmissionError('');
+    setSubmissionReceipt(null);
+    try {
+      const res = await fetch(
+        `/api/classroom/assignments/${encodeURIComponent(activeAssignment.id)}/submit`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentName: studentName.trim(),
+            studentId: studentIdInput.trim(),
+            language: activeProject?.language || activeAssignment.language,
+            code: activeFile.content,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok || !data.confirmed) {
+        setSubmissionError(data.error || 'Submission could not be confirmed by server.');
+        return;
+      }
+      setSubmissionReceipt(data.submission);
+    } catch (err: any) {
+      setSubmissionError(
+        'Network error: Submission was not confirmed. Your code is safely saved locally — please retry when connected.'
+      );
+    } finally {
+      setSubmittingSolution(false);
+    }
+  }, [activeAssignment, activeFile, activeProject?.language, studentName, studentIdInput]);
+
+  const handleTeacherCreateAssignment = useCallback(async () => {
+    if (!teacherTitle.trim()) {
+      setTeacherStatusMsg('Please provide a question title.');
+      return;
+    }
+    setTeacherStatusMsg('Creating assignment...');
+    try {
+      const testCases: Array<{ input: string; expectedOutput: string; isHidden: boolean }> = [];
+      if (teacherSampleOut.trim()) {
+        testCases.push({
+          input: teacherSampleIn,
+          expectedOutput: teacherSampleOut,
+          isHidden: false,
+        });
+      }
+      if (teacherHiddenOut.trim()) {
+        testCases.push({
+          input: teacherHiddenIn,
+          expectedOutput: teacherHiddenOut,
+          isHidden: true,
+        });
+      }
+
+      const res = await fetch('/api/classroom/assignments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: teacherTitle.trim(),
+          description: teacherDesc.trim(),
+          language: teacherLang,
+          starterCode: teacherStarterCode,
+          sampleInput: teacherSampleIn,
+          sampleOutput: teacherSampleOut,
+          testCases,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTeacherStatusMsg(data.error || 'Failed to create assignment.');
+        return;
+      }
+      setCreatedAssignmentInfo({
+        assignmentId: data.assignmentId,
+        teacherKey: data.teacherKey,
+      });
+      setTeacherReviewAsgnId(data.assignmentId);
+      setTeacherReviewKey(data.teacherKey);
+      setTeacherStatusMsg('Assignment created and ready to share.');
+    } catch (err: any) {
+      setTeacherStatusMsg(err.message || 'Network error.');
+    }
+  }, [
+    teacherTitle,
+    teacherDesc,
+    teacherLang,
+    teacherStarterCode,
+    teacherSampleIn,
+    teacherSampleOut,
+    teacherHiddenIn,
+    teacherHiddenOut,
+  ]);
+
+  const handleTeacherFetchSubmissions = useCallback(async () => {
+    if (!teacherReviewAsgnId.trim() || !teacherReviewKey.trim()) {
+      setTeacherStatusMsg('Enter both Assignment ID and Teacher Access Key.');
+      return;
+    }
+    setTeacherStatusMsg('Loading submissions...');
+    try {
+      const res = await fetch(
+        `/api/classroom/assignments/${encodeURIComponent(
+          teacherReviewAsgnId.trim()
+        )}/submissions?teacherKey=${encodeURIComponent(teacherReviewKey.trim())}`
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setTeacherStatusMsg(data.error || 'Could not load submissions.');
+        return;
+      }
+      setTeacherSubmissionsList(data.submissions || []);
+      setTeacherStatusMsg(`Loaded ${data.totalSubmissions || 0} student submission(s).`);
+    } catch (err: any) {
+      setTeacherStatusMsg(err.message || 'Network error.');
+    }
+  }, [teacherReviewAsgnId, teacherReviewKey]);
+
   return (
     <div className="w-full h-[calc(100vh-115px)] min-h-[680px] flex flex-col bg-[#0F172A] text-slate-100 rounded-xl border border-slate-800 shadow-2xl overflow-hidden select-none">
       {/* Hidden file input for dataset & script uploads */}
@@ -1446,6 +1766,22 @@ export function CompilerTool() {
             <span className="hidden lg:inline">Upload Dataset</span>
           </button>
 
+          {/* Classroom & Exercise Sharing Button */}
+          <button
+            onClick={() => setShowClassroomModal(true)}
+            title="Classroom Assignments, Auto-Grading & Exercise Sharing"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition cursor-pointer whitespace-nowrap ${
+              activeAssignment
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+          >
+            <GraduationCap className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden xl:inline">
+              {activeAssignment ? 'Active Assignment' : 'Classroom'}
+            </span>
+          </button>
+
           {/* Editor Settings Dropdown */}
           <div className="relative">
             <button
@@ -1525,12 +1861,66 @@ export function CompilerTool() {
                     <FileArchive className="w-3.5 h-3.5 text-emerald-400" />
                     <span>Export Project (.zip)</span>
                   </button>
+                  <button
+                    onClick={() => {
+                      handleCopyExerciseShareLink();
+                      setShowSettingsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{copiedShareLink ? 'Copied Share Link!' : 'Copy Shareable Exercise Link'}</span>
+                  </button>
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* ACTIVE CLASSROOM ASSIGNMENT BAR (Only shown when a student loads an assignment) */}
+      {activeAssignment && (
+        <div className="px-3 py-2 bg-amber-950/30 border-b border-amber-800/50 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <GraduationCap className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="font-semibold text-amber-200 truncate">
+              Assignment: {activeAssignment.title}
+            </span>
+            <span className="text-slate-400 hidden md:inline truncate">
+              — {activeAssignment.description}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {activeAssignment.sampleInput && (
+              <button
+                onClick={() => {
+                  updateStdin(activeAssignment.sampleInput);
+                  setActiveTab('stdin');
+                }}
+                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
+              >
+                Use Sample Input
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setClassroomTab('student');
+                setShowClassroomModal(true);
+              }}
+              className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white font-semibold cursor-pointer"
+            >
+              View Details & Submit Solution
+            </button>
+            <button
+              onClick={() => setActiveAssignment(null)}
+              title="Close Assignment Banner"
+              className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* MAIN IDE WORKSPACE — Collapsible Sidebar + Resizable 2-Panel Split (Editor ~63% / Console ~37%) */}
       <div
@@ -1893,6 +2283,22 @@ export function CompilerTool() {
                     </div>
                   )}
 
+                  {/* Beginner-friendly Input Reminder when code uses input()/cin/scanf and STDIN is empty */}
+                  {codeReadsInput && !activeProject?.stdin.trim() && !isRunning && (
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-amber-950/30 border border-amber-800/50 text-amber-200 font-sans text-xs">
+                      <span>
+                        Your code reads standard input (<code className="font-mono">input()</code> /{' '}
+                        <code className="font-mono">cin</code> / <code className="font-mono">scanf</code>), but the Input (STDIN) box is empty.
+                      </span>
+                      <button
+                        onClick={() => setActiveTab('stdin')}
+                        className="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white font-medium shrink-0 cursor-pointer"
+                      >
+                        Add Input Values →
+                      </button>
+                    </div>
+                  )}
+
                   {stdout && (
                     <pre className="whitespace-pre-wrap break-words text-slate-100 leading-relaxed font-mono">
                       {stdout}
@@ -1900,9 +2306,39 @@ export function CompilerTool() {
                   )}
 
                   {stderr && (
-                    <pre className="whitespace-pre-wrap break-words text-rose-400 bg-rose-950/30 border border-rose-900/50 rounded-lg p-3 leading-relaxed font-mono">
-                      {stderr}
-                    </pre>
+                    <div className="space-y-2">
+                      <pre className="whitespace-pre-wrap break-words text-rose-400 bg-rose-950/30 border border-rose-900/50 rounded-lg p-3 leading-relaxed font-mono">
+                        {stderr}
+                      </pre>
+                      {(errorDiagnostic.line || errorDiagnostic.hint) && (
+                        <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-2 font-sans text-xs text-slate-300">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span>
+                              {errorDiagnostic.hint || 'Diagnostic detected in your program.'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {errorDiagnostic.line && (
+                              <button
+                                onClick={() => jumpToEditorLine(errorDiagnostic.line!)}
+                                className="px-2.5 py-1 rounded bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-mono text-[11px] cursor-pointer whitespace-nowrap"
+                              >
+                                Jump to Line {errorDiagnostic.line}
+                              </button>
+                            )}
+                            {/EOFError/i.test(stderr) && (
+                              <button
+                                onClick={() => setActiveTab('stdin')}
+                                className="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white font-medium text-[11px] cursor-pointer whitespace-nowrap"
+                              >
+                                Open Input (STDIN)
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {plots.length > 0 && (
@@ -2578,6 +3014,434 @@ export function CompilerTool() {
               alt="Zoomed Matplotlib Plot"
               className="max-w-full h-auto"
             />
+          </div>
+        </div>
+      )}
+
+      {/* CLASSROOM & CODING ASSESSMENT MODAL */}
+      {showClassroomModal && (
+        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-3xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden text-xs">
+            {/* Header */}
+            <div className="px-5 py-3.5 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <GraduationCap className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    Classroom Exercises & Coding Assessments
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Share exercises via link or run server-verified coding assignments with auto-grading
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowClassroomModal(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Mode Switcher */}
+            <div className="px-5 py-2.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setClassroomTab('student')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer transition ${
+                    classroomTab === 'student'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Student Workspace & Submit
+                </button>
+                <button
+                  onClick={() => setClassroomTab('teacher')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer transition ${
+                    classroomTab === 'teacher'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Teacher: Create & View Submissions
+                </button>
+              </div>
+
+              <button
+                onClick={handleCopyExerciseShareLink}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-medium cursor-pointer"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>{copiedShareLink ? 'Copied Link!' : 'Share Current Code as Exercise Link'}</span>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {classroomTab === 'student' ? (
+                <div className="space-y-4">
+                  {/* Lookup Assignment by ID */}
+                  <div className="p-3.5 rounded-xl bg-slate-800/50 border border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <div className="font-semibold text-slate-200">Load Classroom Assignment</div>
+                      <div className="text-[11px] text-slate-400">
+                        Enter the Assignment ID shared by your teacher (e.g. <code className="text-slate-300">asgn-...</code>)
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={assignmentLookupId}
+                        onChange={(e) => setAssignmentLookupId(e.target.value)}
+                        placeholder="asgn-..."
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono w-48 focus:outline-none focus:border-blue-500"
+                      />
+                      <button
+                        onClick={() => handleLoadAssignmentById(assignmentLookupId)}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold cursor-pointer"
+                      >
+                        Load Assignment
+                      </button>
+                    </div>
+                  </div>
+
+                  {submissionError && (
+                    <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-300">
+                      {submissionError}
+                    </div>
+                  )}
+
+                  {activeAssignment ? (
+                    <div className="space-y-4">
+                      <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-bold text-white">{activeAssignment.title}</h4>
+                          <span className="font-mono text-[11px] text-amber-400">
+                            Language: {activeAssignment.language.toUpperCase()} · {activeAssignment.totalTestCasesCount} Test Case(s)
+                          </span>
+                        </div>
+                        {activeAssignment.description && (
+                          <p className="text-slate-300 whitespace-pre-wrap leading-relaxed">
+                            {activeAssignment.description}
+                          </p>
+                        )}
+                        {(activeAssignment.sampleInput || activeAssignment.sampleOutput) && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                            <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                              <div className="text-[11px] text-slate-400 mb-1">Sample Input</div>
+                              <pre className="font-mono text-slate-200 whitespace-pre-wrap">
+                                {activeAssignment.sampleInput || '(none)'}
+                              </pre>
+                            </div>
+                            <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                              <div className="text-[11px] text-slate-400 mb-1">Expected Output</div>
+                              <pre className="font-mono text-emerald-300 whitespace-pre-wrap">
+                                {activeAssignment.sampleOutput || '(none)'}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Student Submission Form */}
+                      <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 space-y-3">
+                        <div className="font-semibold text-slate-200">
+                          Submit Current Editor Code ({activeFile?.name})
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] text-slate-400 mb-1">
+                              Student Name *
+                            </label>
+                            <input
+                              type="text"
+                              value={studentName}
+                              onChange={(e) => setStudentName(e.target.value)}
+                              placeholder="Your full name"
+                              className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-400 mb-1">
+                              Student / Roll ID (Optional)
+                            </label>
+                            <input
+                              type="text"
+                              value={studentIdInput}
+                              onChange={(e) => setStudentIdInput(e.target.value)}
+                              placeholder="e.g. 2026-CS-104"
+                              className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[11px] text-slate-400">
+                            Submissions are verified and graded on the server before confirmation.
+                          </span>
+                          <button
+                            disabled={submittingSolution}
+                            onClick={handleStudentSubmitAssignment}
+                            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold cursor-pointer"
+                          >
+                            {submittingSolution ? 'Grading & Submitting...' : 'Submit Solution'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Verified Server Submission Receipt */}
+                      {submissionReceipt && (
+                        <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-700/60 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-emerald-300">
+                              Submission Confirmed (Receipt #{submissionReceipt.submissionId})
+                            </span>
+                            <span className="font-mono font-bold text-white">
+                              Score: {submissionReceipt.passedCount}/{submissionReceipt.totalCount} (
+                              {submissionReceipt.scorePercent}%)
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-300">
+                            Status: <strong className="uppercase">{submissionReceipt.status}</strong> · Recorded at{' '}
+                            {new Date(submissionReceipt.submittedAt).toLocaleTimeString()}
+                          </div>
+                          {Array.isArray(submissionReceipt.testResults) && (
+                            <div className="space-y-1.5 pt-2">
+                              {submissionReceipt.testResults.map((tr: any, idx: number) => (
+                                <div
+                                  key={tr.testCaseId || idx}
+                                  className="px-3 py-1.5 rounded bg-slate-900/90 border border-slate-800 flex items-center justify-between font-mono text-[11px]"
+                                >
+                                  <span>
+                                    Test Case #{idx + 1} {tr.isHidden ? '(Hidden Grading Case)' : '(Sample Case)'}
+                                  </span>
+                                  <span className={tr.passed ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                                    {tr.passed ? 'PASSED' : 'FAILED'} ({tr.executionTimeMs}ms)
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center text-slate-500 py-8">
+                      No classroom assignment loaded. Enter an Assignment ID above, or switch to the Teacher tab to create one.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* TEACHER TAB: Create Assignment & View Submissions */
+                <div className="space-y-5">
+                  <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-800 space-y-3">
+                    <div className="font-semibold text-white">
+                      Create New Classroom Coding Assignment
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] text-slate-400 mb-1">Question Title *</label>
+                        <input
+                          type="text"
+                          value={teacherTitle}
+                          onChange={(e) => setTeacherTitle(e.target.value)}
+                          placeholder="e.g. Lab 1: Sum of Array Elements"
+                          className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-slate-400 mb-1">Language</label>
+                        <select
+                          value={teacherLang}
+                          onChange={(e) => {
+                            const l = e.target.value as CompilerLanguage;
+                            setTeacherLang(l);
+                            setTeacherStarterCode(MINIMAL_HELLO_WORLD[l]);
+                          }}
+                          className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white"
+                        >
+                          <option value="python">Python 3.12</option>
+                          <option value="cpp">C++20</option>
+                          <option value="c">C17</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">
+                        Problem Description & Instructions
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={teacherDesc}
+                        onChange={(e) => setTeacherDesc(e.target.value)}
+                        placeholder="Write clear instructions for students..."
+                        className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] text-slate-400 mb-1">
+                          Visible Sample Input (STDIN)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={teacherSampleIn}
+                          onChange={(e) => setTeacherSampleIn(e.target.value)}
+                          placeholder="e.g. 5&#10;10 20 30 40 50"
+                          className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-slate-400 mb-1">
+                          Visible Sample Expected Output
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={teacherSampleOut}
+                          onChange={(e) => setTeacherSampleOut(e.target.value)}
+                          placeholder="e.g. 150"
+                          className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] text-slate-400 mb-1">
+                          Hidden Grading Test Input (Optional — hidden from students)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={teacherHiddenIn}
+                          onChange={(e) => setTeacherHiddenIn(e.target.value)}
+                          placeholder="Hidden input..."
+                          className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-slate-400 mb-1">
+                          Hidden Grading Expected Output (Optional)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={teacherHiddenOut}
+                          onChange={(e) => setTeacherHiddenOut(e.target.value)}
+                          placeholder="Hidden expected output..."
+                          className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[11px] text-slate-400">{teacherStatusMsg}</span>
+                      <button
+                        onClick={handleTeacherCreateAssignment}
+                        className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold cursor-pointer"
+                      >
+                        Create Assignment Link
+                      </button>
+                    </div>
+
+                    {createdAssignmentInfo && (
+                      <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-800/60 space-y-1.5 font-mono text-[11px]">
+                        <div className="flex items-center justify-between text-blue-200">
+                          <span>
+                            Student Assignment ID: <strong>{createdAssignmentInfo.assignmentId}</strong>
+                          </span>
+                          <button
+                            onClick={() => {
+                              const url = `${window.location.origin}/compiler?assignment=${createdAssignmentInfo.assignmentId}`;
+                              navigator.clipboard.writeText(url);
+                              setTeacherStatusMsg('Student assignment link copied!');
+                            }}
+                            className="px-2 py-0.5 rounded bg-blue-600 text-white font-sans cursor-pointer"
+                          >
+                            Copy Student Link
+                          </button>
+                        </div>
+                        <div className="text-amber-300">
+                          Teacher Access Key (Save this to view submissions):{' '}
+                          <strong>{createdAssignmentInfo.teacherKey}</strong>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Teacher Submissions Viewer */}
+                  <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-800 space-y-3">
+                    <div className="font-semibold text-white">View Student Submissions & Results</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={teacherReviewAsgnId}
+                        onChange={(e) => setTeacherReviewAsgnId(e.target.value)}
+                        placeholder="Assignment ID (asgn-...)"
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono w-48"
+                      />
+                      <input
+                        type="text"
+                        value={teacherReviewKey}
+                        onChange={(e) => setTeacherReviewKey(e.target.value)}
+                        placeholder="Teacher Key (tkey-...)"
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono w-48"
+                      />
+                      <button
+                        onClick={handleTeacherFetchSubmissions}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer"
+                      >
+                        Load Submissions
+                      </button>
+                    </div>
+
+                    {teacherSubmissionsList && (
+                      <div className="space-y-2 pt-2">
+                        {teacherSubmissionsList.length === 0 ? (
+                          <div className="text-slate-400 py-4 text-center">
+                            No submissions received yet for this assignment.
+                          </div>
+                        ) : (
+                          teacherSubmissionsList.map((sub: any) => (
+                            <div
+                              key={sub.submissionId}
+                              className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-2"
+                            >
+                              <div>
+                                <div className="font-semibold text-white">
+                                  {sub.studentName}{' '}
+                                  {sub.studentId && (
+                                    <span className="text-slate-400 font-mono">({sub.studentId})</span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-slate-400">
+                                  {new Date(sub.submittedAt).toLocaleTimeString()} · {sub.language.toUpperCase()} · Status:{' '}
+                                  <span className="uppercase text-slate-200">{sub.status}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="font-mono font-bold text-emerald-400">
+                                  {sub.passedCount}/{sub.totalCount} ({sub.scorePercent}%)
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    updateActiveFileContent(sub.code);
+                                    setShowClassroomModal(false);
+                                  }}
+                                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700 cursor-pointer"
+                                >
+                                  Inspect Code in Editor
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

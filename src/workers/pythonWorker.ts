@@ -484,12 +484,19 @@ const IMPORT_TO_PYODIDE_PKG: Record<string, string> = {
 };
 
 const MICROPIP_PACKAGES = new Set(['seaborn']);
+const syncedFileSignatures = new Map<string, string>();
 
 async function resolveCodeImports(
   py: any,
   code: string,
   userFiles: Array<{ name: string }> = []
 ): Promise<{ pyodidePkgs: string[]; micropipPkgs: string[] }> {
+  // Fast-path: if the code has no `import` keyword at all (e.g., print("Hello, World!"), loops, math),
+  // return immediately with zero extra Python AST round-trip overhead.
+  if (!/\bimport\b/.test(code)) {
+    return { pyodidePkgs: [], micropipPkgs: [] };
+  }
+
   const pyodidePkgs = new Set<string>();
   const micropipPkgs = new Set<string>();
   const localModules = new Set(
@@ -613,6 +620,7 @@ self.onmessage = async (event: MessageEvent) => {
 
     if (msgType === 'RESET_KERNEL' || msgType === 'resetRuntime') {
       const py = await initPyodide();
+      syncedFileSignatures.clear();
       await py.runPythonAsync(`
 for _k in list(globals().keys()):
     if not _k.startswith('_') and _k not in ('os', 'sys', 'io', 'ast', 'base64', 'json', 'builtins', 'warnings'):
@@ -712,6 +720,7 @@ for _k in list(globals().keys()):
       try {
         py.FS.writeFile(`/${name}`, bytesOrText);
       } catch {}
+      syncedFileSignatures.delete(name);
 
       const files = listWorkspaceFiles(py);
       postMessage({
@@ -751,6 +760,7 @@ for _k in list(globals().keys()):
     if (msgType === 'deleteFile' || msgType === 'DELETE_FILE') {
       const py = await initPyodide();
       const { name } = payload;
+      syncedFileSignatures.delete(name);
       try {
         py.FS.unlink(`/home/pyodide/${name}`);
       } catch {}
@@ -773,21 +783,30 @@ for _k in list(globals().keys()):
       activeRunStderr = '';
       const startTime = performance.now();
 
-      // Normalize files whether passed as Array<{name, content, isBinary}> or Record<string, string>
-      const fileEntries: Array<{ name: string; content: string; isBinary?: boolean }> = Array.isArray(rawFiles)
+      // Normalize files whether passed as Array<{name, content, isBinary, updatedAt}> or Record<string, string>
+      const fileEntries: Array<{
+        name: string;
+        content: string;
+        isBinary?: boolean;
+        updatedAt?: number;
+      }> = Array.isArray(rawFiles)
         ? rawFiles
         : Object.entries(rawFiles || {}).map(([name, content]) => ({
             name,
             content: String(content),
           }));
 
-      // Sync project files into Pyodide virtual FS before execution
+      // Sync only modified project files into Pyodide virtual FS before execution
       if (fileEntries.length > 0) {
         try {
           py.FS.mkdirTree('/home/pyodide');
         } catch {}
         for (const f of fileEntries) {
           if (!f || !f.name || f.content === undefined) continue;
+          const sig = `${f.updatedAt || 0}:${f.content.length}:${f.content.slice(0, 32)}`;
+          if (syncedFileSignatures.get(f.name) === sig) {
+            continue;
+          }
           try {
             if (f.isBinary && typeof f.content === 'string') {
               const binStr = atob(f.content.replace(/^data:[^;]+;base64,/, ''));
@@ -799,6 +818,7 @@ for _k in list(globals().keys()):
               py.FS.writeFile(`/home/pyodide/${f.name}`, String(f.content));
               py.FS.writeFile(`/${f.name}`, String(f.content));
             }
+            syncedFileSignatures.set(f.name, sig);
           } catch {}
         }
       }
