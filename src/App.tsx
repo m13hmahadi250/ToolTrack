@@ -343,7 +343,13 @@ function MainContent() {
     <div className="min-h-screen flex flex-col bg-[#F8FAFC] dark:bg-[#0B1220] text-[#0F172A] dark:text-[#F8FAFC] transition-colors">
       <Header />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main
+        className={
+          activeToolId === 'compiler'
+            ? 'flex-1 max-w-[1920px] w-full mx-auto px-2 sm:px-4 py-2 sm:py-3'
+            : 'flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8'
+        }
+      >
         {/* Breadcrumb navigation for category page */}
         {!activeToolId && activeCategoryKey && (
           <nav className="flex items-center gap-2 text-xs font-semibold text-[#64748B] dark:text-[#94A3B8] mb-6 pb-3 border-b border-[#E2E8F0] dark:border-[#1E293B]">
@@ -366,7 +372,11 @@ function MainContent() {
 
         {/* Breadcrumb navigation if on tool page */}
         {activeToolId && currentTool && (
-          <nav className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[#64748B] dark:text-[#94A3B8] mb-6 pb-3 border-b border-[#E2E8F0] dark:border-[#1E293B]">
+          <nav
+            className={`flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[#64748B] dark:text-[#94A3B8] ${
+              activeToolId === 'compiler' ? 'mb-2 pb-1.5' : 'mb-6 pb-3'
+            } border-b border-[#E2E8F0] dark:border-[#1E293B]`}
+          >
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {

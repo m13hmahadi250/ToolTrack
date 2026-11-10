@@ -1545,23 +1545,32 @@ app.post('/api/compile-run', async (req: Request, res: Response) => {
       const runnerPath = path.join(tmpDir, 'runner.py');
       await fs.promises.writeFile(scriptPath, code, 'utf-8');
 
-      // Headless execution wrapper that catches Matplotlib plt.show() and any unclosed figures
+      const usesPandas = /\bpandas\b/.test(code);
+      const usesMatplotlib = /\b(matplotlib|pyplot|pylab|seaborn)\b/.test(code);
+
+      // Headless execution wrapper that only loads pandas/matplotlib hooks when actually imported by user code
       const runnerCode = `import os, sys, warnings
 os.environ['MPLBACKEND'] = 'Agg'
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', message='.*Pyarrow.*')
 
-try:
+${
+  usesPandas
+    ? `try:
     import pandas as pd
-    pd.set_option('display.max_columns', 20)
+    pd.set_option('display.max_columns', 25)
     pd.set_option('display.width', 1000)
 except Exception:
-    pass
+    pass`
+    : ''
+}
 
 _mpl_loaded = False
 _fig_id = [0]
-try:
+${
+  usesMatplotlib
+    ? `try:
     import matplotlib
     matplotlib.use('Agg', force=True)
     import matplotlib.pyplot as plt
@@ -1569,23 +1578,26 @@ try:
     def _tooltrack_show(*args, **kwargs):
         for num in list(plt.get_fignums()):
             fig = plt.figure(num)
-            if fig.axes:
+            if fig.axes or fig.texts or fig.images:
                 _fig_id[0] += 1
                 fig.savefig(f"_plot_{_fig_id[0]}.png", bbox_inches='tight', dpi=150)
         plt.close('all')
     plt.show = _tooltrack_show
 except Exception:
-    pass
+    pass`
+    : ''
+}
 
 with open(${JSON.stringify(scriptPath)}, 'rb') as _f:
     code_obj = compile(_f.read(), 'main.py', 'exec')
     exec(code_obj, {'__name__': '__main__'})
 
-if _mpl_loaded:
+if _mpl_loaded or 'matplotlib.pyplot' in sys.modules:
     try:
+        import matplotlib.pyplot as plt
         for num in list(plt.get_fignums()):
             fig = plt.figure(num)
-            if fig.axes:
+            if fig.axes or fig.texts or fig.images:
                 _fig_id[0] += 1
                 fig.savefig(f"_plot_{_fig_id[0]}.png", bbox_inches='tight', dpi=150)
         plt.close('all')

@@ -1,15 +1,25 @@
 /**
  * ToolTrack Python 3.12 Pyodide WebAssembly Worker
- * Runs real CPython 3.12 compiled to WebAssembly in an isolated Web Worker.
- * Supports NumPy, Pandas, Matplotlib (headless Agg backend), Scikit-Learn,
- * SciPy, SymPy, Pillow (PIL), BeautifulSoup4, Requests, Statsmodels, SQLite3,
- * OpenPyXL, and Seaborn, with full offline CacheStorage interception,
- * multi-line input() / sys.stdin, DataFrame table capture, and virtual FS sync.
+ *
+ * Responsibilities:
+ * - PythonRuntimeManager: Initializes pinned CPython 3.12 (Pyodide v0.26.4) in a dedicated Worker
+ *   and reuses the active runtime across repeated executions.
+ * - DependencyResolver & PackageManager: Uses CPython's built-in `ast` module + Pyodide lockfile
+ *   mapping to accurately detect top-level, aliased, multiline, and nested imports while ignoring
+ *   standard-library modules. Never loads NumPy/pandas/Matplotlib for `print("Hello, World!")`.
+ * - StandardInputOutputManager: Streams stdout/stderr in real time, supports multi-line `input()`
+ *   and `sys.stdin`, and guarantees buffer flushing before completion.
+ * - PlotOutputManager: Configures Matplotlib headless `Agg` backend only when Matplotlib is imported,
+ *   capturing `plt.show()`, `plt.savefig()`, and unclosed figures without duplicates or empty plots.
  */
 
 let pyodideInstance: any = null;
 let initPromise: Promise<any> | null = null;
+let runtimeInitDurationMs = 0;
 const installedPackages = new Set<string>();
+
+let activeRunStdout = '';
+let activeRunStderr = '';
 
 const COMPILER_CACHE_NAME = 'tooltrack-compiler-cache-v1';
 const PYODIDE_VERSION = 'v0.26.4';
@@ -19,12 +29,13 @@ const PYTHON_PREAMBLE = `
 import os
 import sys
 import io
+import ast
 import base64
 import json
 import builtins
 import warnings
 
-# Force non-interactive Agg backend before Matplotlib or Pyplot is imported
+# Force non-interactive Agg backend in environment before Matplotlib is ever imported
 os.environ['MPLBACKEND'] = 'Agg'
 os.environ['MPLCONFIGDIR'] = '/tmp/matplotlib'
 
@@ -36,6 +47,26 @@ warnings.filterwarnings('ignore', message='.*pyarrow.*')
 _tooltrack_plots = []
 _tooltrack_stdin_lines = []
 _tooltrack_stdin_idx = 0
+
+def _tooltrack_extract_imports(source_code=""):
+    """Use CPython AST to extract all imported root module names (supports multiline, aliases, nested)."""
+    found = []
+    try:
+        tree = ast.parse(source_code)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    root = alias.name.split('.')[0].strip()
+                    if root and root not in found:
+                        found.append(root)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module and node.level == 0:
+                    root = node.module.split('.')[0].strip()
+                    if root and root not in found:
+                        found.append(root)
+    except Exception:
+        pass
+    return json.dumps(found)
 
 def _tooltrack_configure_io(stdin_text=""):
     global _tooltrack_stdin_lines, _tooltrack_stdin_idx
@@ -53,7 +84,7 @@ def _tooltrack_configure_io(stdin_text=""):
             sys.stdout.flush()
         line = sys.stdin.readline()
         if line == "":
-            raise EOFError("EOF when reading a line (provide input values in the Input / STDIN panel)")
+            raise EOFError("EOF when reading a line (provide input values in the Input / STDIN tab)")
         return line.rstrip("\\r\\n")
 
     builtins.input = _custom_input
@@ -62,20 +93,21 @@ def _tooltrack_setup_environment():
     global _tooltrack_plots
     _tooltrack_plots = []
 
-    # Configure Pandas formatting if already imported
+    # Configure Pandas formatting only if already imported
     if 'pandas' in sys.modules:
         try:
             import pandas as pd
-            pd.set_option('display.max_columns', 20)
+            pd.set_option('display.max_columns', 25)
             pd.set_option('display.width', 1000)
-            pd.set_option('display.max_colwidth', 60)
+            pd.set_option('display.max_colwidth', 80)
         except Exception:
             pass
 
-    # Configure Matplotlib Agg capture if available
+def _tooltrack_setup_matplotlib_hook():
+    """Only called when user code imports matplotlib/seaborn or matplotlib is already loaded."""
     try:
         import matplotlib
-        matplotlib.use('Agg')
+        matplotlib.use('Agg', force=True)
         import matplotlib.pyplot as plt
 
         if not getattr(plt, '_tooltrack_hooked', False):
@@ -104,11 +136,12 @@ def _tooltrack_setup_environment():
                 try:
                     buf = io.BytesIO()
                     fig = plt.gcf()
-                    fig.savefig(buf, format='png', bbox_inches='tight', dpi=150, facecolor=fig.get_facecolor() or 'white')
-                    buf.seek(0)
-                    b64 = base64.b64encode(buf.read()).decode('utf-8')
-                    if not _tooltrack_plots or _tooltrack_plots[-1] != b64:
-                        _tooltrack_plots.append(b64)
+                    if fig.axes or fig.texts or fig.images:
+                        fig.savefig(buf, format='png', bbox_inches='tight', dpi=150, facecolor=fig.get_facecolor() or 'white')
+                        buf.seek(0)
+                        b64 = base64.b64encode(buf.read()).decode('utf-8')
+                        if not _tooltrack_plots or _tooltrack_plots[-1] != b64:
+                            _tooltrack_plots.append(b64)
                 except Exception:
                     pass
                 return res
@@ -121,18 +154,23 @@ def _tooltrack_setup_environment():
 
 def _tooltrack_finalize_execution():
     global _tooltrack_plots
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:
+        pass
+
     plots = list(_tooltrack_plots) if '_tooltrack_plots' in globals() else []
 
-    # Configure Pandas formatting if imported during user script
     if 'pandas' in sys.modules:
         try:
             import pandas as pd
-            pd.set_option('display.max_columns', 20)
+            pd.set_option('display.max_columns', 25)
             pd.set_option('display.width', 1000)
         except Exception:
             pass
 
-    # Capture any remaining open Matplotlib figures not closed by plt.show()
+    # Capture any remaining open Matplotlib figures not explicitly closed by plt.show()
     if 'matplotlib.pyplot' in sys.modules:
         try:
             import matplotlib.pyplot as plt
@@ -151,7 +189,7 @@ def _tooltrack_finalize_execution():
 
     _tooltrack_plots = []
 
-    # Inspect user globals for Pandas DataFrames to populate the read-only Table Viewer
+    # Inspect user globals for Pandas DataFrames to populate the interactive DataFrames tab
     dataframes = []
     if 'pandas' in sys.modules:
         try:
@@ -161,23 +199,26 @@ def _tooltrack_finalize_execution():
                 if var_name.startswith('_'):
                     continue
                 if isinstance(val, pd.DataFrame):
-                    preview_df = val.head(50)
+                    preview_df = val.head(200)
                     cols = [str(c) for c in val.columns.tolist()]
                     dtypes = {str(k): str(v) for k, v in val.dtypes.items()}
-                    rows_data = []
-                    for _, row in preview_df.iterrows():
-                        rows_data.append([None if pd.isna(v) else str(v) for v in row.tolist()])
-                    csv_str = val.head(500).to_csv(index=False)
+                    rows_objects = []
+                    for idx_val, row in preview_df.iterrows():
+                        row_dict = {'__index__': str(idx_val)}
+                        for c_name, cell_val in zip(cols, row.tolist()):
+                            row_dict[c_name] = None if pd.isna(cell_val) else str(cell_val)
+                        rows_objects.append(row_dict)
+                    csv_str = val.head(2000).to_csv(index=True)
                     dataframes.append({
                         'name': var_name,
                         'rows': int(val.shape[0]),
                         'cols': int(val.shape[1]),
                         'columns': cols,
                         'dtypes': dtypes,
-                        'previewRows': rows_data,
+                        'previewRows': rows_objects,
                         'csvContent': csv_str
                     })
-                    if len(dataframes) >= 5:
+                    if len(dataframes) >= 8:
                         break
         except Exception:
             pass
@@ -248,26 +289,48 @@ self.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Respo
     }
     const filename = url.split('/').pop() || 'resource';
     throw new Error(
-      `Offline Resource Missing: '${filename}' is not cached locally. Connect to the internet and click "Prepare Python for Offline Use" to cache the runtime and scientific packages.`
+      `Offline Resource Missing: '${filename}' is not cached locally. Connect to the internet and open "Packages & Offline Setup" to cache the required runtime or scientific packages.`
     );
   }
 };
 
-async function initPyodide(): Promise<any> {
-  if (pyodideInstance) return pyodideInstance;
-  if (initPromise) return initPromise;
+async function initPyodide(initId?: string): Promise<any> {
+  if (pyodideInstance) {
+    if (initId) {
+      postMessage({
+        type: 'INIT_COMPLETE',
+        id: initId,
+        version: pyodideInstance.version || PYODIDE_VERSION,
+        runtimeInitMs: runtimeInitDurationMs,
+        installedPackages: Array.from(installedPackages),
+      });
+    }
+    return pyodideInstance;
+  }
+  if (initPromise) {
+    const py = await initPromise;
+    if (initId) {
+      postMessage({
+        type: 'INIT_COMPLETE',
+        id: initId,
+        version: py.version || PYODIDE_VERSION,
+        runtimeInitMs: runtimeInitDurationMs,
+        installedPackages: Array.from(installedPackages),
+      });
+    }
+    return py;
+  }
 
   initPromise = (async () => {
+    const t0 = performance.now();
     postMessage({
-      type: 'status',
+      type: 'STATUS',
       state: 'downloading_runtime',
       message: 'Loading Python 3.12 WebAssembly runtime...',
     });
 
     try {
-      // 1. Pre-load pyodide.asm.js through self.fetch (which reads from CacheStorage when offline)
-      // so globalThis._createPyodideModule is already defined and pyodide.mjs never makes an
-      // un-intercepted dynamic import() call to the CDN while offline.
+      // 1. Pre-load pyodide.asm.js through self.fetch (reads from CacheStorage when offline)
       if (typeof (self as any)._createPyodideModule !== 'function') {
         const asmRes = await self.fetch(`${PYODIDE_INDEX_URL}pyodide.asm.js`);
         if (!asmRes.ok) {
@@ -304,7 +367,7 @@ async function initPyodide(): Promise<any> {
       }
 
       postMessage({
-        type: 'status',
+        type: 'STATUS',
         state: 'initializing',
         message: 'Initializing CPython 3.12 WebAssembly VM...',
       });
@@ -312,7 +375,10 @@ async function initPyodide(): Promise<any> {
       const py = await loadPyodideFn({
         indexURL: PYODIDE_INDEX_URL,
         stdout: (text: string) => {
-          postMessage({ type: 'stdout', text: text.endsWith('\n') ? text : text + '\n' });
+          const line = text.endsWith('\n') ? text : text + '\n';
+          activeRunStdout += line;
+          postMessage({ type: 'STDOUT', text: line });
+          postMessage({ type: 'stdout', text: line });
         },
         stderr: (text: string) => {
           if (
@@ -323,17 +389,32 @@ async function initPyodide(): Promise<any> {
           ) {
             return;
           }
-          postMessage({ type: 'stderr', text: text.endsWith('\n') ? text : text + '\n' });
+          const line = text.endsWith('\n') ? text : text + '\n';
+          activeRunStderr += line;
+          postMessage({ type: 'STDERR', text: line });
+          postMessage({ type: 'stderr', text: line });
         },
       });
 
       await py.runPythonAsync(PYTHON_PREAMBLE);
 
+      runtimeInitDurationMs = Math.round(performance.now() - t0);
       pyodideInstance = py;
+
+      postMessage({
+        type: 'INIT_COMPLETE',
+        id: initId,
+        state: 'ready',
+        version: py.version || PYODIDE_VERSION,
+        runtimeInitMs: runtimeInitDurationMs,
+        installedPackages: Array.from(installedPackages),
+        message: 'Python 3.12 runtime ready.',
+      });
       postMessage({
         type: 'initialized',
         state: 'ready',
         version: py.version || PYODIDE_VERSION,
+        runtimeInitMs: runtimeInitDurationMs,
         installed: Array.from(installedPackages),
         message: 'Python 3.12 runtime ready.',
       });
@@ -343,8 +424,10 @@ async function initPyodide(): Promise<any> {
       initPromise = null;
       console.error('[Pyodide Worker Init Error]:', err);
       postMessage({
-        type: 'error',
+        type: 'ERROR',
+        id: initId,
         state: 'failed',
+        stderr: err.message || String(err),
         message: err.message || String(err),
       });
       throw err;
@@ -354,12 +437,33 @@ async function initPyodide(): Promise<any> {
   return initPromise;
 }
 
+const STDLIB_MODULES = new Set([
+  'abc', 'argparse', 'array', 'ast', 'asyncio', 'base64', 'bisect', 'builtins',
+  'calendar', 'cmath', 'collections', 'concurrent', 'contextlib', 'copy', 'csv',
+  'ctypes', 'dataclasses', 'datetime', 'decimal', 'difflib', 'dis', 'email',
+  'enum', 'errno', 'fnmatch', 'fractions', 'functools', 'gc', 'getopt', 'getpass',
+  'gettext', 'glob', 'gzip', 'hashlib', 'heapq', 'hmac', 'html', 'http',
+  'importlib', 'inspect', 'io', 'ipaddress', 'itertools', 'json', 'keyword',
+  'linecache', 'locale', 'logging', 'lzma', 'math', 'mimetypes', 'numbers',
+  'operator', 'os', 'pathlib', 'pickle', 'platform', 'pprint', 'profile',
+  'pstats', 'queue', 'quopri', 'random', 're', 'reprlib', 'secrets', 'select',
+  'shlex', 'shutil', 'signal', 'site', 'smtplib', 'socket', 'statistics',
+  'string', 'stringprep', 'struct', 'subprocess', 'sys', 'sysconfig', 'tarfile',
+  'tempfile', 'textwrap', 'threading', 'time', 'timeit', 'token', 'tokenize',
+  'tomllib', 'trace', 'traceback', 'tracemalloc', 'types', 'typing',
+  'unicodedata', 'unittest', 'urllib', 'uuid', 'venv', 'warnings', 'weakref',
+  'xml', 'xmlrpc', 'zipapp', 'zipfile', 'zipimport', 'zlib', 'zoneinfo',
+]);
+
 // Package import mapping for Python AST & regex detection
 const IMPORT_TO_PYODIDE_PKG: Record<string, string> = {
   numpy: 'numpy',
   pandas: 'pandas',
   matplotlib: 'matplotlib',
+  pyplot: 'matplotlib',
+  pylab: 'matplotlib',
   sklearn: 'scikit-learn',
+  scikit_learn: 'scikit-learn',
   scipy: 'scipy',
   sympy: 'sympy',
   PIL: 'pillow',
@@ -369,48 +473,79 @@ const IMPORT_TO_PYODIDE_PKG: Record<string, string> = {
   requests: 'requests',
   statsmodels: 'statsmodels',
   sqlite3: 'sqlite3',
+  openpyxl: 'openpyxl',
+  networkx: 'networkx',
+  yaml: 'pyyaml',
+  pyyaml: 'pyyaml',
+  regex: 'regex',
+  joblib: 'joblib',
   xlrd: 'xlrd',
   micropip: 'micropip',
 };
 
-const MICROPIP_PACKAGES = new Set(['seaborn', 'openpyxl']);
+const MICROPIP_PACKAGES = new Set(['seaborn']);
 
-function detectRequiredPackages(code: string): { pyodidePkgs: string[]; micropipPkgs: string[] } {
+async function resolveCodeImports(
+  py: any,
+  code: string,
+  userFiles: Array<{ name: string }> = []
+): Promise<{ pyodidePkgs: string[]; micropipPkgs: string[] }> {
   const pyodidePkgs = new Set<string>();
   const micropipPkgs = new Set<string>();
+  const localModules = new Set(
+    userFiles
+      .filter((f) => f && f.name && f.name.endsWith('.py'))
+      .map((f) => f.name.replace(/\.py$/, ''))
+  );
 
-  // Match `import X`, `import X, Y`, `from X.Y import Z`
-  const lines = code.split('\n');
-  for (const rawLine of lines) {
-    const line = rawLine.replace(/#.*$/, '').trim();
-    if (!line) continue;
+  let rootModules: string[] = [];
 
-    const fromMatch = line.match(/^from\s+([a-zA-Z0-9_]+)/);
-    if (fromMatch) {
-      const rootMod = fromMatch[1];
-      if (IMPORT_TO_PYODIDE_PKG[rootMod]) {
-        pyodidePkgs.add(IMPORT_TO_PYODIDE_PKG[rootMod]);
-      } else if (MICROPIP_PACKAGES.has(rootMod)) {
-        micropipPkgs.add(rootMod);
+  // 1. Primary: Use CPython's built-in AST parser for exact multiline/alias/nested import extraction
+  try {
+    py.globals.set('_tooltrack_tmp_src', code);
+    const jsonStr = await py.runPythonAsync('_tooltrack_extract_imports(_tooltrack_tmp_src)');
+    if (typeof jsonStr === 'string') {
+      const parsed = JSON.parse(jsonStr);
+      if (Array.isArray(parsed)) {
+        rootModules = parsed;
       }
-      continue;
     }
+  } catch {}
 
-    const importMatch = line.match(/^import\s+(.+)$/);
-    if (importMatch) {
-      const parts = importMatch[1].split(',');
-      for (const part of parts) {
-        const token = part.trim().split(/\s+/)[0].split('.')[0];
-        if (IMPORT_TO_PYODIDE_PKG[token]) {
-          pyodidePkgs.add(IMPORT_TO_PYODIDE_PKG[token]);
-        } else if (MICROPIP_PACKAGES.has(token)) {
-          micropipPkgs.add(token);
+  // 2. Fallback: Regex scan in case the user code has a syntax error or incomplete block
+  if (rootModules.length === 0) {
+    const lines = code.split('\n');
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/#.*$/, '').trim();
+      if (!line) continue;
+      const fromMatch = line.match(/^from\s+([a-zA-Z0-9_]+)/);
+      if (fromMatch) {
+        rootModules.push(fromMatch[1]);
+        continue;
+      }
+      const importMatch = line.match(/^import\s+(.+)$/);
+      if (importMatch) {
+        const parts = importMatch[1].split(',');
+        for (const part of parts) {
+          const token = part.trim().split(/\s+/)[0].split('.')[0];
+          if (token) rootModules.push(token);
         }
       }
     }
   }
 
-  // If seaborn is requested, ensure numpy, pandas, matplotlib, scipy are also loaded via Pyodide
+  for (const mod of rootModules) {
+    if (!mod || STDLIB_MODULES.has(mod) || localModules.has(mod)) {
+      continue;
+    }
+    if (IMPORT_TO_PYODIDE_PKG[mod]) {
+      pyodidePkgs.add(IMPORT_TO_PYODIDE_PKG[mod]);
+    } else if (MICROPIP_PACKAGES.has(mod)) {
+      micropipPkgs.add(mod);
+    }
+  }
+
+  // If seaborn is requested, ensure numpy, pandas, matplotlib, scipy are loaded via Pyodide
   if (micropipPkgs.has('seaborn')) {
     pyodidePkgs.add('numpy');
     pyodidePkgs.add('pandas');
@@ -455,26 +590,47 @@ function listWorkspaceFiles(py: any): Array<{ name: string; size: number; isBina
   return results;
 }
 
+function extractPythonErrorLine(tracebackText: string): number | undefined {
+  const matches = [...tracebackText.matchAll(/File\s+"(?:<exec>|main\.py|[^"]*)",\s+line\s+(\d+)/g)];
+  if (matches.length > 0) {
+    const lastMatch = matches[matches.length - 1];
+    return Number(lastMatch[1]);
+  }
+  return undefined;
+}
+
 self.onmessage = async (event: MessageEvent) => {
-  const { action, payload, id } = event.data;
+  const data = event.data || {};
+  const msgType = data.type || data.action;
+  const payload = data.payload || data;
+  const id = data.id;
 
   try {
-    if (action === 'init') {
-      await initPyodide();
+    if (msgType === 'INIT' || msgType === 'init') {
+      await initPyodide(id);
       return;
     }
 
-    if (action === 'resetRuntime') {
+    if (msgType === 'RESET_KERNEL' || msgType === 'resetRuntime') {
       const py = await initPyodide();
       await py.runPythonAsync(`
 for _k in list(globals().keys()):
-    if not _k.startswith('_') and _k not in ('os', 'sys', 'io', 'base64', 'json', 'builtins', 'warnings'):
+    if not _k.startswith('_') and _k not in ('os', 'sys', 'io', 'ast', 'base64', 'json', 'builtins', 'warnings'):
         try:
             del globals()[_k]
         except Exception:
             pass
 `);
       await py.runPythonAsync(PYTHON_PREAMBLE);
+      postMessage({
+        type: 'RESULT',
+        id,
+        stdout: '',
+        stderr: '',
+        plots: [],
+        dataframes: [],
+        installedPackages: Array.from(installedPackages),
+      });
       postMessage({
         type: 'runtimeReset',
         id,
@@ -485,33 +641,46 @@ for _k in list(globals().keys()):
       return;
     }
 
-    if (action === 'loadPackages') {
+    if (msgType === 'INSTALL_PACKAGE' || msgType === 'loadPackages' || msgType === 'installMicropip') {
       const py = await initPyodide();
-      const packages: string[] = payload.packages || [];
-      const toLoad = packages.filter((p) => !installedPackages.has(p));
+      const singlePkg = (data.packageName || payload?.package || '').trim();
+      const packages: string[] = singlePkg ? [singlePkg] : payload?.packages || [];
 
-      if (toLoad.length > 0) {
+      for (const rawPkg of packages) {
+        const mappedPkg = IMPORT_TO_PYODIDE_PKG[rawPkg] || rawPkg;
+        if (STDLIB_MODULES.has(mappedPkg)) {
+          continue;
+        }
+        if (installedPackages.has(mappedPkg)) {
+          continue;
+        }
         postMessage({
-          type: 'status',
+          type: 'STATUS',
           state: 'loading_packages',
-          message: `Loading packages: ${toLoad.join(', ')}...`,
+          message: `Installing package '${mappedPkg}'...`,
         });
-        for (const pkg of toLoad) {
-          postMessage({ type: 'packageLoading', package: pkg });
-          try {
-            await py.loadPackage(pkg);
-            installedPackages.add(pkg);
-            postMessage({ type: 'packageLoaded', package: pkg, installed: Array.from(installedPackages) });
-          } catch (pkgErr: any) {
-            postMessage({
-              type: 'packageError',
-              package: pkg,
-              error: pkgErr.message || String(pkgErr),
-            });
+        try {
+          await py.loadPackage(mappedPkg);
+          installedPackages.add(mappedPkg);
+        } catch {
+          // Fallback to micropip for pure-Python packages on PyPI
+          if (!installedPackages.has('micropip')) {
+            await py.loadPackage('micropip');
+            installedPackages.add('micropip');
           }
+          const micropip = py.pyimport('micropip');
+          await micropip.install(rawPkg);
+          installedPackages.add(rawPkg);
         }
       }
 
+      postMessage({
+        type: 'RESULT',
+        id,
+        stdout: `Successfully loaded: ${packages.join(', ')}\n`,
+        stderr: '',
+        installedPackages: Array.from(installedPackages),
+      });
       postMessage({
         type: 'packagesReady',
         id,
@@ -521,52 +690,16 @@ for _k in list(globals().keys()):
       return;
     }
 
-    if (action === 'installMicropip') {
+    if (msgType === 'uploadFile' || msgType === 'UPLOAD_FILE') {
       const py = await initPyodide();
-      const pkgName = (payload.package || '').trim();
-      if (!pkgName) return;
-
-      postMessage({
-        type: 'status',
-        state: 'loading_packages',
-        message: `Installing '${pkgName}' via micropip...`,
-      });
-      try {
-        if (!installedPackages.has('micropip')) {
-          await py.loadPackage('micropip');
-          installedPackages.add('micropip');
-        }
-        const micropip = py.pyimport('micropip');
-        await micropip.install(pkgName);
-        installedPackages.add(pkgName);
-        postMessage({
-          type: 'micropipSuccess',
-          package: pkgName,
-          installed: Array.from(installedPackages),
-          id,
-        });
-      } catch (e: any) {
-        postMessage({
-          type: 'micropipError',
-          package: pkgName,
-          error: e.message || String(e),
-          id,
-        });
-      }
-      return;
-    }
-
-    if (action === 'uploadFile') {
-      const py = await initPyodide();
-      const { name, data, isBinary } = payload;
-      let bytesOrText: Uint8Array | string = data;
-      if (isBinary && data instanceof ArrayBuffer) {
-        bytesOrText = new Uint8Array(data);
-      } else if (isBinary && ArrayBuffer.isView(data)) {
-        bytesOrText = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-      } else if (isBinary && typeof data === 'string') {
-        // Base64 string fallback
-        const binStr = atob(data.replace(/^data:[^;]+;base64,/, ''));
+      const { name, data: fileData, isBinary } = payload;
+      let bytesOrText: Uint8Array | string = fileData;
+      if (isBinary && fileData instanceof ArrayBuffer) {
+        bytesOrText = new Uint8Array(fileData);
+      } else if (isBinary && ArrayBuffer.isView(fileData)) {
+        bytesOrText = new Uint8Array(fileData.buffer, fileData.byteOffset, fileData.byteLength);
+      } else if (isBinary && typeof fileData === 'string') {
+        const binStr = atob(fileData.replace(/^data:[^;]+;base64,/, ''));
         const arr = new Uint8Array(binStr.length);
         for (let i = 0; i < binStr.length; i++) arr[i] = binStr.charCodeAt(i);
         bytesOrText = arr;
@@ -591,14 +724,14 @@ for _k in list(globals().keys()):
       return;
     }
 
-    if (action === 'listFiles') {
+    if (msgType === 'listFiles' || msgType === 'LIST_FILES') {
       const py = await initPyodide();
       const files = listWorkspaceFiles(py);
       postMessage({ type: 'fileList', files, id });
       return;
     }
 
-    if (action === 'downloadFile') {
+    if (msgType === 'downloadFile' || msgType === 'DOWNLOAD_FILE') {
       const py = await initPyodide();
       const { name } = payload;
       try {
@@ -615,7 +748,7 @@ for _k in list(globals().keys()):
       return;
     }
 
-    if (action === 'deleteFile') {
+    if (msgType === 'deleteFile' || msgType === 'DELETE_FILE') {
       const py = await initPyodide();
       const { name } = payload;
       try {
@@ -629,17 +762,31 @@ for _k in list(globals().keys()):
       return;
     }
 
-    if (action === 'runCode') {
+    if (msgType === 'RUN' || msgType === 'runCode') {
       const py = await initPyodide();
-      const { code, stdin = '', files = [], cellId } = payload;
+      const code: string = data.code ?? payload?.code ?? '';
+      const stdin: string = data.stdin ?? payload?.stdin ?? '';
+      const rawFiles = data.files ?? payload?.files ?? [];
+      const cellId = data.cellId ?? payload?.cellId;
+
+      activeRunStdout = '';
+      activeRunStderr = '';
       const startTime = performance.now();
 
-      // Sync any project files into Pyodide virtual FS before execution
-      if (Array.isArray(files) && files.length > 0) {
+      // Normalize files whether passed as Array<{name, content, isBinary}> or Record<string, string>
+      const fileEntries: Array<{ name: string; content: string; isBinary?: boolean }> = Array.isArray(rawFiles)
+        ? rawFiles
+        : Object.entries(rawFiles || {}).map(([name, content]) => ({
+            name,
+            content: String(content),
+          }));
+
+      // Sync project files into Pyodide virtual FS before execution
+      if (fileEntries.length > 0) {
         try {
           py.FS.mkdirTree('/home/pyodide');
         } catch {}
-        for (const f of files) {
+        for (const f of fileEntries) {
           if (!f || !f.name || f.content === undefined) continue;
           try {
             if (f.isBinary && typeof f.content === 'string') {
@@ -656,14 +803,14 @@ for _k in list(globals().keys()):
         }
       }
 
-      // 1. Detect and load required packages (skipping already loaded ones)
-      const { pyodidePkgs, micropipPkgs } = detectRequiredPackages(code);
+      // 1. Lazily detect and load ONLY packages actually imported by the code
+      const { pyodidePkgs, micropipPkgs } = await resolveCodeImports(py, code, fileEntries);
       const missingPyodidePkgs = pyodidePkgs.filter((p) => !installedPackages.has(p));
       const missingMicropipPkgs = micropipPkgs.filter((p) => !installedPackages.has(p));
 
       if (missingPyodidePkgs.length > 0) {
         postMessage({
-          type: 'status',
+          type: 'STATUS',
           state: 'loading_packages',
           message: `Loading libraries: ${missingPyodidePkgs.join(', ')}...`,
         });
@@ -681,7 +828,7 @@ for _k in list(globals().keys()):
 
       if (missingMicropipPkgs.length > 0) {
         postMessage({
-          type: 'status',
+          type: 'STATUS',
           state: 'loading_packages',
           message: `Installing pure-Python wheels: ${missingMicropipPkgs.join(', ')}...`,
         });
@@ -701,43 +848,42 @@ for _k in list(globals().keys()):
         }
       }
 
-      // Also let Pyodide scan for any other standard library / lockfile packages if not yet loaded
-      try {
-        if (typeof py.loadPackagesFromImports === 'function') {
-          await py.loadPackagesFromImports(code);
-        }
-      } catch {}
-
-      postMessage({
-        type: 'executionStarted',
-        id,
-        cellId,
-        state: 'running',
-        message: 'Executing Python program...',
-      });
+      const needsMatplotlibHook =
+        pyodidePkgs.includes('matplotlib') ||
+        micropipPkgs.includes('seaborn') ||
+        installedPackages.has('matplotlib');
 
       let result: any = null;
       let errorOccurred = false;
+      let errorLine: number | undefined = undefined;
 
       try {
-        // Configure stdin/input() and Matplotlib Agg hooks
         py.globals.set('_tooltrack_raw_stdin', String(stdin || ''));
         await py.runPythonAsync(`
 _tooltrack_configure_io(_tooltrack_raw_stdin)
 _tooltrack_setup_environment()
+${needsMatplotlibHook ? '_tooltrack_setup_matplotlib_hook()' : ''}
 `);
         result = await py.runPythonAsync(code);
       } catch (execErr: any) {
         errorOccurred = true;
         const errMsg = execErr.message || String(execErr);
+        errorLine = extractPythonErrorLine(errMsg);
+        const formattedErr = errMsg.endsWith('\n') ? errMsg : errMsg + '\n';
+        activeRunStderr += formattedErr;
+        postMessage({
+          type: 'STDERR',
+          cellId,
+          text: formattedErr,
+        });
         postMessage({
           type: 'stderr',
           cellId,
-          text: errMsg.endsWith('\n') ? errMsg : errMsg + '\n',
+          text: formattedErr,
         });
       }
 
-      // Finalize execution: collect plots and DataFrames
+      // Finalize execution: flush stdout/stderr, collect plots and DataFrames
       let plots: string[] = [];
       let dataframes: any[] = [];
       try {
@@ -754,13 +900,34 @@ _tooltrack_setup_environment()
       const workspaceFiles = listWorkspaceFiles(py);
       const executionTimeMs = Math.round(performance.now() - startTime);
 
+      // Post unified RESULT / ERROR message for Promise-based callers
+      postMessage({
+        type: errorOccurred ? 'ERROR' : 'RESULT',
+        id,
+        cellId,
+        stdout: activeRunStdout,
+        stderr: activeRunStderr,
+        plots,
+        dataframes,
+        errorLine,
+        executionTimeMs,
+        runtimeInitMs: runtimeInitDurationMs,
+        files: workspaceFiles,
+        installedPackages: Array.from(installedPackages),
+        result: result !== undefined && result !== null ? String(result) : undefined,
+      });
+
+      // Also post legacy runComplete for backward compatibility
       postMessage({
         type: 'runComplete',
         state: errorOccurred ? 'failed' : 'completed',
         id,
         cellId,
         success: !errorOccurred,
+        stdout: activeRunStdout,
+        stderr: activeRunStderr,
         executionTimeMs,
+        runtimeInitMs: runtimeInitDurationMs,
         plots,
         dataframes,
         files: workspaceFiles,
@@ -770,12 +937,15 @@ _tooltrack_setup_environment()
       return;
     }
   } catch (globalErr: any) {
+    const errMsg = globalErr.message || String(globalErr);
     postMessage({
-      type: 'error',
+      type: 'ERROR',
       state: 'failed',
       id,
       cellId: payload?.cellId,
-      message: globalErr.message || String(globalErr),
+      stdout: activeRunStdout,
+      stderr: activeRunStderr ? `${activeRunStderr}\n${errMsg}` : errMsg,
+      message: errMsg,
     });
   }
 };

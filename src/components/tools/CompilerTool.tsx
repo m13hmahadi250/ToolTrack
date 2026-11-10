@@ -1,123 +1,81 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import Editor, { OnMount } from '@monaco-editor/react';
+import type * as Monaco from 'monaco-editor';
 import {
   Play,
+  Square,
+  RotateCcw,
   Trash2,
   Download,
   Copy,
   Check,
   Terminal,
   Code2,
-  Cpu,
-  Sparkles,
   FileCode,
   RefreshCw,
   Maximize2,
   Minimize2,
-  Sliders,
   AlertCircle,
   CheckCircle2,
   Clock,
   ChevronRight,
   ChevronDown,
-  Layers,
   Image as ImageIcon,
-  Wand2,
-  Keyboard,
   Wifi,
   WifiOff,
   HardDriveDownload,
   Package,
-  Search,
   WrapText,
   FolderOpen,
   FilePlus,
   Upload,
   Table as TableIcon,
   BookOpen,
-  Plus,
-  ArrowUp,
-  ArrowDown,
-  Square,
-  RotateCcw,
   FileArchive,
   ZoomIn,
   X,
-  FileSpreadsheet,
-  Edit3,
-  FolderPlus,
+  PanelLeftClose,
+  PanelLeftOpen,
+  SlidersHorizontal,
+  ArrowUpDown,
+  Search,
+  Database,
+  Cpu,
 } from 'lucide-react';
 
-// CodeMirror 6 imports
-import { EditorState, Compartment } from '@codemirror/state';
-import {
-  EditorView,
-  keymap,
-  lineNumbers,
-  highlightActiveLine,
-  highlightActiveLineGutter,
-  drawSelection,
-  dropCursor,
-  rectangularSelection,
-  crosshairCursor,
-} from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import {
-  indentOnInput,
-  indentUnit,
-  bracketMatching,
-  foldGutter,
-  foldKeymap,
-  syntaxHighlighting,
-  defaultHighlightStyle,
-} from '@codemirror/language';
-import { closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete';
-import { searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search';
-import { python } from '@codemirror/lang-python';
-import { cpp } from '@codemirror/lang-cpp';
-import { oneDark } from '@codemirror/theme-one-dark';
-
-import { ghostTextExtension } from '../../lib/ghostTextExtension';
-import { intelliSenseExtension } from '../../lib/intellisenseSource';
-import {
-  inspectCompilerCache,
-  downloadFullDataScienceBundle,
-  clearCompilerCache,
-  CacheCheckStatus,
-  PYTHON_PACKAGES,
-} from '../../lib/offlineCompilerCache';
-import {
-  runClientCpp,
-  validateSyntax,
-  CompilerDiagnostic,
-} from '../../lib/clientCppRunner';
 import {
   CompilerLanguage,
   CompilerProject,
   ProjectFile,
-  NotebookCellData,
   COMPILER_TEMPLATES,
+  MINIMAL_HELLO_WORLD,
+  getDefaultFileName,
   loadCompilerProjects,
   saveCompilerProjects,
   getActiveProjectId,
   setActiveProjectId,
   exportProjectAsZip,
-  exportNotebookToIpynb,
-  parseIpynbToCells,
-  getDefaultNotebookCells,
+  saveDatasetToOpfs,
 } from '../../lib/compilerProjectStore';
+import {
+  PYTHON_PACKAGES,
+  CacheCheckStatus,
+  SetupPreferenceMode,
+  PackageCategory,
+  inspectCompilerCache,
+  downloadCoreRuntime,
+  downloadPythonPackage,
+  downloadDataSciencePreset,
+  downloadFullDataScienceBundle,
+  removeCachedPackage,
+  clearCompilerCache,
+  getSetupPreferenceMode,
+  setSetupPreferenceMode,
+} from '../../lib/offlineCompilerCache';
+import { runClientCpp, validateSyntax } from '../../lib/clientCppRunner';
+import { analyzeContext, fuzzyMatchScore, predictGhostText } from '../../lib/autocompleteEngine';
 
-type RuntimeLifecycleState =
-  | 'not_initialized'
-  | 'downloading_runtime'
-  | 'initializing'
-  | 'loading_packages'
-  | 'ready'
-  | 'running'
-  | 'stopping'
-  | 'completed'
-  | 'failed';
-
-interface ExtractedDataFrame {
+interface CapturedDataFrame {
   name: string;
   rows: number;
   cols: number;
@@ -127,2643 +85,1446 @@ interface ExtractedDataFrame {
   csvContent: string;
 }
 
-type StudioTab = 'console' | 'stdin' | 'plots' | 'dataframes' | 'problems' | 'packages';
-
-function formatBytes(bytes: number): string {
-  if (!bytes || bytes <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+interface ExecutionHistoryItem {
+  id: string;
+  timestamp: string;
+  language: CompilerLanguage;
+  fileName: string;
+  durationMs: number;
+  engine: string;
+  status: 'completed' | 'failed' | 'cancelled';
 }
 
+type JobLifecycleState = 'idle' | 'preparing' | 'running' | 'completed' | 'failed' | 'cancelled';
+type OutputTab = 'console' | 'plots' | 'dataframes' | 'stdin';
+type MaximizedPanel = 'none' | 'editor' | 'output';
+
 export function CompilerTool() {
-  // --- Projects & Multi-File State ---
+  // 1. Projects & Active File State
   const [projects, setProjects] = useState<CompilerProject[]>(() => loadCompilerProjects());
-  const [activeProjectId, setActiveProjectIdState] = useState<string>(() =>
+  const [activeProjectId, setActiveProjIdState] = useState<string>(() =>
     getActiveProjectId(loadCompilerProjects())
   );
 
-  const activeProject = useMemo(
-    () => projects.find((p) => p.id === activeProjectId) || projects[0],
-    [projects, activeProjectId]
-  );
+  const activeProject = useMemo(() => {
+    return projects.find((p) => p.id === activeProjectId) || projects[0];
+  }, [projects, activeProjectId]);
 
-  const language: CompilerLanguage = activeProject?.language || 'python';
-  const activeFileName = activeProject?.activeFileName || 'main.py';
-  const activeFile = useMemo(
-    () =>
-      activeProject?.files.find((f) => f.name === activeFileName) ||
-      activeProject?.files[0] || { name: 'main.py', content: '', updatedAt: Date.now() },
-    [activeProject, activeFileName]
-  );
+  const activeFile = useMemo(() => {
+    if (!activeProject) return { name: 'main.py', content: MINIMAL_HELLO_WORLD.python, updatedAt: Date.now() };
+    return (
+      activeProject.files.find((f) => f.name === activeProject.activeFileName) ||
+      activeProject.files[0] || {
+        name: getDefaultFileName(activeProject.language),
+        content: MINIMAL_HELLO_WORLD[activeProject.language],
+        updatedAt: Date.now(),
+      }
+    );
+  }, [activeProject]);
 
-  const code = activeFile.content;
-  const stdin = activeProject?.stdin || '';
+  // 2. Spacious Layout State (Sidebar collapsed by default for maximum editor space)
+  const [showExplorer, setShowExplorer] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('tooltrack_compiler_explorer_open') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [editorWidthPct, setEditorWidthPct] = useState<number>(63);
+  const [isDraggingSplit, setIsDraggingSplit] = useState<boolean>(false);
+  const [maximizedPanel, setMaximizedPanel] = useState<MaximizedPanel>('none');
+  const [wordWrap, setWordWrap] = useState<boolean>(false);
+  const [fontSize, setFontSize] = useState<number>(14);
+  const [editorTheme, setEditorTheme] = useState<'vs-dark' | 'light'>('vs-dark');
 
-  // --- Workspace Mode: 'editor' (VS Code style) or 'notebook' (Colab style for Python) ---
-  const [workspaceMode, setWorkspaceMode] = useState<'editor' | 'notebook'>('editor');
-  const [showExplorer, setShowExplorer] = useState<boolean>(true);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  // Menus & Modals
+  const [showExamplesMenu, setShowExamplesMenu] = useState<boolean>(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState<boolean>(false);
+  const [showOfflineModal, setShowOfflineModal] = useState<boolean>(false);
+  const [newFileModalOpen, setNewFileModalOpen] = useState<boolean>(false);
+  const [newFileNameInput, setNewFileNameInput] = useState<string>('');
+  const [zoomedPlot, setZoomedPlot] = useState<string | null>(null);
 
-  // --- Project Management UI State ---
-  const [isCreatingProject, setIsCreatingProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectLang, setNewProjectLang] = useState<CompilerLanguage>('python');
-  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
-  const [renameProjectText, setRenameProjectText] = useState('');
-  const [confirmDeleteProjectId, setConfirmDeleteProjectId] = useState<string | null>(null);
-
-  // --- File Management UI State ---
-  const [isCreatingFile, setIsCreatingFile] = useState(false);
-  const [newFileName, setNewFileName] = useState('');
-  const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
-  const ipynbInputRef = useRef<HTMLInputElement | null>(null);
-
-  // --- Execution & Output State ---
-  const [runtimeState, setRuntimeState] = useState<RuntimeLifecycleState>('not_initialized');
-  const [runtimeStatusText, setRuntimeStatusText] = useState<string>('Python 3.12 Worker Idle');
-  const [isRunning, setIsRunning] = useState<boolean>(false);
+  // 3. Execution & Output State
+  const [activeTab, setActiveTab] = useState<OutputTab>('console');
+  const [jobState, setJobState] = useState<JobLifecycleState>('idle');
+  const [statusMessage, setStatusMessage] = useState<string>('');
   const [stdout, setStdout] = useState<string>('');
   const [stderr, setStderr] = useState<string>('');
   const [plots, setPlots] = useState<string[]>([]);
-  const [dataframes, setDataframes] = useState<ExtractedDataFrame[]>([]);
-  const [selectedDfIndex, setSelectedDfIndex] = useState<number>(0);
-  const [dfSearchQuery, setDfSearchQuery] = useState<string>('');
-  const [diagnostics, setDiagnostics] = useState<CompilerDiagnostic[]>([]);
-  const [errorLine, setErrorLine] = useState<number | null>(null);
-  const [execTimeMs, setExecTimeMs] = useState<number | null>(null);
-  const [exitCode, setExitCode] = useState<number | null>(null);
-  const [compilerUsed, setCompilerUsed] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<StudioTab>('console');
+  const [dataframes, setDataframes] = useState<CapturedDataFrame[]>([]);
+  const [executionTimeMs, setExecutionTimeMs] = useState<number | null>(null);
+  const [runtimeInitMs, setRuntimeInitMs] = useState<number | null>(null);
+  const [activeEngineUsed, setActiveEngineUsed] = useState<string>('Ready');
+  const [executionHistory, setExecutionHistory] = useState<ExecutionHistoryItem[]>([]);
   const [copiedOutput, setCopiedOutput] = useState<boolean>(false);
-  const [plotDarkBg, setPlotDarkBg] = useState<boolean>(false);
-  const [zoomedPlotIndex, setZoomedPlotIndex] = useState<number | null>(null);
 
-  // --- Editor Preferences ---
-  const [fontSize, setFontSize] = useState<number>(14);
-  const [tabSize, setTabSize] = useState<number>(4);
-  const [wordWrap, setWordWrap] = useState<boolean>(true);
-  const [editorTheme, setEditorTheme] = useState<'dark' | 'light'>(() =>
-    document.documentElement.classList.contains('dark') ? 'dark' : 'dark'
-  );
-  const [preferredEngine, setPreferredEngine] = useState<'auto' | 'cloud' | 'wasm'>('auto');
-  const [showSettingsMenu, setShowSettingsMenu] = useState<boolean>(false);
-  const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
-  const [goToLineOpen, setGoToLineOpen] = useState<boolean>(false);
-  const [goToLineInput, setGoToLineInput] = useState<string>('');
-  const [cursorPos, setCursorPos] = useState<{ line: number; col: number }>({ line: 1, col: 1 });
+  // DataFrame Interactive Viewer State
+  const [selectedDfIndex, setSelectedDfIndex] = useState<number>(0);
+  const [dfSortColumn, setDfSortColumn] = useState<string | null>(null);
+  const [dfSortAsc, setDfSortAsc] = useState<boolean>(true);
+  const [dfSearchQuery, setDfSearchQuery] = useState<string>('');
 
-  // --- Offline & Package State ---
+  // 4. Runtime & Offline Cache State
   const [isOnline, setIsOnline] = useState<boolean>(() =>
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
+  const [pyodideReady, setPyodideReady] = useState<boolean>(false);
+  const [pyodideLoading, setPyodideLoading] = useState<boolean>(false);
+  const [loadedSessionPackages, setLoadedSessionPackages] = useState<string[]>([]);
   const [cacheStatus, setCacheStatus] = useState<CacheCheckStatus | null>(null);
+  const [setupMode, setSetupModeState] = useState<SetupPreferenceMode>(() => getSetupPreferenceMode());
+  const [downloadingOffline, setDownloadingOffline] = useState<boolean>(false);
   const [downloadProgress, setDownloadProgress] = useState<{
-    loaded: number;
-    total: number;
-    currentFile: string;
     percent: number;
+    label: string;
   } | null>(null);
-  const [isDownloadingOffline, setIsDownloadingOffline] = useState<boolean>(false);
-  const [loadedPyPackages, setLoadedPyPackages] = useState<string[]>([]);
-  const [customPackageName, setCustomPackageName] = useState<string>('');
-  const [isInstallingPackage, setIsInstallingPackage] = useState<boolean>(false);
-  const [packageInstallMessage, setPackageInstallMessage] = useState<string | null>(null);
+  const [pkgCategoryFilter, setPkgCategoryFilter] = useState<PackageCategory | 'All'>('All');
+  const [pkgSearchQuery, setPkgSearchQuery] = useState<string>('');
+  const [customPipInput, setCustomPipInput] = useState<string>('');
+  const [installingPkgId, setInstallingPkgId] = useState<string | null>(null);
 
-  // --- Refs ---
-  const editorContainerRef = useRef<HTMLDivElement | null>(null);
-  const editorViewRef = useRef<EditorView | null>(null);
-  const languageCompartment = useRef(new Compartment());
-  const themeCompartment = useRef(new Compartment());
-  const wrapCompartment = useRef(new Compartment());
-  const tabSizeCompartment = useRef(new Compartment());
-  const pyWorkerRef = useRef<Worker | null>(null);
-  const pendingWorkerCallbacks = useRef<Map<string, (msg: any) => void>>(new Map());
-  const runCodeRef = useRef<() => void>(() => {});
+  // Refs
+  const splitContainerRef = useRef<HTMLDivElement | null>(null);
+  const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<typeof Monaco | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const activeJobIdRef = useRef<string | null>(null);
+  const pendingPromisesRef = useRef<
+    Map<string, { resolve: (val: any) => void; reject: (err: any) => void }>
+  >(new Map());
+  const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const autoSetupTriggeredRef = useRef<boolean>(false);
 
-  // --- Persist Projects whenever updated ---
+  const isRunning = jobState === 'preparing' || jobState === 'running';
+
+  // Persist explorer open/closed state
+  useEffect(() => {
+    try {
+      localStorage.setItem('tooltrack_compiler_explorer_open', String(showExplorer));
+    } catch {}
+  }, [showExplorer]);
+
+  // Persist projects whenever updated
   useEffect(() => {
     saveCompilerProjects(projects);
   }, [projects]);
 
+  // Online / Offline listener
   useEffect(() => {
-    if (activeProjectId) {
-      setActiveProjectId(activeProjectId);
-    }
-  }, [activeProjectId]);
-
-  // --- Online / Offline Detection & Cache Inspection ---
-  const refreshOfflineStatus = useCallback(async () => {
-    try {
-      const status = await inspectCompilerCache();
-      setCacheStatus(status);
-    } catch {
-      // Ignore
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshOfflineStatus();
-    const handleOnline = () => {
-      setIsOnline(true);
-      refreshOfflineStatus();
-    };
-    const handleOffline = () => {
-      setIsOnline(false);
-      refreshOfflineStatus();
-    };
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [refreshOfflineStatus]);
+  }, []);
 
-  // --- Helper to update current project ---
-  const updateActiveProject = useCallback(
-    (updater: (proj: CompilerProject) => CompilerProject) => {
-      setProjects((prev) =>
-        prev.map((p) => (p.id === activeProject.id ? { ...updater(p), updatedAt: Date.now() } : p))
-      );
-    },
-    [activeProject.id]
-  );
+  // Inspect offline cache on mount
+  const refreshCacheStatus = useCallback(async () => {
+    const status = await inspectCompilerCache();
+    setCacheStatus(status);
+    return status;
+  }, []);
 
-  const setCode = useCallback(
-    (newCode: string) => {
-      updateActiveProject((proj) => ({
-        ...proj,
-        files: proj.files.map((f) =>
-          f.name === proj.activeFileName ? { ...f, content: newCode, updatedAt: Date.now() } : f
-        ),
-      }));
-    },
-    [updateActiveProject]
-  );
+  useEffect(() => {
+    refreshCacheStatus().then((status) => {
+      // Automatic progressive background setup if user selected Data Science or Complete mode
+      // and is online on a non-metered connection
+      if (
+        !autoSetupTriggeredRef.current &&
+        navigator.onLine &&
+        !status.isMeteredConnection
+      ) {
+        autoSetupTriggeredRef.current = true;
+        if (status.setupMode === 'datascience' && !status.isDataScienceReady) {
+          downloadDataSciencePreset().then(() => refreshCacheStatus()).catch(() => {});
+        } else if (status.setupMode === 'complete' && !status.allPackagesReady) {
+          downloadFullDataScienceBundle().then(() => refreshCacheStatus()).catch(() => {});
+        }
+      }
+    });
+  }, [refreshCacheStatus]);
 
-  const setStdin = useCallback(
-    (newStdin: string) => {
-      updateActiveProject((proj) => ({
-        ...proj,
-        stdin: newStdin,
-      }));
-    },
-    [updateActiveProject]
-  );
-
-  // --- Initialize and Manage Persistent Pyodide 3.12 Web Worker ---
-  const createOrGetPythonWorker = useCallback(() => {
-    if (pyWorkerRef.current) {
-      return pyWorkerRef.current;
+  // Initialize / get Pyodide Web Worker
+  const ensurePythonWorker = useCallback((): Worker => {
+    if (workerRef.current) {
+      return workerRef.current;
     }
+
     const worker = new Worker(new URL('../../workers/pythonWorker.ts', import.meta.url), {
       type: 'module',
     });
 
     worker.onmessage = (event: MessageEvent) => {
-      const data = event.data;
-      if (!data) return;
+      const data = event.data || {};
+      const { type, id, text, message, state, installed, installedPackages, runtimeInitMs: initMs } = data;
 
-      if (data.type === 'STATUS') {
-        setRuntimeStatusText(data.status || 'Initializing Python 3.12...');
-        if (data.lifecycle) {
-          setRuntimeState(data.lifecycle as RuntimeLifecycleState);
+      if (typeof initMs === 'number' && initMs > 0) {
+        setRuntimeInitMs(initMs);
+      }
+
+      if (Array.isArray(installedPackages)) {
+        setLoadedSessionPackages(installedPackages);
+      } else if (Array.isArray(installed)) {
+        setLoadedSessionPackages(installed);
+      }
+
+      if (type === 'STATUS' || type === 'status') {
+        setStatusMessage(message || '');
+        if (state === 'ready') {
+          setPyodideReady(true);
+          setPyodideLoading(false);
         }
         return;
       }
 
-      if (data.type === 'INIT_DONE') {
-        setRuntimeState('ready');
-        setRuntimeStatusText('Python 3.12 Ready');
-        if (Array.isArray(data.loadedPackages)) {
-          setLoadedPyPackages(data.loadedPackages);
+      if (type === 'INIT_COMPLETE' || type === 'initialized') {
+        setPyodideReady(true);
+        setPyodideLoading(false);
+        setStatusMessage('');
+        refreshCacheStatus();
+        if (id && pendingPromisesRef.current.has(id)) {
+          pendingPromisesRef.current.get(id)!.resolve(data);
+          pendingPromisesRef.current.delete(id);
         }
-        refreshOfflineStatus();
+        return;
       }
 
-      if (data.id && pendingWorkerCallbacks.current.has(data.id)) {
-        const cb = pendingWorkerCallbacks.current.get(data.id)!;
-        pendingWorkerCallbacks.current.delete(data.id);
-        cb(data);
+      if (type === 'STDOUT' || type === 'stdout') {
+        if (typeof text === 'string') {
+          setStdout((prev) => (prev.length > 350000 ? prev.slice(-300000) + text : prev + text));
+        }
+        return;
+      }
+
+      if (type === 'STDERR' || type === 'stderr') {
+        if (typeof text === 'string') {
+          setStderr((prev) => (prev.length > 350000 ? prev.slice(-300000) + text : prev + text));
+        }
+        return;
+      }
+
+      if (type === 'RESULT' || type === 'ERROR') {
+        if (id && pendingPromisesRef.current.has(id)) {
+          const handler = pendingPromisesRef.current.get(id)!;
+          pendingPromisesRef.current.delete(id);
+          if (type === 'ERROR') {
+            handler.reject(data);
+          } else {
+            handler.resolve(data);
+          }
+        }
+        return;
       }
     };
 
     worker.onerror = (err) => {
-      setRuntimeState('failed');
-      setRuntimeStatusText('Python Worker Error');
-      setIsRunning(false);
-      setStderr((prev) => `${prev}\nWorker Runtime Error: ${err.message || 'Unknown worker error'}`.trim());
+      setPyodideLoading(false);
+      setStatusMessage('');
+      pendingPromisesRef.current.forEach(({ reject }) => {
+        reject(new Error(err.message || 'Python Web Worker encountered a fatal error.'));
+      });
+      pendingPromisesRef.current.clear();
     };
 
-    pyWorkerRef.current = worker;
+    workerRef.current = worker;
     return worker;
-  }, [refreshOfflineStatus]);
+  }, [refreshCacheStatus]);
 
-  // Pre-warm Python Worker when language is Python
+  // Warm up lightweight core Python runtime in background when Python is active
   useEffect(() => {
-    if (language === 'python' && runtimeState === 'not_initialized') {
-      const worker = createOrGetPythonWorker();
+    if (activeProject?.language === 'python' && !pyodideReady && !pyodideLoading) {
+      setPyodideLoading(true);
+      const worker = ensurePythonWorker();
       const initId = `init-${Date.now()}`;
       worker.postMessage({ type: 'INIT', id: initId });
     }
-  }, [language, runtimeState, createOrGetPythonWorker]);
+  }, [activeProject?.language, pyodideReady, pyodideLoading, ensurePythonWorker]);
 
-  // Cleanup worker on unmount
+  // Clean up worker on unmount
   useEffect(() => {
     return () => {
-      if (pyWorkerRef.current) {
-        pyWorkerRef.current.terminate();
-        pyWorkerRef.current = null;
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
       }
     };
   }, []);
 
-  // --- Switch Language Handler (Preserves per-language project state) ---
-  const handleSelectLanguage = (targetLang: CompilerLanguage) => {
-    if (targetLang === language) return;
-    if (targetLang !== 'python' && workspaceMode === 'notebook') {
-      setWorkspaceMode('editor');
-    }
-    // Find most recently updated project for targetLang
-    const existingProj = [...projects]
-      .filter((p) => p.language === targetLang)
-      .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  // Resizable Split Pane Dragging
+  useEffect(() => {
+    if (!isDraggingSplit) return;
 
-    if (existingProj) {
-      setActiveProjectIdState(existingProj.id);
-    } else {
-      const tpl = COMPILER_TEMPLATES.find((t) => t.language === targetLang) || COMPILER_TEMPLATES[0];
-      const now = Date.now();
-      const newProj: CompilerProject = {
-        id: `proj-${targetLang}-${now}`,
-        name: `${targetLang.toUpperCase()} Workspace`,
-        language: targetLang,
-        activeFileName: tpl.fileName,
-        stdin: tpl.defaultStdin || '',
-        files: [{ name: tpl.fileName, content: tpl.code, updatedAt: now }],
-        notebookCells: targetLang === 'python' ? getDefaultNotebookCells() : undefined,
-        createdAt: now,
-        updatedAt: now,
-      };
-      setProjects((prev) => [newProj, ...prev]);
-      setActiveProjectIdState(newProj.id);
-    }
-    setDiagnostics([]);
-    setErrorLine(null);
-  };
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const relX = e.clientX - rect.left;
+      const pct = Math.max(35, Math.min(78, (relX / Math.max(1, rect.width)) * 100));
+      setEditorWidthPct(Math.round(pct * 10) / 10);
+    };
 
-  // --- Stop / Interrupt Execution ---
-  const handleStopExecution = () => {
-    if (!isRunning) return;
-    setRuntimeState('stopping');
-    setRuntimeStatusText('Stopping execution...');
-    if (pyWorkerRef.current) {
-      pyWorkerRef.current.terminate();
-      pyWorkerRef.current = null;
-      pendingWorkerCallbacks.current.clear();
-    }
-    setIsRunning(false);
-    setRuntimeState('not_initialized');
-    setRuntimeStatusText('Execution interrupted by user. Kernel reset.');
-    setStderr((prev) => (prev ? `${prev}\n[KeyboardInterrupt: Execution stopped by user]` : '[KeyboardInterrupt: Execution stopped by user]'));
-  };
+    const handleMouseUp = () => {
+      setIsDraggingSplit(false);
+    };
 
-  // --- Reset Python Kernel ---
-  const handleResetKernel = () => {
-    if (pyWorkerRef.current) {
-      const worker = pyWorkerRef.current;
-      const resetId = `reset-${Date.now()}`;
-      pendingWorkerCallbacks.current.set(resetId, () => {
-        setRuntimeState('ready');
-        setRuntimeStatusText('Python Kernel Reset');
-        setDataframes([]);
-      });
-      worker.postMessage({ type: 'RESET_KERNEL', id: resetId });
-    }
-  };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingSplit]);
 
-  // --- Execute Python Code in Persistent Pyodide Worker ---
-  const executePythonInWorker = useCallback(
-    async (
-      sourceCode: string,
-      inputStdin: string,
-      resetGlobals: boolean
-    ): Promise<{
-      success: boolean;
-      stdout: string;
-      stderr: string;
-      plots: string[];
-      dataframes: ExtractedDataFrame[];
-      errorLine: number | null;
-      executionTimeMs: number;
-    }> => {
-      const worker = createOrGetPythonWorker();
-      const runId = `py-run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-
-      const syncFiles = activeProject.files
-        .filter((f) => f.name !== activeProject.activeFileName || workspaceMode === 'notebook')
-        .map((f) => ({
-          name: f.name,
-          content: f.content,
-          encoding: f.isBinary ? ('base64' as const) : ('utf8' as const),
-        }));
-
-      return new Promise((resolve) => {
-        pendingWorkerCallbacks.current.set(runId, (data: any) => {
-          if (Array.isArray(data.loadedPackages)) {
-            setLoadedPyPackages(data.loadedPackages);
-          }
-
-          // Sync any newly generated files from /home/pyodide back to project explorer
-          if (Array.isArray(data.workspaceFiles) && data.workspaceFiles.length > 0) {
-            updateActiveProject((proj) => {
-              const updatedFiles = [...proj.files];
-              for (const wf of data.workspaceFiles) {
-                const existingIdx = updatedFiles.findIndex((f) => f.name === wf.name);
-                const newFileObj: ProjectFile = {
-                  name: wf.name,
-                  content: wf.content,
-                  isBinary: wf.isBinary,
-                  size: wf.size,
-                  updatedAt: Date.now(),
-                };
-                if (existingIdx >= 0) {
-                  updatedFiles[existingIdx] = newFileObj;
-                } else {
-                  updatedFiles.push(newFileObj);
-                }
-              }
-              return { ...proj, files: updatedFiles };
-            });
-          }
-
-          refreshOfflineStatus();
-
-          if (data.type === 'RESULT') {
-            resolve({
-              success: true,
-              stdout: data.stdout || '',
-              stderr: data.stderr || '',
-              plots: data.plots || [],
-              dataframes: data.dataframes || [],
-              errorLine: data.errorLine || null,
-              executionTimeMs: data.executionTimeMs || 0,
-            });
-          } else {
-            resolve({
-              success: false,
-              stdout: data.stdout || '',
-              stderr: data.stderr || data.error || 'Python execution failed.',
-              plots: data.plots || [],
-              dataframes: data.dataframes || [],
-              errorLine: data.errorLine || null,
-              executionTimeMs: data.executionTimeMs || 0,
-            });
-          }
-        });
-
-        worker.postMessage({
-          type: 'RUN',
-          id: runId,
-          code: sourceCode,
-          stdin: inputStdin,
-          files: syncFiles,
-          resetGlobals,
-        });
-      });
+  // Update active file content
+  const updateActiveFileContent = useCallback(
+    (newContent: string) => {
+      setProjects((prev) =>
+        prev.map((proj) => {
+          if (proj.id !== activeProject.id) return proj;
+          const exists = proj.files.some((f) => f.name === activeFile.name);
+          const updatedFiles = exists
+            ? proj.files.map((f) =>
+                f.name === activeFile.name
+                  ? { ...f, content: newContent, updatedAt: Date.now() }
+                  : f
+              )
+            : [
+                ...proj.files,
+                { name: activeFile.name, content: newContent, updatedAt: Date.now() },
+              ];
+          return {
+            ...proj,
+            files: updatedFiles,
+            updatedAt: Date.now(),
+          };
+        })
+      );
     },
-    [activeProject, workspaceMode, createOrGetPythonWorker, updateActiveProject, refreshOfflineStatus]
+    [activeProject?.id, activeFile?.name]
   );
 
-  // --- Primary Run Handler (Editor Mode) ---
-  const handleRunCode = async () => {
-    if (isRunning) return;
-    setIsRunning(true);
+  // Update STDIN
+  const updateStdin = useCallback(
+    (newStdin: string) => {
+      setProjects((prev) =>
+        prev.map((proj) =>
+          proj.id === activeProject.id ? { ...proj, stdin: newStdin, updatedAt: Date.now() } : proj
+        )
+      );
+    },
+    [activeProject?.id]
+  );
+
+  // Switch language workspace
+  const handleSelectLanguage = useCallback(
+    (lang: CompilerLanguage) => {
+      const targetProj = projects.find((p) => p.language === lang);
+      if (targetProj) {
+        setActiveProjIdState(targetProj.id);
+        setActiveProjectId(targetProj.id);
+      } else {
+        const newProj: CompilerProject = {
+          id: `proj-${lang}-${Date.now()}`,
+          name: `${lang.toUpperCase()} Workspace`,
+          language: lang,
+          activeFileName: getDefaultFileName(lang),
+          stdin: '',
+          files: [
+            {
+              name: getDefaultFileName(lang),
+              content: MINIMAL_HELLO_WORLD[lang],
+              updatedAt: Date.now(),
+            },
+          ],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        setProjects((prev) => [...prev, newProj]);
+        setActiveProjIdState(newProj.id);
+        setActiveProjectId(newProj.id);
+      }
+      setStdout('');
+      setStderr('');
+      setPlots([]);
+      setDataframes([]);
+    },
+    [projects]
+  );
+
+  // Stop currently running job and recover Worker cleanly
+  const handleStopExecution = useCallback(() => {
+    activeJobIdRef.current = null;
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+    }
+    pendingPromisesRef.current.clear();
+    setPyodideReady(false);
+    setPyodideLoading(false);
+    setJobState('cancelled');
+    setStatusMessage('');
+    setStderr((prev) =>
+      prev ? `${prev}\n[Execution stopped by user]` : '[Execution stopped by user]'
+    );
+
+    // Immediately warm up a fresh replacement worker if in Python mode
+    if (activeProject?.language === 'python') {
+      setTimeout(() => {
+        setPyodideLoading(true);
+        const w = ensurePythonWorker();
+        w.postMessage({ type: 'INIT', id: `init-${Date.now()}` });
+      }, 80);
+    }
+  }, [activeProject?.language, ensurePythonWorker]);
+
+  // Restart Python Runtime Session
+  const handleRestartRuntime = useCallback(async () => {
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+    }
+    pendingPromisesRef.current.clear();
+    setPyodideReady(false);
+    setPyodideLoading(true);
+    setLoadedSessionPackages([]);
+    setJobState('idle');
+    setStatusMessage('Restarting Python 3.12 runtime...');
+    const worker = ensurePythonWorker();
+    worker.postMessage({ type: 'INIT', id: `restart-${Date.now()}` });
+  }, [ensurePythonWorker]);
+
+  // Clear editor decorations
+  const clearEditorErrorMarkers = useCallback(() => {
+    if (!monacoRef.current || !editorRef.current) return;
+    const model = editorRef.current.getModel();
+    if (model) {
+      monacoRef.current.editor.setModelMarkers(model, 'compiler-diagnostics', []);
+    }
+  }, []);
+
+  // Highlight error line in Monaco Editor
+  const highlightEditorErrorLine = useCallback((line: number, message: string) => {
+    if (!monacoRef.current || !editorRef.current || !line || line < 1) return;
+    const model = editorRef.current.getModel();
+    if (!model) return;
+    const maxLine = model.getLineCount();
+    const safeLine = Math.min(line, maxLine);
+    monacoRef.current.editor.setModelMarkers(model, 'compiler-diagnostics', [
+      {
+        startLineNumber: safeLine,
+        startColumn: 1,
+        endLineNumber: safeLine,
+        endColumn: model.getLineMaxColumn(safeLine),
+        message,
+        severity: monacoRef.current.MarkerSeverity.Error,
+      },
+    ]);
+  }, []);
+
+  // Main Run Code Handler
+  const handleRunCode = useCallback(async () => {
+    if (!activeProject || !activeFile) return;
+
+    const jobId = `job-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    activeJobIdRef.current = jobId;
+
+    setJobState('preparing');
     setStdout('');
     setStderr('');
     setPlots([]);
     setDataframes([]);
-    setDiagnostics([]);
-    setErrorLine(null);
-    setExecTimeMs(null);
-    setExitCode(null);
+    setExecutionTimeMs(null);
+    setStatusMessage('Preparing execution...');
+    clearEditorErrorMarkers();
 
-    const startTime = performance.now();
+    if (activeTab === 'plots' || activeTab === 'dataframes') {
+      setActiveTab('console');
+    }
+
+    const code = activeFile.content;
+    const stdin = activeProject.stdin || '';
+    const lang = activeProject.language;
+    const startWall = performance.now();
 
     try {
-      // Pre-validate syntax for immediate feedback
-      const localDiags = validateSyntax(code, language);
-      const hasFatalSyntax = localDiags.some((d) => d.severity === 'error');
-      if (localDiags.length > 0) {
-        setDiagnostics(localDiags);
-      }
+      if (lang === 'python') {
+        const needsDataScienceOrPackages =
+          /\b(numpy|pandas|matplotlib|pyplot|plt|sklearn|scipy|sympy|PIL|pillow|bs4|beautifulsoup4|statsmodels|seaborn|openpyxl|networkx|yaml|regex|sqlite3)\b/.test(
+            code
+          );
 
-      if (language === 'python') {
-        // Use Pyodide 3.12 WebAssembly Worker as primary engine for full scientific stack support
-        // Only use cloud first if user explicitly forced 'cloud' and is online
-        if (preferredEngine === 'cloud' && isOnline) {
-          const response = await fetch('/api/compile-run', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              language: 'python',
-              code,
-              stdin,
-              files: activeProject.files.filter((f) => f.name !== activeFileName),
-            }),
-          });
-          const data = await response.json();
-          if (!data.fallbackToWasm) {
-            setStdout(data.stdout || '');
-            setStderr(data.stderr || '');
-            setPlots(data.plots || []);
-            setExitCode(data.exitCode ?? (data.success ? 0 : 1));
-            setExecTimeMs(data.executionTimeMs ?? Math.round(performance.now() - startTime));
-            setCompilerUsed(data.compiler || 'Python 3.11 Server Engine');
-            if (data.plots && data.plots.length > 0) {
-              setActiveTab('plots');
-            } else {
-              setActiveTab('console');
+        const hasMultipleFiles = activeProject.files.length > 1;
+
+        // Fast-path: If Pyodide is still downloading on a cold start, user is online,
+        // and the program is a simple standard-library script (like Hello World) without extra virtual files,
+        // run via the backend fast Python runner so the user gets instant (<40ms) output while Pyodide finishes warming up.
+        if (!pyodideReady && isOnline && !needsDataScienceOrPackages && !hasMultipleFiles) {
+          try {
+            setJobState('running');
+            setStatusMessage('Running Python 3...');
+            const resp = await fetch('/api/compile', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                language: 'python',
+                code,
+                stdin,
+                files: activeProject.files,
+              }),
+            });
+            if (activeJobIdRef.current !== jobId) return;
+
+            if (resp.ok) {
+              const resJson = await resp.json();
+              if (!resJson.fallbackToWasm) {
+                const elapsed = resJson.executionTimeMs || Math.round(performance.now() - startWall);
+                setStdout(resJson.stdout || '');
+                setStderr(resJson.stderr || '');
+                setPlots(resJson.plots || []);
+                setExecutionTimeMs(elapsed);
+                setActiveEngineUsed('Python 3.11 Fast Engine');
+                const finalStatus = resJson.success ? 'completed' : 'failed';
+                setJobState(finalStatus);
+                setStatusMessage('');
+                setExecutionHistory((prev) => [
+                  {
+                    id: jobId,
+                    timestamp: new Date().toLocaleTimeString(),
+                    language: 'python',
+                    fileName: activeFile.name,
+                    durationMs: elapsed,
+                    engine: 'Python 3.11 Fast Engine',
+                    status: finalStatus,
+                  },
+                  ...prev.slice(0, 19),
+                ]);
+                return;
+              }
             }
-            setIsRunning(false);
-            return;
+          } catch {
+            // Fall through to Pyodide WebAssembly Worker
           }
         }
 
-        setCompilerUsed(
-          isOnline
-            ? 'Python 3.12 (Pyodide WebAssembly Worker)'
-            : 'Python 3.12 (Offline Cached WebAssembly)'
+        // Execute in persistent Pyodide 3.12 WebAssembly Worker
+        const worker = ensurePythonWorker();
+        setJobState('running');
+        setStatusMessage(
+          pyodideReady ? 'Executing in Python 3.12 Worker...' : 'Initializing Python 3.12 runtime...'
         );
-        const res = await executePythonInWorker(code, stdin, true);
-        setStdout(res.stdout);
-        setStderr(res.stderr);
-        setPlots(res.plots);
-        setDataframes(res.dataframes);
-        setSelectedDfIndex(0);
-        setErrorLine(res.errorLine);
 
-        if (res.errorLine) {
-          setDiagnostics((prev) => [
-            ...prev,
-            {
-              line: res.errorLine!,
-              column: 1,
-              severity: 'error',
-              message: res.stderr.split('\n').filter(Boolean).pop() || 'Python Runtime Exception',
-            },
-          ]);
+        const workerResult: any = await new Promise((resolve, reject) => {
+          pendingPromisesRef.current.set(jobId, { resolve, reject });
+          worker.postMessage({
+            type: 'RUN',
+            id: jobId,
+            code,
+            stdin,
+            files: activeProject.files,
+          });
+        });
+
+        if (activeJobIdRef.current !== jobId) return;
+
+        const elapsed = workerResult.executionTimeMs ?? Math.round(performance.now() - startWall);
+        setExecutionTimeMs(elapsed);
+        setActiveEngineUsed('Python 3.12 WebAssembly (Local Worker)');
+
+        if (typeof workerResult.stdout === 'string' && workerResult.stdout.length > 0) {
+          setStdout(workerResult.stdout);
         }
-
-        setExitCode(res.success ? 0 : 1);
-        setExecTimeMs(res.executionTimeMs || Math.round(performance.now() - startTime));
-
-        if (res.plots.length > 0) {
+        if (typeof workerResult.stderr === 'string' && workerResult.stderr.length > 0) {
+          setStderr(workerResult.stderr);
+        }
+        if (Array.isArray(workerResult.plots) && workerResult.plots.length > 0) {
+          setPlots(workerResult.plots);
           setActiveTab('plots');
-        } else if (res.dataframes.length > 0 && !res.stdout.trim() && res.success) {
-          setActiveTab('dataframes');
-        } else {
-          setActiveTab('console');
         }
-        setIsRunning(false);
+        if (Array.isArray(workerResult.dataframes) && workerResult.dataframes.length > 0) {
+          setDataframes(workerResult.dataframes);
+          setSelectedDfIndex(0);
+          if (!workerResult.plots || workerResult.plots.length === 0) {
+            // Keep console visible so print(df) output is immediately seen, while DataFrames tab shows badge
+          }
+        }
+
+        setJobState('completed');
+        setStatusMessage('');
+        refreshCacheStatus();
+        setExecutionHistory((prev) => [
+          {
+            id: jobId,
+            timestamp: new Date().toLocaleTimeString(),
+            language: 'python',
+            fileName: activeFile.name,
+            durationMs: elapsed,
+            engine: 'Python 3.12 Wasm Worker',
+            status: 'completed',
+          },
+          ...prev.slice(0, 19),
+        ]);
         return;
       }
 
-      // C and C++ Execution
-      const shouldTryCloud = preferredEngine !== 'wasm' && isOnline && !hasFatalSyntax;
-      if (shouldTryCloud) {
+      // C and C++ Compilation & Execution
+      setJobState('running');
+      setStatusMessage(`Compiling ${lang === 'cpp' ? 'C++20' : 'C17'}...`);
+
+      // Check local syntax diagnostics first
+      const syntaxDiagnostics = validateSyntax(code, lang);
+      const fatalDiag = syntaxDiagnostics.find((d) => d.severity === 'error');
+      if (fatalDiag) {
+        highlightEditorErrorLine(fatalDiag.line, fatalDiag.message);
+      }
+
+      if (isOnline) {
         try {
-          const response = await fetch('/api/compile-run', {
+          const resp = await fetch('/api/compile', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              language,
+              language: lang,
               code,
               stdin,
-              standard: language === 'cpp' ? 'c++20' : 'c17',
+              files: activeProject.files,
             }),
           });
-          if (response.ok) {
-            const data = await response.json();
+
+          if (activeJobIdRef.current !== jobId) return;
+
+          if (resp.ok) {
+            const data = await resp.json();
+            const elapsed = data.executionTimeMs ?? Math.round(performance.now() - startWall);
             setStdout(data.stdout || '');
             setStderr(data.stderr || '');
+            setExecutionTimeMs(elapsed);
+            const engineLabel = data.compiler || (lang === 'cpp' ? 'GCC C++20' : 'GCC C17');
+            setActiveEngineUsed(engineLabel);
+
             if (Array.isArray(data.diagnostics) && data.diagnostics.length > 0) {
-              setDiagnostics(data.diagnostics);
-              setErrorLine(data.diagnostics[0].line);
+              const firstErr = data.diagnostics[0];
+              if (firstErr?.line) {
+                highlightEditorErrorLine(firstErr.line, firstErr.message || 'Compiler error');
+              }
             }
-            setExitCode(data.exitCode ?? (data.success ? 0 : 1));
-            setExecTimeMs(data.executionTimeMs ?? Math.round(performance.now() - startTime));
-            setCompilerUsed(data.compiler || (language === 'cpp' ? 'GCC C++20' : 'GCC C17'));
-            setActiveTab('console');
-            setIsRunning(false);
+
+            const finalState = data.success ? 'completed' : 'failed';
+            setJobState(finalState);
+            setStatusMessage('');
+            setExecutionHistory((prev) => [
+              {
+                id: jobId,
+                timestamp: new Date().toLocaleTimeString(),
+                language: lang,
+                fileName: activeFile.name,
+                durationMs: elapsed,
+                engine: engineLabel,
+                status: finalState,
+              },
+              ...prev.slice(0, 19),
+            ]);
             return;
           }
         } catch {
-          // Network unreachable — fall through to built-in AST compiler
+          // Offline or network unreachable — fall through to client-side C/C++ runtime
         }
       }
 
-      // Offline / Browser C17 & C++20 AST Compiler
-      const localResult = await runClientCpp(code, stdin, language);
-      setStdout(localResult.stdout);
-      setStderr(localResult.stderr);
-      if (localResult.diagnostics.length > 0) {
-        setDiagnostics(localResult.diagnostics);
-        setErrorLine(localResult.diagnostics[0].line);
-      }
-      setExitCode(localResult.exitCode);
-      setExecTimeMs(Math.round(performance.now() - startTime));
-      setCompilerUsed(localResult.compiler);
-      setActiveTab('console');
-    } catch (err: any) {
-      setStderr(`Execution Error: ${err?.message || String(err)}`);
-      setExitCode(1);
-    } finally {
-      setIsRunning(false);
-    }
-  };
+      // Offline / Local Client C/C++ Engine
+      const localRes = await runClientCpp(code, stdin, lang);
+      if (activeJobIdRef.current !== jobId) return;
 
-  runCodeRef.current = handleRunCode;
-
-  // --- Notebook Mode Execution Handlers ---
-  const notebookCells = useMemo(
-    () => activeProject.notebookCells || getDefaultNotebookCells(),
-    [activeProject.notebookCells]
-  );
-
-  const updateNotebookCells = useCallback(
-    (updater: (cells: NotebookCellData[]) => NotebookCellData[]) => {
-      updateActiveProject((proj) => ({
-        ...proj,
-        notebookCells: updater(proj.notebookCells || getDefaultNotebookCells()),
-      }));
-    },
-    [updateActiveProject]
-  );
-
-  const handleRunNotebookCell = async (cellId: string) => {
-    const targetCell = notebookCells.find((c) => c.id === cellId);
-    if (!targetCell || targetCell.type !== 'code' || isRunning) return;
-
-    setIsRunning(true);
-    updateNotebookCells((cells) =>
-      cells.map((c) => (c.id === cellId ? { ...c, status: 'running', stdout: '', stderr: '', plots: [] } : c))
-    );
-
-    const res = await executePythonInWorker(targetCell.content, stdin, false);
-
-    updateNotebookCells((cells) => {
-      const maxCount = cells.reduce((acc, c) => Math.max(acc, c.executionCount || 0), 0);
-      return cells.map((c) =>
-        c.id === cellId
-          ? {
-              ...c,
-              status: res.success ? 'completed' : 'error',
-              executionCount: maxCount + 1,
-              stdout: res.stdout,
-              stderr: res.stderr,
-              plots: res.plots,
-              dataframes: res.dataframes,
-              executionTimeMs: res.executionTimeMs,
-            }
-          : c
-      );
-    });
-
-    if (res.plots.length > 0) {
-      setPlots((prev) => [...prev, ...res.plots]);
-    }
-    if (res.dataframes.length > 0) {
-      setDataframes(res.dataframes);
-    }
-    setIsRunning(false);
-  };
-
-  const handleRunAllNotebookCells = async () => {
-    if (isRunning) return;
-    for (const cell of notebookCells) {
-      if (cell.type === 'code') {
-        await handleRunNotebookCell(cell.id);
-      }
-    }
-  };
-
-  // --- CodeMirror 6 Setup & Synchronization ---
-  useEffect(() => {
-    if (!editorContainerRef.current || workspaceMode !== 'editor') return;
-
-    const getLangExt = (lang: CompilerLanguage) => (lang === 'python' ? python() : cpp());
-
-    const updateListener = EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
-        const currentDoc = update.state.doc.toString();
-        setCode(currentDoc);
-      }
-      if (update.selectionSet || update.docChanged) {
-        const pos = update.state.selection.main.head;
-        const lineObj = update.state.doc.lineAt(pos);
-        setCursorPos({
-          line: lineObj.number,
-          col: pos - lineObj.from + 1,
-        });
-      }
-    });
-
-    const runShortcutKeymap = keymap.of([
-      {
-        key: 'Mod-Enter',
-        run: () => {
-          runCodeRef.current();
-          return true;
+      const elapsed = Math.round(performance.now() - startWall);
+      setStdout(localRes.stdout || '');
+      setStderr(localRes.stderr || '');
+      setExecutionTimeMs(elapsed);
+      const localEngine = localRes.compiler || (lang === 'cpp' ? 'Local C++20 AST Runtime' : 'Local C17 AST Runtime');
+      setActiveEngineUsed(localEngine);
+      const finalState = localRes.success ? 'completed' : 'failed';
+      setJobState(finalState);
+      setStatusMessage('');
+      setExecutionHistory((prev) => [
+        {
+          id: jobId,
+          timestamp: new Date().toLocaleTimeString(),
+          language: lang,
+          fileName: activeFile.name,
+          durationMs: elapsed,
+          engine: localEngine,
+          status: finalState,
         },
-      },
-    ]);
-
-    const state = EditorState.create({
-      doc: code,
-      extensions: [
-        lineNumbers(),
-        highlightActiveLineGutter(),
-        highlightActiveLine(),
-        history(),
-        foldGutter(),
-        drawSelection(),
-        dropCursor(),
-        EditorState.allowMultipleSelections.of(true),
-        indentOnInput(),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        bracketMatching(),
-        closeBrackets(),
-        rectangularSelection(),
-        crosshairCursor(),
-        highlightSelectionMatches(),
-        runShortcutKeymap,
-        ghostTextExtension(language),
-        intelliSenseExtension(language),
-        keymap.of([
-          ...closeBracketsKeymap,
-          ...defaultKeymap,
-          ...searchKeymap,
-          ...historyKeymap,
-          ...foldKeymap,
-          ...completionKeymap,
-          indentWithTab,
-        ]),
-        languageCompartment.current.of(getLangExt(language)),
-        themeCompartment.current.of(editorTheme === 'dark' ? oneDark : []),
-        wrapCompartment.current.of(wordWrap ? EditorView.lineWrapping : []),
-        tabSizeCompartment.current.of([
-          EditorState.tabSize.of(tabSize),
-          indentUnit.of(' '.repeat(tabSize)),
-        ]),
-        updateListener,
-        EditorView.theme({
-          '&': {
-            height: '100%',
-            fontSize: `${fontSize}px`,
-            fontFamily: '"JetBrains Mono", "Fira Code", Menlo, Monaco, Consolas, monospace',
-          },
-          '.cm-scroller': {
-            overflow: 'auto',
-            fontFamily: '"JetBrains Mono", "Fira Code", Menlo, Monaco, Consolas, monospace',
-            lineHeight: '1.6',
-          },
-          '.cm-content': {
-            padding: '12px 0',
-          },
-          '.cm-gutters': {
-            borderRight: '1px solid rgba(148, 163, 184, 0.12)',
-            backgroundColor: 'transparent',
-          },
-        }),
-      ],
-    });
-
-    const view = new EditorView({
-      state,
-      parent: editorContainerRef.current,
-    });
-
-    editorViewRef.current = view;
-
-    return () => {
-      view.destroy();
-      editorViewRef.current = null;
-    };
-    // Re-create editor when switching workspaceMode, activeProjectId, activeFileName, language, fontSize, editorTheme
-  }, [workspaceMode, activeProjectId, activeFileName, language, fontSize, editorTheme]);
-
-  // Sync external code changes (like template load) into CodeMirror
-  useEffect(() => {
-    const view = editorViewRef.current;
-    if (!view) return;
-    const currentText = view.state.doc.toString();
-    if (currentText !== code) {
-      view.dispatch({
-        changes: { from: 0, to: currentText.length, insert: code },
-      });
-    }
-  }, [code]);
-
-  // Sync wordWrap & tabSize compartments
-  useEffect(() => {
-    const view = editorViewRef.current;
-    if (!view) return;
-    view.dispatch({
-      effects: wrapCompartment.current.reconfigure(wordWrap ? EditorView.lineWrapping : []),
-    });
-  }, [wordWrap]);
-
-  useEffect(() => {
-    const view = editorViewRef.current;
-    if (!view) return;
-    view.dispatch({
-      effects: tabSizeCompartment.current.reconfigure([
-        EditorState.tabSize.of(tabSize),
-        indentUnit.of(' '.repeat(tabSize)),
-      ]),
-    });
-  }, [tabSize]);
-
-  // --- Editor Utility Actions ---
-  const handleJumpToLine = (lineNum: number) => {
-    const view = editorViewRef.current;
-    if (!view) return;
-    const clampedLine = Math.max(1, Math.min(lineNum, view.state.doc.lines));
-    const lineInfo = view.state.doc.line(clampedLine);
-    view.dispatch({
-      selection: { anchor: lineInfo.from },
-      effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
-    });
-    view.focus();
-  };
-
-  const handleFormatCode = () => {
-    const lines = code.split('\n');
-    let formatted: string[] = [];
-    if (language === 'python') {
-      formatted = lines.map((line) => line.replace(/\s+$/, '').replace(/\t/g, ' '.repeat(tabSize)));
-    } else {
-      let indentLevel = 0;
-      for (const rawLine of lines) {
-        const trimmed = rawLine.trim();
-        if (!trimmed) {
-          formatted.push('');
-          continue;
-        }
-        if (trimmed.startsWith('}') || trimmed.startsWith('};')) {
-          indentLevel = Math.max(0, indentLevel - 1);
-        }
-        const pad = trimmed.startsWith('#') ? '' : ' '.repeat(indentLevel * tabSize);
-        formatted.push(pad + trimmed);
-        if (trimmed.endsWith('{')) {
-          indentLevel++;
-        }
-      }
-    }
-    setCode(formatted.join('\n'));
-  };
-
-  // --- Offline Download & Package Management Handlers ---
-  const handleDownloadOfflineBundle = async () => {
-    if (isDownloadingOffline) return;
-    setIsDownloadingOffline(true);
-    try {
-      await downloadFullDataScienceBundle((progress) => {
-        setDownloadProgress(progress);
-      });
-      const status = await inspectCompilerCache();
-      setCacheStatus(status);
+        ...prev.slice(0, 19),
+      ]);
     } catch (err: any) {
-      setStderr(`Offline bundle download failed: ${err?.message || String(err)}`);
-    } finally {
-      setIsDownloadingOffline(false);
-    }
-  };
+      if (activeJobIdRef.current !== jobId) return;
+      const elapsed = Math.round(performance.now() - startWall);
+      setExecutionTimeMs(elapsed);
 
-  const handleClearOfflineCache = async () => {
-    await clearCompilerCache();
-    await refreshOfflineStatus();
-    setDownloadProgress(null);
-  };
-
-  const handleInstallCustomPackage = async (pkgToInstall?: string) => {
-    const pkg = (pkgToInstall || customPackageName).trim();
-    if (!pkg || isInstallingPackage) return;
-    setIsInstallingPackage(true);
-    setPackageInstallMessage(`Installing '${pkg}' via micropip...`);
-
-    const worker = createOrGetPythonWorker();
-    const msgId = `pkg-${Date.now()}`;
-    pendingWorkerCallbacks.current.set(msgId, (data: any) => {
-      setIsInstallingPackage(false);
-      if (Array.isArray(data.loadedPackages)) {
-        setLoadedPyPackages(data.loadedPackages);
-      }
-      if (data.type === 'PACKAGE_INSTALLED') {
-        setPackageInstallMessage(`Successfully installed '${pkg}' in Python 3.12 environment.`);
-        setCustomPackageName('');
-        refreshOfflineStatus();
+      if (err && typeof err === 'object' && ('stdout' in err || 'stderr' in err)) {
+        if (err.stdout) setStdout(err.stdout);
+        if (err.stderr) setStderr(err.stderr);
+        if (Array.isArray(err.plots) && err.plots.length > 0) {
+          setPlots(err.plots);
+        }
+        if (Array.isArray(err.dataframes) && err.dataframes.length > 0) {
+          setDataframes(err.dataframes);
+        }
+        if (err.errorLine) {
+          highlightEditorErrorLine(err.errorLine, 'Python exception on this line');
+        }
       } else {
-        setPackageInstallMessage(`Failed to install '${pkg}': ${data.error || 'Unknown error'}`);
+        const msg = err?.message || String(err);
+        setStderr((prev) => (prev ? `${prev}\n${msg}` : msg));
       }
-    });
+      setJobState('failed');
+      setStatusMessage('');
+      setExecutionHistory((prev) => [
+        {
+          id: jobId,
+          timestamp: new Date().toLocaleTimeString(),
+          language: lang,
+          fileName: activeFile.name,
+          durationMs: elapsed,
+          engine: lang === 'python' ? 'Python 3.12 Wasm Worker' : 'C/C++ Engine',
+          status: 'failed',
+        },
+        ...prev.slice(0, 19),
+      ]);
+    }
+  }, [
+    activeProject,
+    activeFile,
+    activeTab,
+    pyodideReady,
+    isOnline,
+    ensurePythonWorker,
+    clearEditorErrorMarkers,
+    highlightEditorErrorLine,
+    refreshCacheStatus,
+  ]);
 
-    worker.postMessage({
-      type: 'INSTALL_PACKAGE',
-      id: msgId,
-      packageName: pkg,
-    });
-  };
+  // Configure Monaco Editor on Mount (Autocomplete, Auto-Closing Brackets, Ctrl+Enter shortcut)
+  const handleEditorDidMount: OnMount = useCallback(
+    (editor, monaco) => {
+      editorRef.current = editor;
+      monacoRef.current = monaco;
 
-  // --- Project & File Operations ---
-  const handleCreateProject = () => {
-    const trimmed = newProjectName.trim();
-    if (!trimmed) return;
-    const tpl = COMPILER_TEMPLATES.find((t) => t.language === newProjectLang) || COMPILER_TEMPLATES[0];
-    const now = Date.now();
-    const newProj: CompilerProject = {
-      id: `proj-${newProjectLang}-${now}`,
-      name: trimmed,
-      language: newProjectLang,
-      activeFileName: tpl.fileName,
-      stdin: tpl.defaultStdin || '',
-      files: [{ name: tpl.fileName, content: tpl.code, updatedAt: now }],
-      notebookCells: newProjectLang === 'python' ? getDefaultNotebookCells() : undefined,
-      createdAt: now,
-      updatedAt: now,
+      const pyCompletionsCatalog = [
+        { label: 'import pandas as pd', insertText: 'import pandas as pd', detail: 'Pandas DataFrame library', kind: 'module' },
+        { label: 'import numpy as np', insertText: 'import numpy as np', detail: 'NumPy numerical library', kind: 'module' },
+        { label: 'import matplotlib.pyplot as plt', insertText: 'import matplotlib.pyplot as plt', detail: 'Matplotlib plotting library', kind: 'module' },
+        { label: 'from sklearn.model_selection import train_test_split', insertText: 'from sklearn.model_selection import train_test_split', detail: 'Scikit-Learn train/test split', kind: 'module' },
+        { label: 'from sklearn.preprocessing import StandardScaler', insertText: 'from sklearn.preprocessing import StandardScaler', detail: 'Scikit-Learn feature scaling', kind: 'module' },
+        { label: 'from sklearn.linear_model import LinearRegression', insertText: 'from sklearn.linear_model import LinearRegression', detail: 'Scikit-Learn linear regression', kind: 'module' },
+        { label: 'pd.DataFrame', insertText: 'pd.DataFrame(data)', detail: 'Create Pandas DataFrame', kind: 'function' },
+        { label: 'pd.read_csv', insertText: 'pd.read_csv("data.csv")', detail: 'Read CSV into DataFrame', kind: 'function' },
+        { label: 'pd.read_excel', insertText: 'pd.read_excel("data.xlsx")', detail: 'Read Excel into DataFrame', kind: 'function' },
+        { label: 'df.head', insertText: 'df.head(5)', detail: 'Display first n rows', kind: 'method' },
+        { label: 'df.describe', insertText: 'df.describe()', detail: 'Summary statistics', kind: 'method' },
+        { label: 'df.isnull().sum()', insertText: 'df.isnull().sum()', detail: 'Count missing values per column', kind: 'method' },
+        { label: 'df.fillna', insertText: 'df.fillna(df.mean(numeric_only=True))', detail: 'Fill missing values', kind: 'method' },
+        { label: 'df.groupby', insertText: 'df.groupby("column").mean(numeric_only=True)', detail: 'Group by column and aggregate', kind: 'method' },
+        { label: 'plt.figure', insertText: 'plt.figure(figsize=(8, 4.5))', detail: 'Create Matplotlib figure', kind: 'function' },
+        { label: 'plt.bar', insertText: 'plt.bar(df["Product"], df["Sales"])', detail: 'Plot bar chart', kind: 'function' },
+        { label: 'plt.plot', insertText: 'plt.plot(x, y)', detail: 'Plot line chart', kind: 'function' },
+        { label: 'plt.scatter', insertText: 'plt.scatter(x, y)', detail: 'Plot scatter chart', kind: 'function' },
+        { label: 'plt.title', insertText: 'plt.title("Chart Title")', detail: 'Set chart title', kind: 'function' },
+        { label: 'plt.xlabel', insertText: 'plt.xlabel("X Axis")', detail: 'Set X axis label', kind: 'function' },
+        { label: 'plt.ylabel', insertText: 'plt.ylabel("Y Axis")', detail: 'Set Y axis label', kind: 'function' },
+        { label: 'plt.show', insertText: 'plt.show()', detail: 'Render figure to Plots panel', kind: 'function' },
+        { label: 'np.array', insertText: 'np.array([1, 2, 3])', detail: 'Create NumPy ndarray', kind: 'function' },
+        { label: 'np.linspace', insertText: 'np.linspace(0, 10, 50)', detail: 'Evenly spaced numbers', kind: 'function' },
+      ];
+
+      const completionDisposable = monaco.languages.registerCompletionItemProvider('python', {
+        triggerCharacters: ['.', '(', '"', "'", '['],
+        provideCompletionItems: (
+          model: Monaco.editor.ITextModel,
+          position: Monaco.Position
+        ) => {
+          const wordInfo = model.getWordUntilPosition(position);
+          const range: Monaco.IRange = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: wordInfo.startColumn,
+            endColumn: wordInfo.endColumn,
+          };
+
+          const fullCode = model.getValue();
+          const offset = model.getOffsetAt(position);
+          const ctx = analyzeContext(fullCode, offset, 'python');
+          const linePrefix = model
+            .getLineContent(position.lineNumber)
+            .slice(0, position.column - 1);
+          const dotMatch = linePrefix.match(/([a-zA-Z_]\w*)\.(\w*)$/);
+          const query = dotMatch ? `${dotMatch[1]}.${dotMatch[2]}` : wordInfo.word;
+
+          const suggestions: Monaco.languages.CompletionItem[] = [];
+
+          for (const item of pyCompletionsCatalog) {
+            if (query.length > 0) {
+              const score = Math.max(
+                fuzzyMatchScore(query, item.label),
+                fuzzyMatchScore(query, item.insertText)
+              );
+              if (score <= 0) continue;
+            }
+            suggestions.push({
+              label: item.label,
+              kind:
+                item.kind === 'function' || item.kind === 'method'
+                  ? monaco.languages.CompletionItemKind.Function
+                  : monaco.languages.CompletionItemKind.Module,
+              detail: item.detail,
+              insertText:
+                dotMatch && item.insertText.startsWith(`${dotMatch[1]}.`)
+                  ? item.insertText.slice(dotMatch[1].length + 1)
+                  : item.insertText,
+              range,
+            });
+          }
+
+          for (const v of ctx.declaredVariables) {
+            if (!query || fuzzyMatchScore(query, v) > 0) {
+              suggestions.push({
+                label: v,
+                kind: monaco.languages.CompletionItemKind.Variable,
+                detail: 'Declared variable',
+                insertText: v,
+                range,
+              });
+            }
+          }
+
+          return { suggestions: suggestions.slice(0, 40) };
+        },
+      });
+
+      const inlineDisposable = monaco.languages.registerInlineCompletionsProvider('python', {
+        provideInlineCompletions: (
+          model: Monaco.editor.ITextModel,
+          position: Monaco.Position
+        ) => {
+          const fullCode = model.getValue();
+          const offset = model.getOffsetAt(position);
+          const ctx = analyzeContext(fullCode, offset, 'python');
+          const prediction = predictGhostText(ctx);
+          if (!prediction || !prediction.textToInsert) {
+            return { items: [] };
+          }
+          return {
+            items: [
+              {
+                insertText: prediction.textToInsert,
+                range: new monaco.Range(
+                  position.lineNumber,
+                  position.column,
+                  position.lineNumber,
+                  position.column
+                ),
+              },
+            ],
+          };
+        },
+        freeInlineCompletions: () => {},
+      });
+
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+        handleRunCode();
+      });
+
+      return () => {
+        completionDisposable.dispose();
+        inlineDisposable.dispose();
+      };
+    },
+    [handleRunCode]
+  );
+
+  // Keyboard shortcut listener for Ctrl+Enter / Cmd+Enter outside Monaco focus
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (!isRunning) {
+          handleRunCode();
+        }
+      }
     };
-    setProjects((prev) => [newProj, ...prev]);
-    setActiveProjectIdState(newProj.id);
-    setNewProjectName('');
-    setIsCreatingProject(false);
-  };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleRunCode, isRunning]);
 
-  const handleDeleteProject = (projId: string) => {
-    if (projects.length <= 1) return;
-    const remaining = projects.filter((p) => p.id !== projId);
-    setProjects(remaining);
-    if (activeProjectId === projId) {
-      setActiveProjectIdState(remaining[0].id);
-    }
-    setConfirmDeleteProjectId(null);
-  };
+  // Create a new clean file (always minimal Hello World for source files)
+  const handleCreateNewFile = useCallback(() => {
+    const trimmed = newFileNameInput.trim();
+    if (!trimmed || !activeProject) return;
 
-  const handleCreateNewFile = () => {
-    const rawName = newFileName.trim();
-    if (!rawName) return;
-    const defaultExt = language === 'python' ? '.py' : language === 'cpp' ? '.cpp' : '.c';
-    const finalName = rawName.includes('.') ? rawName : `${rawName}${defaultExt}`;
+    const isPy = trimmed.endsWith('.py');
+    const isCpp = trimmed.endsWith('.cpp') || trimmed.endsWith('.hpp');
+    const isC = trimmed.endsWith('.c') || trimmed.endsWith('.h');
+    const starterContent = isPy
+      ? MINIMAL_HELLO_WORLD.python
+      : isCpp
+      ? MINIMAL_HELLO_WORLD.cpp
+      : isC
+      ? MINIMAL_HELLO_WORLD.c
+      : '';
 
-    updateActiveProject((proj) => {
-      if (proj.files.some((f) => f.name === finalName)) {
-        return { ...proj, activeFileName: finalName };
-      }
-      return {
-        ...proj,
-        activeFileName: finalName,
-        files: [
-          ...proj.files,
-          {
-            name: finalName,
-            content: finalName.endsWith('.py')
-              ? `# ${finalName}\n`
-              : finalName.endsWith('.cpp') || finalName.endsWith('.c')
-              ? `// ${finalName}\n`
-              : '',
+    setProjects((prev) =>
+      prev.map((proj) => {
+        if (proj.id !== activeProject.id) return proj;
+        if (proj.files.some((f) => f.name === trimmed)) {
+          return { ...proj, activeFileName: trimmed };
+        }
+        return {
+          ...proj,
+          activeFileName: trimmed,
+          files: [
+            ...proj.files,
+            {
+              name: trimmed,
+              content: starterContent,
+              updatedAt: Date.now(),
+            },
+          ],
+          updatedAt: Date.now(),
+        };
+      })
+    );
+    setNewFileNameInput('');
+    setNewFileModalOpen(false);
+  }, [newFileNameInput, activeProject]);
+
+  // Delete a project file
+  const handleDeleteFile = useCallback(
+    (fileName: string) => {
+      if (!activeProject || activeProject.files.length <= 1) return;
+      setProjects((prev) =>
+        prev.map((proj) => {
+          if (proj.id !== activeProject.id) return proj;
+          const remaining = proj.files.filter((f) => f.name !== fileName);
+          return {
+            ...proj,
+            files: remaining,
+            activeFileName:
+              proj.activeFileName === fileName ? remaining[0].name : proj.activeFileName,
             updatedAt: Date.now(),
-          },
-        ],
-      };
-    });
-    setNewFileName('');
-    setIsCreatingFile(false);
-  };
-
-  const handleDeleteFile = (fileName: string) => {
-    if (activeProject.files.length <= 1) return;
-    updateActiveProject((proj) => {
-      const nextFiles = proj.files.filter((f) => f.name !== fileName);
-      return {
-        ...proj,
-        files: nextFiles,
-        activeFileName:
-          proj.activeFileName === fileName ? nextFiles[0].name : proj.activeFileName,
-      };
-    });
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    if (!fileList || fileList.length === 0) return;
-
-    for (const file of Array.from(fileList)) {
-      if (file.name.endsWith('.ipynb')) {
-        const text = await file.text();
-        try {
-          const cells = parseIpynbToCells(text);
-          updateActiveProject((proj) => ({ ...proj, notebookCells: cells }));
-          setWorkspaceMode('notebook');
-        } catch (err: any) {
-          setStderr(`Invalid .ipynb file: ${err?.message}`);
-        }
-        continue;
-      }
-
-      const isBinary = /\.(xlsx|xls|png|jpg|jpeg|pdf|zip|sqlite|db)$/i.test(file.name);
-      if (isBinary) {
-        const buf = await file.arrayBuffer();
-        const bytes = new Uint8Array(buf);
-        let binary = '';
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        const b64 = btoa(binary);
-        updateActiveProject((proj) => {
-          const filtered = proj.files.filter((f) => f.name !== file.name);
-          return {
-            ...proj,
-            files: [
-              ...filtered,
-              { name: file.name, content: b64, isBinary: true, size: file.size, updatedAt: Date.now() },
-            ],
           };
-        });
-      } else {
-        const text = await file.text();
-        updateActiveProject((proj) => {
-          const filtered = proj.files.filter((f) => f.name !== file.name);
-          const isCodeFile = /\.(py|cpp|c|h|hpp)$/i.test(file.name);
-          return {
-            ...proj,
-            activeFileName: isCodeFile ? file.name : proj.activeFileName,
-            files: [
-              ...filtered,
-              { name: file.name, content: text, isBinary: false, size: file.size, updatedAt: Date.now() },
-            ],
-          };
+        })
+      );
+      if (workerRef.current && activeProject.language === 'python') {
+        workerRef.current.postMessage({
+          type: 'DELETE_FILE',
+          payload: { name: fileName },
         });
       }
-    }
-    e.target.value = '';
-  };
+    },
+    [activeProject]
+  );
 
-  const handleDownloadFile = (file: ProjectFile) => {
-    let blob: Blob;
-    if (file.isBinary) {
-      const binStr = atob(file.content);
-      const bytes = new Uint8Array(binStr.length);
-      for (let i = 0; i < binStr.length; i++) {
-        bytes[i] = binStr.charCodeAt(i);
-      }
-      blob = new Blob([bytes], { type: 'application/octet-stream' });
-    } else {
-      blob = new Blob([file.content], { type: 'text/plain;charset=utf-8' });
-    }
+  // Upload local dataset or source file into virtual filesystem
+  const handleFileUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files || files.length === 0 || !activeProject) return;
+
+      Array.from(files).forEach((file) => {
+        const isBin = /\.(xlsx|xls|parquet|png|jpg|jpeg|webp|pdf|zip|sqlite|db)$/i.test(file.name);
+        const reader = new FileReader();
+
+        reader.onload = () => {
+          let contentStr = '';
+          if (isBin && reader.result instanceof ArrayBuffer) {
+            const bytes = new Uint8Array(reader.result);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+              binary += String.fromCharCode(bytes[i]);
+            }
+            contentStr = btoa(binary);
+            // Persist larger binary datasets to OPFS when supported
+            saveDatasetToOpfs(file.name, reader.result);
+          } else {
+            contentStr = String(reader.result || '');
+            saveDatasetToOpfs(file.name, contentStr);
+          }
+
+          const newFile: ProjectFile = {
+            name: file.name,
+            content: contentStr,
+            isBinary: isBin,
+            size: file.size,
+            updatedAt: Date.now(),
+          };
+
+          setProjects((prev) =>
+            prev.map((proj) => {
+              if (proj.id !== activeProject.id) return proj;
+              const filtered = proj.files.filter((f) => f.name !== file.name);
+              return {
+                ...proj,
+                files: [...filtered, newFile],
+                activeFileName: isBin ? proj.activeFileName : file.name,
+                updatedAt: Date.now(),
+              };
+            })
+          );
+
+          // Sync immediately to active Python worker virtual filesystem
+          if (workerRef.current && activeProject.language === 'python') {
+            workerRef.current.postMessage({
+              type: 'UPLOAD_FILE',
+              payload: {
+                name: file.name,
+                data: contentStr,
+                isBinary: isBin,
+              },
+            });
+          }
+        };
+
+        if (isBin) {
+          reader.readAsArrayBuffer(file);
+        } else {
+          reader.readAsText(file);
+        }
+      });
+
+      e.target.value = '';
+    },
+    [activeProject]
+  );
+
+  // Download active file or ZIP project
+  const handleDownloadActiveFile = useCallback(() => {
+    if (!activeFile) return;
+    const blob = new Blob([activeFile.content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = file.name;
+    a.download = activeFile.name;
     a.click();
     URL.revokeObjectURL(url);
-  };
+  }, [activeFile]);
 
-  const handleExportProjectZip = async () => {
+  const handleExportZip = useCallback(async () => {
+    if (!activeProject) return;
     const zipBlob = await exportProjectAsZip(activeProject);
     const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${activeProject.name.replace(/[^a-zA-Z0-9_-]/g, '_') || 'tooltrack_project'}.zip`;
+    a.download = `${activeProject.name.toLowerCase().replace(/\s+/g, '-')}.zip`;
     a.click();
     URL.revokeObjectURL(url);
-  };
+  }, [activeProject]);
 
-  const handleExportIpynb = () => {
-    const content = exportNotebookToIpynb(notebookCells);
-    const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${activeProject.name.replace(/[^a-zA-Z0-9_-]/g, '_')}.ipynb`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  // Setup Mode & Offline Package Manager Actions
+  const handleChangeSetupMode = useCallback((mode: SetupPreferenceMode) => {
+    setSetupModeState(mode);
+    setSetupPreferenceMode(mode);
+  }, []);
 
-  const handleDownloadPlot = (base64Png: string, index: number) => {
-    const a = document.createElement('a');
-    a.href = `data:image/png;base64,${base64Png}`;
-    a.download = `tooltrack_figure_${index + 1}.png`;
-    a.click();
-  };
+  const handleDownloadOfflinePreset = useCallback(
+    async (preset: 'core' | 'datascience' | 'complete') => {
+      if (downloadingOffline) return;
+      setDownloadingOffline(true);
+      setDownloadProgress({ percent: 0, label: 'Starting download...' });
+      try {
+        const progressCb = (p: { currentFile: string; percent: number }) => {
+          setDownloadProgress({
+            percent: p.percent,
+            label: p.currentFile === 'Complete' ? 'Verifying cache...' : `Caching ${p.currentFile}...`,
+          });
+        };
+        if (preset === 'core') {
+          await downloadCoreRuntime(progressCb);
+        } else if (preset === 'datascience') {
+          await downloadDataSciencePreset(progressCb);
+        } else {
+          await downloadFullDataScienceBundle(progressCb);
+        }
+        await refreshCacheStatus();
+      } catch (err: any) {
+        setStderr((prev) =>
+          prev
+            ? `${prev}\n[Offline Setup Error]: ${err.message || String(err)}`
+            : `[Offline Setup Error]: ${err.message || String(err)}`
+        );
+      } finally {
+        setDownloadingOffline(false);
+        setDownloadProgress(null);
+      }
+    },
+    [downloadingOffline, refreshCacheStatus]
+  );
 
-  const handleDownloadDataFrameCsv = (df: ExtractedDataFrame) => {
-    const blob = new Blob([df.csvContent], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${df.name}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const handleDownloadSinglePackage = useCallback(
+    async (pkgId: string) => {
+      setInstallingPkgId(pkgId);
+      try {
+        await downloadPythonPackage(pkgId, (p) => {
+          setDownloadProgress({
+            percent: p.percent,
+            label: `Caching ${pkgId}: ${p.currentFile}`,
+          });
+        });
+        await refreshCacheStatus();
+      } catch (err: any) {
+        setStderr((prev) => `${prev}\n[Package Cache Error]: ${err.message || String(err)}`);
+      } finally {
+        setInstallingPkgId(null);
+        setDownloadProgress(null);
+      }
+    },
+    [refreshCacheStatus]
+  );
 
+  const handleLoadPackageIntoSession = useCallback(
+    async (pkgName: string) => {
+      const trimmed = pkgName.trim();
+      if (!trimmed) return;
+      setInstallingPkgId(trimmed);
+      try {
+        const worker = ensurePythonWorker();
+        const reqId = `pkg-${Date.now()}`;
+        await new Promise((resolve, reject) => {
+          pendingPromisesRef.current.set(reqId, { resolve, reject });
+          worker.postMessage({
+            type: 'INSTALL_PACKAGE',
+            id: reqId,
+            packageName: trimmed,
+          });
+        });
+        await refreshCacheStatus();
+        setCustomPipInput('');
+      } catch (err: any) {
+        setStderr(
+          (prev) => `${prev}\n[Package Load Error]: ${err?.stderr || err?.message || String(err)}`
+        );
+      } finally {
+        setInstallingPkgId(null);
+      }
+    },
+    [ensurePythonWorker, refreshCacheStatus]
+  );
+
+  const handleRemoveCachedPkg = useCallback(
+    async (pkgId: string) => {
+      await removeCachedPackage(pkgId);
+      await refreshCacheStatus();
+    },
+    [refreshCacheStatus]
+  );
+
+  // Filtered packages for the Package Manager modal
+  const filteredCatalogPackages = useMemo(() => {
+    return PYTHON_PACKAGES.filter((pkg) => {
+      if (pkgCategoryFilter !== 'All' && pkg.category !== pkgCategoryFilter) return false;
+      if (!pkgSearchQuery.trim()) return true;
+      const q = pkgSearchQuery.toLowerCase();
+      return (
+        pkg.name.toLowerCase().includes(q) ||
+        pkg.importName.toLowerCase().includes(q) ||
+        pkg.description.toLowerCase().includes(q)
+      );
+    });
+  }, [pkgCategoryFilter, pkgSearchQuery]);
+
+  // Active DataFrame sorting & filtering
   const activeDataFrame = dataframes[selectedDfIndex] || dataframes[0] || null;
-  const filteredDfRows = useMemo(() => {
+  const displayedDfRows = useMemo(() => {
     if (!activeDataFrame) return [];
-    if (!dfSearchQuery.trim()) return activeDataFrame.previewRows;
-    const q = dfSearchQuery.toLowerCase();
-    return activeDataFrame.previewRows.filter((row) =>
-      Object.values(row).some((val) => String(val ?? '').toLowerCase().includes(q))
-    );
-  }, [activeDataFrame, dfSearchQuery]);
+    let rows = [...activeDataFrame.previewRows];
+    if (dfSearchQuery.trim()) {
+      const q = dfSearchQuery.toLowerCase();
+      rows = rows.filter((r) =>
+        Object.values(r).some((v) => v !== null && String(v).toLowerCase().includes(q))
+      );
+    }
+    if (dfSortColumn) {
+      rows.sort((a, b) => {
+        const va = a[dfSortColumn];
+        const vb = b[dfSortColumn];
+        if (va === null || va === undefined) return 1;
+        if (vb === null || vb === undefined) return -1;
+        const na = Number(va);
+        const nb = Number(vb);
+        if (!Number.isNaN(na) && !Number.isNaN(nb)) {
+          return dfSortAsc ? na - nb : nb - na;
+        }
+        return dfSortAsc
+          ? String(va).localeCompare(String(vb))
+          : String(vb).localeCompare(String(va));
+      });
+    }
+    return rows;
+  }, [activeDataFrame, dfSearchQuery, dfSortColumn, dfSortAsc]);
+
+  const monacoLanguage =
+    activeProject?.language === 'python'
+      ? 'python'
+      : activeProject?.language === 'cpp'
+      ? 'cpp'
+      : 'c';
 
   return (
-    <div
-      className={`flex flex-col bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 transition-all duration-200 ${
-        isFullscreen
-          ? 'fixed inset-0 z-50 h-screen w-screen'
-          : 'rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-xl overflow-hidden min-h-[780px]'
-      }`}
-    >
-      {/* Hidden File Inputs */}
+    <div className="w-full h-[calc(100vh-115px)] min-h-[680px] flex flex-col bg-[#0F172A] text-slate-100 rounded-xl border border-slate-800 shadow-2xl overflow-hidden select-none">
+      {/* Hidden file input for dataset & script uploads */}
       <input
         ref={fileUploadInputRef}
         type="file"
         multiple
-        accept=".py,.cpp,.c,.h,.hpp,.csv,.xlsx,.xls,.json,.txt,.ipynb"
-        className="hidden"
-        onChange={handleFileUpload}
-      />
-      <input
-        ref={ipynbInputRef}
-        type="file"
-        accept=".ipynb"
+        accept=".py,.cpp,.c,.h,.hpp,.csv,.xlsx,.json,.txt,.png,.jpg,.jpeg"
         className="hidden"
         onChange={handleFileUpload}
       />
 
-      {/* TOP IDE COMMAND HEADER */}
-      <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-800">
-        {/* Left: Explorer toggle, Brand, Language Switcher, Mode Toggle */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+      {/* TOP IDE TOOLBAR — Single-row, spacious, high-clarity controls */}
+      <div className="h-12 px-3 bg-[#1E293B] border-b border-slate-800 flex items-center justify-between gap-2 shrink-0">
+        {/* Left Zone: Sidebar toggle + Language tabs + Active File */}
+        <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => setShowExplorer((v) => !v)}
-            title="Toggle Workspace Explorer"
-            className={`p-2 rounded-lg border transition-colors ${
+            title={showExplorer ? 'Hide Project Files' : 'Show Project Files & Datasets'}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer whitespace-nowrap shrink-0 ${
               showExplorer
-                ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/50 dark:border-blue-800 dark:text-blue-400'
-                : 'bg-slate-100 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
+                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
             }`}
           >
-            <FolderOpen className="w-4 h-4" />
+            {showExplorer ? (
+              <PanelLeftClose className="w-3.5 h-3.5" />
+            ) : (
+              <PanelLeftOpen className="w-3.5 h-3.5" />
+            )}
+            <span className="hidden sm:inline">Files</span>
+            <span className="text-[11px] text-slate-400 font-mono">
+              ({activeProject?.files.length || 1})
+            </span>
           </button>
 
-          {/* Language Selector */}
-          <div className="inline-flex items-center bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/70">
+          {/* Language Switcher */}
+          <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 shrink-0">
             {(
               [
                 { id: 'python', label: 'Python 3.12' },
                 { id: 'cpp', label: 'C++20' },
                 { id: 'c', label: 'C17' },
               ] as const
-            ).map((langItem) => (
-              <button
-                key={langItem.id}
-                onClick={() => handleSelectLanguage(langItem.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  language === langItem.id
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                {langItem.label}
-              </button>
-            ))}
+            ).map((item) => {
+              const active = activeProject?.language === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleSelectLanguage(item.id)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
+                    active
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Editor vs Notebook Mode Toggle (for Python) */}
-          {language === 'python' && (
-            <div className="inline-flex items-center bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/70">
-              <button
-                onClick={() => setWorkspaceMode('editor')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                  workspaceMode === 'editor'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                <Code2 className="w-3.5 h-3.5" />
-                Editor
-              </button>
-              <button
-                onClick={() => setWorkspaceMode('notebook')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                  workspaceMode === 'notebook'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                Notebook
-              </button>
-            </div>
-          )}
-
-          {/* Online / Offline & Runtime Badge */}
-          <div className="hidden md:flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
-            <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${
-                isOnline
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60'
-                  : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60'
-              }`}
+          {/* Examples Dropdown (Optional — never forced into editor) */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => {
+                setShowExamplesMenu((v) => !v);
+                setShowSettingsMenu(false);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium transition cursor-pointer whitespace-nowrap"
             >
-              {isOnline ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-              {isOnline ? 'Online' : 'Offline Mode'}
-            </span>
+              <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+              <span className="hidden md:inline">Examples</span>
+              <ChevronDown className="w-3 h-3 text-slate-400" />
+            </button>
 
-            {cacheStatus?.isDataScienceReady ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800/60">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Offline Ready
-              </span>
-            ) : (
-              <button
-                onClick={() => {
-                  setActiveTab('packages');
-                  handleDownloadOfflineBundle();
-                }}
-                disabled={isDownloadingOffline}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
-              >
-                <HardDriveDownload className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                {isDownloadingOffline
-                  ? `Caching ${downloadProgress?.percent || 0}%...`
-                  : 'Enable Offline Mode'}
-              </button>
+            {showExamplesMenu && (
+              <div className="absolute left-0 mt-1.5 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1.5 z-50">
+                <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 border-b border-slate-800">
+                  Load Starter or Scientific Example ({activeProject?.language.toUpperCase()})
+                </div>
+                {COMPILER_TEMPLATES.filter((t) => t.language === activeProject?.language).map(
+                  (tpl) => (
+                    <button
+                      key={tpl.id}
+                      onClick={() => {
+                        updateActiveFileContent(tpl.code);
+                        if (tpl.defaultStdin !== undefined) {
+                          updateStdin(tpl.defaultStdin);
+                        }
+                        setShowExamplesMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-slate-800 transition flex flex-col gap-0.5 cursor-pointer"
+                    >
+                      <span className="text-xs font-semibold text-slate-200">{tpl.name}</span>
+                      <span className="text-[11px] text-slate-400 line-clamp-1">
+                        {tpl.description}
+                      </span>
+                    </button>
+                  )
+                )}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Right: Primary Run / Stop / Format / Settings / Fullscreen Controls */}
-        <div className="flex items-center gap-2">
-          {workspaceMode === 'editor' ? (
-            <>
-              {isRunning ? (
-                <button
-                  onClick={handleStopExecution}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white shadow-sm transition-colors"
-                >
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                  Stop
-                </button>
-              ) : (
-                <button
-                  onClick={handleRunCode}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all cursor-pointer"
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  Run Code
-                  <span className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] bg-blue-700/80 rounded text-blue-100 font-mono">
-                    Ctrl+Enter
-                  </span>
-                </button>
-              )}
-            </>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={handleRunAllNotebookCells}
-                disabled={isRunning}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white shadow-sm transition-all"
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                Run All Cells
-              </button>
-              <button
-                onClick={handleResetKernel}
-                className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
-                title="Reset Python Kernel Globals"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Reset Kernel
-              </button>
-            </div>
-          )}
-
-          {workspaceMode === 'editor' && (
+        {/* Center Zone: Primary Run / Stop / Restart Controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          {!isRunning ? (
             <button
-              onClick={handleFormatCode}
-              title="Format Code"
-              className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+              onClick={handleRunCode}
+              title="Run Code (Ctrl+Enter)"
+              className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-sm transition cursor-pointer whitespace-nowrap"
             >
-              <Wand2 className="w-4 h-4" />
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span>Run Code</span>
+              <span className="hidden lg:inline text-[10px] font-mono opacity-80">Ctrl+↵</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleStopExecution}
+              title="Stop Running Execution"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs shadow-sm transition cursor-pointer whitespace-nowrap"
+            >
+              <Square className="w-3.5 h-3.5 fill-current" />
+              <span>Stop</span>
             </button>
           )}
 
+          {activeProject?.language === 'python' && (
+            <button
+              onClick={handleRestartRuntime}
+              title="Restart Python Runtime Session"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium transition cursor-pointer whitespace-nowrap"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+              <span className="hidden xl:inline">Restart Kernel</span>
+            </button>
+          )}
+        </div>
+
+        {/* Right Zone: Runtime Status, Package & Offline Manager, Upload, Editor Settings */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Genuine Verified Runtime / Offline Readiness Status Button */}
           <button
-            onClick={handleExportProjectZip}
-            title="Export Project as ZIP"
-            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+            onClick={() => setShowOfflineModal(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-200 transition cursor-pointer whitespace-nowrap"
+            title="Manage Python Packages & Offline Readiness"
           >
-            <FileArchive className="w-4 h-4" />
+            <Package className="w-3.5 h-3.5 text-blue-400" />
+            <span className="hidden md:inline">
+              {cacheStatus?.isDataScienceReady
+                ? 'Offline Data Science Ready'
+                : cacheStatus?.hasCore
+                ? 'Core Cached · Packages'
+                : pyodideReady
+                ? 'Python 3.12 Ready'
+                : pyodideLoading
+                ? 'Warming Runtime...'
+                : 'Packages & Offline'}
+            </span>
+            <span className="text-[11px] text-slate-400 font-mono">
+              · {isOnline ? 'Online' : 'Offline'}
+            </span>
           </button>
 
-          {/* Editor Settings Popover Button */}
+          {/* Upload Dataset / File */}
+          <button
+            onClick={() => fileUploadInputRef.current?.click()}
+            title="Upload CSV, Excel, JSON, or Code File into Workspace"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium transition cursor-pointer whitespace-nowrap"
+          >
+            <Upload className="w-3.5 h-3.5 text-slate-400" />
+            <span className="hidden lg:inline">Upload Dataset</span>
+          </button>
+
+          {/* Editor Settings Dropdown */}
           <div className="relative">
             <button
-              onClick={() => setShowSettingsMenu((v) => !v)}
-              title="IDE Settings & Engine Preferences"
-              className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+              onClick={() => {
+                setShowSettingsMenu((v) => !v);
+                setShowExamplesMenu(false);
+              }}
+              title="Editor Settings & Export"
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer"
             >
-              <Sliders className="w-4 h-4" />
+              <SlidersHorizontal className="w-4 h-4" />
             </button>
+
             {showSettingsMenu && (
-              <div className="absolute right-0 mt-2 w-72 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-4 z-50 space-y-3 text-xs">
-                <div className="flex items-center justify-between font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <span>IDE & Runtime Settings</span>
-                  <button
-                    onClick={() => setShowSettingsMenu(false)}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+              <div className="absolute right-0 mt-1.5 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 z-50 space-y-3 text-xs">
+                <div className="font-semibold text-slate-200 border-b border-slate-800 pb-1.5">
+                  Editor Preferences
                 </div>
-
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Editor Theme</span>
-                  <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
-                    <button
-                      onClick={() => setEditorTheme('dark')}
-                      className={`px-2.5 py-1 rounded-md ${
-                        editorTheme === 'dark' ? 'bg-blue-600 text-white' : 'text-slate-600 dark:text-slate-400'
-                      }`}
-                    >
-                      Dark
-                    </button>
-                    <button
-                      onClick={() => setEditorTheme('light')}
-                      className={`px-2.5 py-1 rounded-md ${
-                        editorTheme === 'light' ? 'bg-blue-600 text-white' : 'text-slate-600 dark:text-slate-400'
-                      }`}
-                    >
-                      Light
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Font Size</span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setFontSize((s) => Math.max(12, s - 1))}
-                      className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800"
-                    >
-                      -
-                    </button>
-                    <span className="font-mono tabular-nums w-10 text-center">{fontSize}px</span>
-                    <button
-                      onClick={() => setFontSize((s) => Math.min(20, s + 1))}
-                      className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Tab Indentation</span>
-                  <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
-                    {[2, 4].map((sz) => (
+                  <span className="text-slate-400">Font Size</span>
+                  <div className="flex items-center gap-1">
+                    {[13, 14, 16, 18].map((sz) => (
                       <button
                         key={sz}
-                        onClick={() => setTabSize(sz)}
-                        className={`px-2.5 py-1 rounded-md font-mono tabular-nums ${
-                          tabSize === sz ? 'bg-blue-600 text-white' : 'text-slate-600 dark:text-slate-400'
+                        onClick={() => setFontSize(sz)}
+                        className={`px-2 py-0.5 rounded font-mono cursor-pointer ${
+                          fontSize === sz
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                         }`}
                       >
-                        {sz} spaces
+                        {sz}
                       </button>
                     ))}
                   </div>
                 </div>
-
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Word Wrap</span>
+                  <span className="text-slate-400">Word Wrap</span>
                   <button
                     onClick={() => setWordWrap((w) => !w)}
-                    className={`px-2.5 py-1 rounded-md font-medium ${
-                      wordWrap
-                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400'
-                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                    className={`px-2.5 py-1 rounded font-medium cursor-pointer ${
+                      wordWrap ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'
                     }`}
                   >
-                    {wordWrap ? 'Enabled' : 'Disabled'}
+                    {wordWrap ? 'Enabled' : 'Off'}
                   </button>
                 </div>
-
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <label className="block text-slate-600 dark:text-slate-400 mb-1.5">
-                    Execution Engine Priority
-                  </label>
-                  <select
-                    value={preferredEngine}
-                    onChange={(e) => setPreferredEngine(e.target.value as any)}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
-                  >
-                    <option value="auto">Auto (Pyodide 3.12 + GCC Sandbox / Offline AST)</option>
-                    <option value="wasm">Local Browser Only (100% Offline WebAssembly / AST)</option>
-                    <option value="cloud">Server Sandbox First</option>
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={() => setShowShortcutsModal(true)}
-            title="Keyboard Shortcuts"
-            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
-          >
-            <Keyboard className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => setIsFullscreen((f) => !f)}
-            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen IDE'}
-            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
-        </div>
-      </header>
-
-      {/* MAIN IDE BODY: Left Explorer + Center Editor/Notebook + Right Output Studio */}
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
-        {/* 1. LEFT WORKSPACE EXPLORER SIDEBAR */}
-        {showExplorer && (
-          <aside className="w-full lg:w-64 shrink-0 bg-slate-50/90 dark:bg-[#0F172A] border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 flex flex-col max-h-72 lg:max-h-none overflow-y-auto">
-            {/* Active Project Selector & Actions */}
-            <div className="p-3 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  Projects
-                </span>
-                <button
-                  onClick={() => {
-                    setNewProjectLang(language);
-                    setIsCreatingProject((v) => !v);
-                  }}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  <FolderPlus className="w-3.5 h-3.5" />
-                  New
-                </button>
-              </div>
-
-              {isCreatingProject && (
-                <div className="mb-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2">
-                  <input
-                    type="text"
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                    placeholder="Project name..."
-                    className="w-full px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-                    onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
-                  />
-                  <div className="flex items-center justify-between gap-1">
-                    <select
-                      value={newProjectLang}
-                      onChange={(e) => setNewProjectLang(e.target.value as CompilerLanguage)}
-                      className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-                    >
-                      <option value="python">Python 3.12</option>
-                      <option value="cpp">C++20</option>
-                      <option value="c">C17</option>
-                    </select>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => setIsCreatingProject(false)}
-                        className="px-2 py-1 text-xs text-slate-500"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleCreateProject}
-                        className="px-2.5 py-1 text-xs font-semibold bg-blue-600 text-white rounded"
-                      >
-                        Create
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-1">
-                {projects.map((proj) => {
-                  const isCurrent = proj.id === activeProject.id;
-                  return (
-                    <div
-                      key={proj.id}
-                      className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
-                        isCurrent
-                          ? 'bg-blue-600/10 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300 font-semibold'
-                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
-                      }`}
-                      onClick={() => setActiveProjectIdState(proj.id)}
-                    >
-                      {renamingProjectId === proj.id ? (
-                        <input
-                          type="text"
-                          value={renameProjectText}
-                          onChange={(e) => setRenameProjectText(e.target.value)}
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              setProjects((prev) =>
-                                prev.map((p) =>
-                                  p.id === proj.id
-                                    ? { ...p, name: renameProjectText.trim() || p.name }
-                                    : p
-                                )
-                              );
-                              setRenamingProjectId(null);
-                            }
-                          }}
-                          onBlur={() => setRenamingProjectId(null)}
-                          autoFocus
-                          className="w-full px-1.5 py-0.5 text-xs bg-white dark:bg-slate-900 border border-blue-500 rounded"
-                        />
-                      ) : (
-                        <>
-                          <div className="flex items-center gap-2 truncate">
-                            <span className="uppercase text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                              {proj.language}
-                            </span>
-                            <span className="truncate">{proj.name}</span>
-                          </div>
-                          <div
-                            className="hidden group-hover:flex items-center gap-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              onClick={() => {
-                                setRenamingProjectId(proj.id);
-                                setRenameProjectText(proj.name);
-                              }}
-                              title="Rename Project"
-                              className="p-0.5 hover:text-blue-600"
-                            >
-                              <Edit3 className="w-3 h-3" />
-                            </button>
-                            {projects.length > 1 && (
-                              <button
-                                onClick={() => setConfirmDeleteProjectId(proj.id)}
-                                title="Delete Project"
-                                className="p-0.5 hover:text-red-600"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {confirmDeleteProjectId && (
-                <div className="mt-2 p-2 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-xs">
-                  <p className="text-red-700 dark:text-red-300 mb-1.5">Delete this project?</p>
-                  <div className="flex justify-end gap-1.5">
-                    <button
-                      onClick={() => setConfirmDeleteProjectId(null)}
-                      className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => handleDeleteProject(confirmDeleteProjectId)}
-                      className="px-2 py-0.5 rounded bg-red-600 text-white font-semibold"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Project Files & Virtual FS Datasets */}
-            <div className="p-3 border-b border-slate-200 dark:border-slate-800 flex-1">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  Workspace Files
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setIsCreatingFile((v) => !v)}
-                    title="New File"
-                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
-                  >
-                    <FilePlus className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => fileUploadInputRef.current?.click()}
-                    title="Upload Code or Dataset (.csv, .xlsx, .json, .py, .cpp)"
-                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {isCreatingFile && (
-                <div className="mb-2 flex items-center gap-1">
-                  <input
-                    type="text"
-                    value={newFileName}
-                    onChange={(e) => setNewFileName(e.target.value)}
-                    placeholder={language === 'python' ? 'module.py or data.csv' : 'utils.h'}
-                    className="w-full px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                    onKeyDown={(e) => e.key === 'Enter' && handleCreateNewFile()}
-                    autoFocus
-                  />
-                  <button
-                    onClick={handleCreateNewFile}
-                    className="px-2 py-1 text-xs font-semibold bg-blue-600 text-white rounded"
-                  >
-                    Add
-                  </button>
-                </div>
-              )}
-
-              <div className="space-y-1">
-                {activeProject.files.map((file) => {
-                  const isActive = file.name === activeFileName && workspaceMode === 'editor';
-                  const isDataset = /\.(csv|xlsx|xls|json|txt)$/i.test(file.name);
-                  return (
-                    <div
-                      key={file.name}
-                      onClick={() => {
-                        if (!file.isBinary) {
-                          updateActiveProject((p) => ({ ...p, activeFileName: file.name }));
-                          setWorkspaceMode('editor');
-                        }
-                      }}
-                      className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
-                        isActive
-                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 font-medium'
-                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        {isDataset ? (
-                          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        ) : (
-                          <FileCode className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                        )}
-                        <span className="truncate font-mono">{file.name}</span>
-                      </div>
-                      <div
-                        className="hidden group-hover:flex items-center gap-1"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          onClick={() => handleDownloadFile(file)}
-                          title="Download File"
-                          className="p-0.5 hover:text-blue-600"
-                        >
-                          <Download className="w-3 h-3" />
-                        </button>
-                        {activeProject.files.length > 1 && (
-                          <button
-                            onClick={() => handleDeleteFile(file.name)}
-                            title="Delete File"
-                            className="p-0.5 hover:text-red-600"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Starter Templates Section */}
-            <div className="p-3">
-              <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
-                Starter Templates
-              </span>
-              <div className="space-y-1.5">
-                {COMPILER_TEMPLATES.filter((t) => t.language === language).map((tpl) => (
-                  <button
-                    key={tpl.id}
-                    onClick={() => {
-                      updateActiveProject((proj) => ({
-                        ...proj,
-                        activeFileName: tpl.fileName,
-                        stdin: tpl.defaultStdin ?? proj.stdin,
-                        files: proj.files.some((f) => f.name === tpl.fileName)
-                          ? proj.files.map((f) =>
-                              f.name === tpl.fileName
-                                ? { ...f, content: tpl.code, updatedAt: Date.now() }
-                                : f
-                            )
-                          : [
-                              ...proj.files,
-                              { name: tpl.fileName, content: tpl.code, updatedAt: Date.now() },
-                            ],
-                      }));
-                      setWorkspaceMode('editor');
-                    }}
-                    className="w-full text-left p-2 rounded-lg bg-white dark:bg-slate-900/70 hover:bg-blue-50/60 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 transition-colors"
-                  >
-                    <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                      {tpl.name}
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                      {tpl.description}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </aside>
-        )}
-
-        {/* 2. CENTER CODE EDITOR OR NOTEBOOK WORKSPACE */}
-        <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0D1117] border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800">
-          {workspaceMode === 'editor' ? (
-            <>
-              {/* File Tabs & Editor Action Sub-bar */}
-              <div className="flex items-center justify-between px-2 bg-slate-100/80 dark:bg-[#161B22] border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
-                <div className="flex items-center">
-                  {activeProject.files
-                    .filter((f) => !f.isBinary)
-                    .map((file) => {
-                      const active = file.name === activeFileName;
-                      return (
-                        <button
-                          key={file.name}
-                          onClick={() =>
-                            updateActiveProject((p) => ({ ...p, activeFileName: file.name }))
-                          }
-                          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-mono border-r border-slate-200 dark:border-slate-800 transition-colors ${
-                            active
-                              ? 'bg-white dark:bg-[#0D1117] text-blue-600 dark:text-blue-400 font-semibold border-t-2 border-t-blue-600'
-                              : 'text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-800/40'
-                          }`}
-                        >
-                          <FileCode className="w-3.5 h-3.5" />
-                          <span>{file.name}</span>
-                        </button>
-                      );
-                    })}
-                </div>
-
-                {/* Quick Search / Go to Line Bar */}
-                <div className="flex items-center gap-1.5 py-1 pr-2">
-                  {goToLineOpen ? (
-                    <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-blue-500 rounded-md px-2 py-0.5">
-                      <span className="text-[11px] text-slate-400">Line:</span>
-                      <input
-                        type="number"
-                        value={goToLineInput}
-                        onChange={(e) => setGoToLineInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            const num = parseInt(goToLineInput, 10);
-                            if (!isNaN(num)) handleJumpToLine(num);
-                            setGoToLineOpen(false);
-                            setGoToLineInput('');
-                          } else if (e.key === 'Escape') {
-                            setGoToLineOpen(false);
-                          }
-                        }}
-                        className="w-14 text-xs font-mono bg-transparent focus:outline-none tabular-nums"
-                        autoFocus
-                      />
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setGoToLineOpen(true)}
-                      className="px-2 py-1 rounded text-[11px] font-mono tabular-nums text-slate-500 hover:bg-slate-200/70 dark:hover:bg-slate-800"
-                      title="Go to Line"
-                    >
-                      Ln {cursorPos.line}, Col {cursorPos.col}
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => {
-                      if (editorViewRef.current) {
-                        openSearchPanel(editorViewRef.current);
-                      }
-                    }}
-                    title="Find & Replace (Ctrl+F)"
-                    className="p-1 rounded text-slate-500 hover:bg-slate-200/70 dark:hover:bg-slate-800"
-                  >
-                    <Search className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Error Line Diagnostic Banner (if active) */}
-              {errorLine && (
-                <div className="flex items-center justify-between px-3.5 py-1.5 bg-red-50 dark:bg-red-950/50 border-b border-red-200 dark:border-red-900/60 text-xs text-red-700 dark:text-red-300">
-                  <div className="flex items-center gap-2 truncate">
-                    <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
-                    <span className="font-medium truncate">
-                      Diagnostic reported on Line {errorLine}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleJumpToLine(errorLine)}
-                    className="px-2.5 py-0.5 rounded bg-red-600 text-white font-semibold text-[11px] shrink-0 hover:bg-red-700"
-                  >
-                    Jump to Line {errorLine}
-                  </button>
-                </div>
-              )}
-
-              {/* CodeMirror 6 Mount Container */}
-              <div
-                ref={editorContainerRef}
-                className="flex-1 min-h-[380px] overflow-hidden relative"
-              />
-
-              {/* Editor Status Footer */}
-              <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 dark:bg-[#161B22] border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1.5">
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        runtimeState === 'ready' || runtimeState === 'completed'
-                          ? 'bg-emerald-500'
-                          : runtimeState === 'running'
-                          ? 'bg-blue-500 animate-pulse'
-                          : runtimeState === 'failed'
-                          ? 'bg-red-500'
-                          : 'bg-amber-500'
-                      }`}
-                    />
-                    {language === 'python'
-                      ? runtimeStatusText
-                      : language === 'cpp'
-                      ? 'GCC C++20 / AST Ready'
-                      : 'GCC C17 / AST Ready'}
-                  </span>
-                  <span className="hidden sm:inline">Tab: Accept Ghost Text</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span>UTF-8</span>
-                  <span>Spaces: {tabSize}</span>
-                  <span>
-                    Ln {cursorPos.line}, Col {cursorPos.col}
-                  </span>
-                </div>
-              </div>
-            </>
-          ) : (
-            /* COLAB-STYLE PYTHON NOTEBOOK WORKSPACE */
-            <div className="flex-1 flex flex-col min-h-[420px] overflow-y-auto p-4 space-y-4 bg-slate-50/50 dark:bg-[#0B0F17]">
-              {/* Notebook Toolbar */}
-              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-[#161B22] border border-slate-200 dark:border-slate-800 shadow-xs">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() =>
-                      updateNotebookCells((cells) => [
-                        ...cells,
-                        {
-                          id: `cell-code-${Date.now()}`,
-                          type: 'code',
-                          content: '# New Python cell\n',
-                          status: 'idle',
-                        },
-                      ])
-                    }
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Code Cell
-                  </button>
-                  <button
-                    onClick={() =>
-                      updateNotebookCells((cells) => [
-                        ...cells,
-                        {
-                          id: `cell-md-${Date.now()}`,
-                          type: 'markdown',
-                          content: '### Documentation Note\nDescribe your analysis step here.',
-                        },
-                      ])
-                    }
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Markdown Cell
-                  </button>
-                  <button
-                    onClick={() =>
-                      updateNotebookCells((cells) =>
-                        cells.map((c) => ({
-                          ...c,
-                          stdout: '',
-                          stderr: '',
-                          plots: [],
-                          dataframes: [],
-                          status: 'idle',
-                          executionCount: null,
-                        }))
-                      )
-                    }
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  >
-                    Clear Outputs
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => ipynbInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    Import .ipynb
-                  </button>
-                  <button
-                    onClick={handleExportIpynb}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Export .ipynb
-                  </button>
-                </div>
-              </div>
-
-              {/* Notebook Cells List */}
-              {notebookCells.map((cell, idx) => (
-                <div
-                  key={cell.id}
-                  className="rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden"
-                >
-                  {/* Cell Header */}
-                  <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-[#161B22] border-b border-slate-200 dark:border-slate-800 text-xs">
-                    <div className="flex items-center gap-2">
-                      {cell.type === 'code' ? (
-                        <button
-                          onClick={() => handleRunNotebookCell(cell.id)}
-                          disabled={isRunning}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold"
-                        >
-                          <Play className="w-3 h-3 fill-current" />
-                          Run
-                        </button>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">
-                          Markdown
-                        </span>
-                      )}
-                      {cell.type === 'code' && (
-                        <span className="font-mono text-slate-400 tabular-nums">
-                          [{cell.status === 'running' ? '*' : cell.executionCount || ' '}]
-                        </span>
-                      )}
-                      {cell.executionTimeMs !== undefined && (
-                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">
-                          {cell.executionTimeMs}ms
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        disabled={idx === 0}
-                        onClick={() =>
-                          updateNotebookCells((cells) => {
-                            const copy = [...cells];
-                            [copy[idx - 1], copy[idx]] = [copy[idx], copy[idx - 1]];
-                            return copy;
-                          })
-                        }
-                        className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30"
-                      >
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        disabled={idx === notebookCells.length - 1}
-                        onClick={() =>
-                          updateNotebookCells((cells) => {
-                            const copy = [...cells];
-                            [copy[idx], copy[idx + 1]] = [copy[idx + 1], copy[idx]];
-                            return copy;
-                          })
-                        }
-                        className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30"
-                      >
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-                      {notebookCells.length > 1 && (
-                        <button
-                          onClick={() =>
-                            updateNotebookCells((cells) => cells.filter((c) => c.id !== cell.id))
-                          }
-                          className="p-1 text-slate-400 hover:text-red-600"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Cell Content Editor */}
-                  <div className="p-3">
-                    <textarea
-                      value={cell.content}
-                      onChange={(e) =>
-                        updateNotebookCells((cells) =>
-                          cells.map((c) =>
-                            c.id === cell.id ? { ...c, content: e.target.value } : c
-                          )
-                        )
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && e.shiftKey && cell.type === 'code') {
-                          e.preventDefault();
-                          handleRunNotebookCell(cell.id);
-                        }
-                      }}
-                      rows={Math.max(3, cell.content.split('\n').length)}
-                      className="w-full font-mono text-xs bg-slate-50 dark:bg-[#0D1117] text-slate-900 dark:text-slate-100 p-3 rounded-lg border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-blue-500 resize-y"
-                      placeholder={
-                        cell.type === 'code'
-                          ? 'Write Python code... (Press Shift+Enter to run cell)'
-                          : 'Write Markdown notes...'
-                      }
-                    />
-                  </div>
-
-                  {/* Cell Execution Output */}
-                  {cell.type === 'code' &&
-                    (cell.stdout ||
-                      cell.stderr ||
-                      (cell.plots && cell.plots.length > 0) ||
-                      (cell.dataframes && cell.dataframes.length > 0)) && (
-                      <div className="px-4 py-3 bg-slate-950 text-slate-100 border-t border-slate-800 space-y-3 text-xs font-mono">
-                        {cell.stdout && (
-                          <pre className="whitespace-pre-wrap text-emerald-300 leading-relaxed">
-                            {cell.stdout}
-                          </pre>
-                        )}
-                        {cell.stderr && (
-                          <pre className="whitespace-pre-wrap text-red-400 leading-relaxed">
-                            {cell.stderr}
-                          </pre>
-                        )}
-                        {cell.plots && cell.plots.length > 0 && (
-                          <div className="grid grid-cols-1 gap-3 pt-2">
-                            {cell.plots.map((b64, pIdx) => (
-                              <div
-                                key={pIdx}
-                                className="bg-white p-3 rounded-lg inline-block max-w-full"
-                              >
-                                <img
-                                  src={`data:image/png;base64,${b64}`}
-                                  alt={`Cell Plot ${pIdx + 1}`}
-                                  className="max-h-80 w-auto object-contain mx-auto"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 3. RIGHT / BOTTOM OUTPUT, PLOTS, DATAFRAMES & PACKAGES STUDIO */}
-        <div className="w-full lg:w-[44%] xl:w-[45%] shrink-0 flex flex-col bg-white dark:bg-[#0F172A] min-h-[360px]">
-          {/* Studio Navigation Tabs */}
-          <div className="flex items-center justify-between px-2 bg-slate-100/90 dark:bg-[#161B22] border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
-            <div className="flex items-center">
-              {(
-                [
-                  { id: 'console', label: 'Console', icon: Terminal, badge: null },
-                  {
-                    id: 'stdin',
-                    label: 'Input (stdin)',
-                    icon: Code2,
-                    badge: stdin.trim() ? stdin.trim().split('\n').length : null,
-                  },
-                  {
-                    id: 'plots',
-                    label: 'Plots',
-                    icon: ImageIcon,
-                    badge: plots.length > 0 ? plots.length : null,
-                  },
-                  {
-                    id: 'dataframes',
-                    label: 'DataFrames',
-                    icon: TableIcon,
-                    badge: dataframes.length > 0 ? dataframes.length : null,
-                  },
-                  {
-                    id: 'problems',
-                    label: 'Problems',
-                    icon: AlertCircle,
-                    badge: diagnostics.length > 0 ? diagnostics.length : null,
-                  },
-                  {
-                    id: 'packages',
-                    label: 'Offline & Packages',
-                    icon: Package,
-                    badge: null,
-                  },
-                ] as const
-              ).map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-                      isActive
-                        ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-white dark:bg-[#0F172A]'
-                        : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{tab.label}</span>
-                    {tab.badge !== null && (
-                      <span
-                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono tabular-nums ${
-                          tab.id === 'problems'
-                            ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
-                            : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                        }`}
-                      >
-                        {tab.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Studio Tab Content Area */}
-          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            {/* TAB 1: CONSOLE OUTPUT */}
-            {activeTab === 'console' && (
-              <div className="flex-1 flex flex-col min-h-0">
-                {/* Console Status Header */}
-                <div className="flex items-center justify-between px-3.5 py-2 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-xs">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {exitCode !== null && (
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono text-[11px] tabular-nums ${
-                          exitCode === 0
-                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
-                            : 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-400'
-                        }`}
-                      >
-                        {exitCode === 0 ? (
-                          <CheckCircle2 className="w-3 h-3" />
-                        ) : (
-                          <AlertCircle className="w-3 h-3" />
-                        )}
-                        Exit: {exitCode}
-                      </span>
-                    )}
-                    {execTimeMs !== null && (
-                      <span className="inline-flex items-center gap-1 text-slate-500 font-mono text-[11px] tabular-nums">
-                        <Clock className="w-3 h-3" />
-                        {execTimeMs} ms
-                      </span>
-                    )}
-                    {compilerUsed && (
-                      <span className="text-[11px] text-slate-400 truncate max-w-[200px]">
-                        {compilerUsed}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${stdout}\n${stderr}`.trim());
-                        setCopiedOutput(true);
-                        setTimeout(() => setCopiedOutput(false), 1500);
-                      }}
-                      className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500"
-                      title="Copy Console Output"
-                    >
-                      {copiedOutput ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setStdout('');
-                        setStderr('');
-                        setExitCode(null);
-                        setExecTimeMs(null);
-                      }}
-                      className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500"
-                      title="Clear Console"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Console Body */}
-                <div className="flex-1 p-4 overflow-y-auto font-mono text-xs bg-[#0B0F17] text-slate-100 space-y-3">
-                  {isRunning && (
-                    <div className="flex items-center gap-2.5 text-blue-400 py-2">
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>
-                        {language === 'python'
-                          ? runtimeStatusText || 'Executing Python 3.12 code...'
-                          : `Compiling & executing ${language.toUpperCase()}...`}
-                      </span>
-                    </div>
-                  )}
-
-                  {!isRunning && !stdout && !stderr && (
-                    <div className="h-full flex flex-col items-center justify-center text-center py-12 text-slate-500">
-                      <Terminal className="w-8 h-8 mb-2 opacity-40" />
-                      <p className="text-xs font-sans">
-                        Click <strong className="text-slate-300">Run Code</strong> or press{' '}
-                        <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]">
-                          Ctrl+Enter
-                        </kbd>{' '}
-                        to execute.
-                      </p>
-                      {/\b(input\s*\(|cin\s*>>|scanf\s*\()/.test(code) && (
-                        <button
-                          onClick={() => setActiveTab('stdin')}
-                          className="mt-3 px-3 py-1.5 rounded-lg bg-blue-950/60 border border-blue-800/70 text-blue-300 text-[11px] font-sans hover:bg-blue-900/60"
-                        >
-                          Program uses standard input — Configure Stdin ({stdin.trim() ? 'Provided' : 'Empty'})
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {stdout && (
-                    <pre className="whitespace-pre-wrap break-words leading-relaxed text-slate-100">
-                      {stdout}
-                    </pre>
-                  )}
-
-                  {stderr && (
-                    <pre className="whitespace-pre-wrap break-words leading-relaxed text-red-400 bg-red-950/30 border border-red-900/50 rounded-lg p-3">
-                      {stderr}
-                    </pre>
-                  )}
-
-                  {plots.length > 0 && (
-                    <div className="pt-2 border-t border-slate-800">
-                      <button
-                        onClick={() => setActiveTab('plots')}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/40 text-blue-300 text-xs font-sans hover:bg-blue-600/30"
-                      >
-                        <ImageIcon className="w-3.5 h-3.5" />
-                        View {plots.length} Generated Matplotlib {plots.length === 1 ? 'Figure' : 'Figures'}
-                      </button>
-                    </div>
-                  )}
-
-                  {dataframes.length > 0 && (
-                    <div className="pt-1">
-                      <button
-                        onClick={() => setActiveTab('dataframes')}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 text-xs font-sans hover:bg-emerald-600/30"
-                      >
-                        <TableIcon className="w-3.5 h-3.5" />
-                        Inspect {dataframes.length} Pandas {dataframes.length === 1 ? 'DataFrame' : 'DataFrames'} in Table Viewer
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: STANDARD INPUT (STDIN) */}
-            {activeTab === 'stdin' && (
-              <div className="flex-1 flex flex-col p-4 space-y-3 overflow-y-auto">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                      Standard Input Stream (stdin)
-                    </h3>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Enter each input value on a new line for Python <code>input()</code>, C++{' '}
-                      <code>cin</code>, or C <code>scanf()</code>.
-                    </p>
-                  </div>
+                  <span className="text-slate-400">Theme</span>
                   <button
-                    onClick={() => setStdin('')}
-                    className="px-2.5 py-1 rounded text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    onClick={() =>
+                      setEditorTheme((t) => (t === 'vs-dark' ? 'light' : 'vs-dark'))
+                    }
+                    className="px-2.5 py-1 rounded bg-slate-800 text-slate-200 hover:bg-slate-700 cursor-pointer"
                   >
-                    Clear
+                    {editorTheme === 'vs-dark' ? 'VS Dark' : 'VS Light'}
                   </button>
                 </div>
-
-                <textarea
-                  value={stdin}
-                  onChange={(e) => setStdin(e.target.value)}
-                  placeholder={'Line 1 for first input()\nLine 2 for second input()\n...'}
-                  className="flex-1 min-h-[220px] w-full p-3 rounded-xl font-mono text-xs bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-blue-500 resize-none"
-                />
-              </div>
-            )}
-
-            {/* TAB 3: MATPLOTLIB PLOTS VIEWER */}
-            {activeTab === 'plots' && (
-              <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex items-center justify-between px-3.5 py-2 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-xs">
-                  <span className="font-medium text-slate-700 dark:text-slate-300 tabular-nums">
-                    {plots.length} {plots.length === 1 ? 'Figure' : 'Figures'} Rendered (Agg High-DPI PNG)
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setPlotDarkBg((v) => !v)}
-                      className="px-2.5 py-1 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px]"
-                    >
-                      {plotDarkBg ? 'Light Canvas' : 'Dark Canvas'}
-                    </button>
-                    {plots.length > 0 && (
-                      <button
-                        onClick={() => setPlots([])}
-                        className="px-2.5 py-1 rounded text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 text-[11px]"
-                      >
-                        Clear Plots
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex-1 p-4 overflow-y-auto space-y-4">
-                  {plots.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center py-12 text-slate-400">
-                      <ImageIcon className="w-8 h-8 mb-2 opacity-40" />
-                      <p className="text-xs">
-                        No Matplotlib figures generated yet. Call <code>plt.plot()</code>,{' '}
-                        <code>plt.bar()</code>, and <code>plt.show()</code> in Python.
-                      </p>
-                    </div>
-                  ) : (
-                    plots.map((b64, idx) => (
-                      <div
-                        key={idx}
-                        className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs"
-                      >
-                        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-xs">
-                          <span className="font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
-                            Figure {idx + 1}
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => setZoomedPlotIndex(idx)}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px]"
-                            >
-                              <ZoomIn className="w-3 h-3" />
-                              Zoom
-                            </button>
-                            <button
-                              onClick={() => handleDownloadPlot(b64, idx)}
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-blue-600 text-white font-medium text-[11px]"
-                            >
-                              <Download className="w-3 h-3" />
-                              PNG
-                            </button>
-                          </div>
-                        </div>
-                        <div
-                          className={`p-4 flex items-center justify-center ${
-                            plotDarkBg ? 'bg-slate-950' : 'bg-white'
-                          }`}
-                        >
-                          <img
-                            src={`data:image/png;base64,${b64}`}
-                            alt={`Matplotlib Figure ${idx + 1}`}
-                            className="max-w-full h-auto object-contain rounded"
-                          />
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* TAB 4: PANDAS DATAFRAMES TABLE VIEWER */}
-            {activeTab === 'dataframes' && (
-              <div className="flex-1 flex flex-col min-h-0">
-                {dataframes.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-400">
-                    <TableIcon className="w-8 h-8 mb-2 opacity-40" />
-                    <p className="text-xs">
-                      Any Pandas <code>DataFrame</code> variables created in your Python script
-                      automatically appear here for interactive tabular inspection and CSV export.
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {/* DataFrame Variable Selector & Export Bar */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-xs">
-                      <div className="flex items-center gap-1.5">
-                        {dataframes.map((df, idx) => (
-                          <button
-                            key={df.name}
-                            onClick={() => setSelectedDfIndex(idx)}
-                            className={`px-2.5 py-1 rounded-lg font-mono text-xs transition-colors ${
-                              selectedDfIndex === idx
-                                ? 'bg-blue-600 text-white font-semibold'
-                                : 'bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                            }`}
-                          >
-                            {df.name}{' '}
-                            <span className="opacity-80 text-[10px] tabular-nums">
-                              ({df.rows}×{df.cols})
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-
-                      {activeDataFrame && (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={dfSearchQuery}
-                            onChange={(e) => setDfSearchQuery(e.target.value)}
-                            placeholder="Filter rows..."
-                            className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs w-32"
-                          />
-                          <button
-                            onClick={() => handleDownloadDataFrameCsv(activeDataFrame)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs"
-                          >
-                            <Download className="w-3 h-3" />
-                            Export CSV
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* DataFrame Table */}
-                    {activeDataFrame && (
-                      <div className="flex-1 overflow-auto">
-                        <table className="w-full text-left border-collapse text-xs font-mono tabular-nums">
-                          <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-10">
-                            <tr>
-                              <th className="px-3 py-2 border-b border-r border-slate-200 dark:border-slate-800 text-slate-400 w-10">
-                                #
-                              </th>
-                              {activeDataFrame.columns.map((col) => (
-                                <th
-                                  key={col}
-                                  className="px-3 py-2 border-b border-r border-slate-200 dark:border-slate-800 font-semibold text-slate-800 dark:text-slate-200"
-                                >
-                                  <div>{col}</div>
-                                  <div className="text-[10px] font-normal text-slate-400">
-                                    {activeDataFrame.dtypes[col] || 'object'}
-                                  </div>
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-200 dark:divide-slate-800/70">
-                            {filteredDfRows.map((row, rIdx) => (
-                              <tr
-                                key={rIdx}
-                                className="hover:bg-blue-50/40 dark:hover:bg-slate-800/40"
-                              >
-                                <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-slate-400">
-                                  {rIdx}
-                                </td>
-                                {activeDataFrame.columns.map((col) => (
-                                  <td
-                                    key={col}
-                                    className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 whitespace-nowrap"
-                                  >
-                                    {row[col] === null || row[col] === undefined ? (
-                                      <span className="text-amber-500 italic">NaN</span>
-                                    ) : (
-                                      String(row[col])
-                                    )}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* TAB 5: PROBLEMS & COMPILER DIAGNOSTICS */}
-            {activeTab === 'problems' && (
-              <div className="flex-1 p-4 overflow-y-auto space-y-2">
-                {diagnostics.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center py-12 text-slate-400">
-                    <CheckCircle2 className="w-8 h-8 mb-2 text-emerald-500 opacity-60" />
-                    <p className="text-xs">No syntax or compiler diagnostics detected.</p>
-                  </div>
-                ) : (
-                  diagnostics.map((diag, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleJumpToLine(diag.line)}
-                      className="w-full text-left p-3 rounded-xl bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200 dark:border-slate-800 flex items-start gap-3 transition-colors"
-                    >
-                      <AlertCircle
-                        className={`w-4 h-4 shrink-0 mt-0.5 ${
-                          diag.severity === 'error' ? 'text-red-500' : 'text-amber-500'
-                        }`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-200">
-                          <span className="uppercase text-[10px] tracking-wider">
-                            {diag.severity}
-                          </span>
-                          <span className="font-mono text-blue-600 dark:text-blue-400 tabular-nums">
-                            Line {diag.line}, Col {diag.column}
-                          </span>
-                        </div>
-                        <p className="text-xs font-mono text-slate-600 dark:text-slate-300 mt-1 break-words">
-                          {diag.message}
-                        </p>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-
-            {/* TAB 6: OFFLINE RUNTIME & SCIENTIFIC PYTHON PACKAGES */}
-            {activeTab === 'packages' && (
-              <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs">
-                {/* Offline Runtime Card */}
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold text-slate-900 dark:text-white">
-                        Offline WebAssembly Runtime & Scientific Wheels
-                      </h4>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                        Caches Python 3.12 (Pyodide), NumPy, Pandas, Matplotlib, Scikit-Learn, and
-                        C/C++ AST runtimes in browser CacheStorage.
-                      </p>
-                    </div>
-                    {cacheStatus?.isDataScienceReady ? (
-                      <span className="px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-semibold shrink-0">
-                        Offline Ready
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-1 rounded-md bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
-                        {cacheStatus ? `${cacheStatus.totalCachedFiles} files cached` : 'Checking...'}
-                      </span>
-                    )}
-                  </div>
-
-                  {downloadProgress && (
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[11px] font-mono tabular-nums">
-                        <span>{downloadProgress.currentFile}</span>
-                        <span>{downloadProgress.percent}%</span>
-                      </div>
-                      <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600 transition-all duration-200"
-                          style={{ width: `${downloadProgress.percent}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[11px] font-mono text-slate-500 tabular-nums">
-                      Cached Storage: {formatBytes(cacheStatus?.totalCachedBytes || 0)}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {cacheStatus && cacheStatus.totalCachedFiles > 0 && (
-                        <button
-                          onClick={handleClearOfflineCache}
-                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                          Clear Cache
-                        </button>
-                      )}
-                      <button
-                        onClick={handleDownloadOfflineBundle}
-                        disabled={isDownloadingOffline}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold"
-                      >
-                        <HardDriveDownload className="w-3.5 h-3.5" />
-                        {isDownloadingOffline
-                          ? 'Downloading...'
-                          : cacheStatus?.isDataScienceReady
-                          ? 'Verify & Refresh Cache'
-                          : 'Download Full Offline Bundle'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Custom Micropip Package Installer */}
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2.5">
-                  <h4 className="font-semibold text-slate-900 dark:text-white">
-                    Install Pure-Python PyPI Package (micropip)
-                  </h4>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={customPackageName}
-                      onChange={(e) => setCustomPackageName(e.target.value)}
-                      placeholder="e.g. seaborn, openpyxl, tabulate..."
-                      className="flex-1 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700"
-                      onKeyDown={(e) => e.key === 'Enter' && handleInstallCustomPackage()}
-                    />
-                    <button
-                      onClick={() => handleInstallCustomPackage()}
-                      disabled={isInstallingPackage || !customPackageName.trim()}
-                      className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold"
-                    >
-                      {isInstallingPackage ? 'Installing...' : 'Install'}
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                    <span className="text-[11px] text-slate-400">Quick install:</span>
-                    {['seaborn', 'openpyxl', 'tabulate'].map((pkg) => (
-                      <button
-                        key={pkg}
-                        onClick={() => handleInstallCustomPackage(pkg)}
-                        className="px-2 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px] hover:bg-blue-100 dark:hover:bg-blue-950"
-                      >
-                        + {pkg}
-                      </button>
-                    ))}
-                  </div>
-                  {packageInstallMessage && (
-                    <p className="text-[11px] font-mono text-blue-600 dark:text-blue-400 pt-1">
-                      {packageInstallMessage}
-                    </p>
-                  )}
-                </div>
-
-                {/* Pre-configured Scientific Packages List */}
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-900 dark:text-white">
-                    Scientific & Standard Library Packages
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {PYTHON_PACKAGES.map((pkg) => {
-                      const isLoaded = loadedPyPackages.includes(pkg.id);
-                      const isCached = Boolean(cacheStatus?.packages[pkg.id]);
-                      return (
-                        <div
-                          key={pkg.id}
-                          className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between"
-                        >
-                          <div>
-                            <div className="font-semibold text-slate-800 dark:text-slate-200">
-                              {pkg.name}{' '}
-                              <span className="text-[10px] font-mono text-slate-400">
-                                v{pkg.version}
-                              </span>
-                            </div>
-                            <div className="text-[11px] text-slate-500">{pkg.description}</div>
-                          </div>
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold shrink-0 ${
-                              isLoaded
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                : isCached
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                                : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
-                            }`}
-                          >
-                            {isLoaded ? 'Active' : isCached ? 'Cached' : 'Auto-Load'}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                <div className="pt-2 border-t border-slate-800 flex flex-col gap-1.5">
+                  <button
+                    onClick={() => {
+                      handleDownloadActiveFile();
+                      setShowSettingsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Download {activeFile?.name}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleExportZip();
+                      setShowSettingsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
+                  >
+                    <FileArchive className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Export Project (.zip)</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -2771,79 +1532,1052 @@ export function CompilerTool() {
         </div>
       </div>
 
-      {/* ZOOMED PLOT MODAL */}
-      {zoomedPlotIndex !== null && plots[zoomedPlotIndex] && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6"
-          onClick={() => setZoomedPlotIndex(null)}
-        >
-          <div
-            className="max-w-4xl w-full bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-700"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-              <span className="font-semibold text-sm">Figure {zoomedPlotIndex + 1}</span>
-              <div className="flex items-center gap-2">
+      {/* MAIN IDE WORKSPACE — Collapsible Sidebar + Resizable 2-Panel Split (Editor ~63% / Console ~37%) */}
+      <div
+        ref={splitContainerRef}
+        className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden relative"
+      >
+        {/* 1. COLLAPSIBLE PROJECT & DATASET EXPLORER SIDEBAR */}
+        {showExplorer && (
+          <aside className="w-full lg:w-60 bg-[#111827] border-b lg:border-b-0 lg:border-r border-slate-800 flex flex-col shrink-0 max-h-56 lg:max-h-none">
+            <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-300">
+                Workspace Files
+              </span>
+              <div className="flex items-center gap-1">
                 <button
-                  onClick={() => handleDownloadPlot(plots[zoomedPlotIndex], zoomedPlotIndex)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-600 text-white text-xs font-semibold"
+                  onClick={() => setNewFileModalOpen(true)}
+                  title="New File"
+                  className="p-1 rounded hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  Download PNG
+                  <FilePlus className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  onClick={() => setZoomedPlotIndex(null)}
-                  className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                  onClick={() => fileUploadInputRef.current?.click()}
+                  title="Upload CSV / XLSX / File"
+                  className="p-1 rounded hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
+                  <Upload className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
-            <div className="p-6 bg-white flex justify-center">
-              <img
-                src={`data:image/png;base64,${plots[zoomedPlotIndex]}`}
-                alt="Zoomed Plot"
-                className="max-h-[75vh] w-auto object-contain"
+
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {activeProject?.files.map((file) => {
+                const isSelected = file.name === activeFile?.name;
+                return (
+                  <div
+                    key={file.name}
+                    onClick={() => {
+                      if (!file.isBinary) {
+                        setProjects((prev) =>
+                          prev.map((p) =>
+                            p.id === activeProject.id ? { ...p, activeFileName: file.name } : p
+                          )
+                        );
+                      }
+                    }}
+                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition ${
+                      isSelected
+                        ? 'bg-blue-600/20 text-blue-300 font-semibold border border-blue-500/30'
+                        : 'text-slate-300 hover:bg-slate-800/70'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileCode className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate font-mono">{file.name}</span>
+                    </div>
+                    {activeProject.files.length > 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteFile(file.name);
+                        }}
+                        title={`Delete ${file.name}`}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Active Session Loaded Libraries Summary */}
+            {activeProject?.language === 'python' && (
+              <div className="p-2.5 border-t border-slate-800 bg-slate-900/60 text-[11px] space-y-1.5">
+                <div className="flex items-center justify-between text-slate-400">
+                  <span>Active Session Packages</span>
+                  <span className="font-mono text-slate-300">{loadedSessionPackages.length}</span>
+                </div>
+                {loadedSessionPackages.length > 0 ? (
+                  <div className="text-slate-300 font-mono truncate">
+                    {loadedSessionPackages.join(' · ')}
+                  </div>
+                ) : (
+                  <div className="text-slate-500">
+                    Core Python 3.12 · Libraries load automatically on import
+                  </div>
+                )}
+              </div>
+            )}
+          </aside>
+        )}
+
+        {/* 2. PRIMARY MONACO CODE EDITOR PANEL (~63% Desktop Width) */}
+        {maximizedPanel !== 'output' && (
+          <div
+            style={{
+              width:
+                maximizedPanel === 'editor'
+                  ? '100%'
+                  : typeof window !== 'undefined' && window.innerWidth >= 1024
+                  ? `${editorWidthPct}%`
+                  : '100%',
+            }}
+            className="flex-1 lg:flex-none flex flex-col min-w-0 min-h-[340px] lg:min-h-0 bg-[#0F172A]"
+          >
+            {/* File Tab Bar */}
+            <div className="h-9 px-2 bg-[#111827] border-b border-slate-800 flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                {activeProject?.files
+                  .filter((f) => !f.isBinary)
+                  .map((file) => {
+                    const active = file.name === activeFile?.name;
+                    return (
+                      <button
+                        key={file.name}
+                        onClick={() =>
+                          setProjects((prev) =>
+                            prev.map((p) =>
+                              p.id === activeProject.id ? { ...p, activeFileName: file.name } : p
+                            )
+                          )
+                        }
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-t-md text-xs font-mono transition cursor-pointer whitespace-nowrap border-b-2 ${
+                          active
+                            ? 'bg-[#1E293B] text-white border-blue-500 font-semibold'
+                            : 'text-slate-400 hover:text-slate-200 border-transparent'
+                        }`}
+                      >
+                        <Code2 className="w-3.5 h-3.5 text-blue-400" />
+                        <span>{file.name}</span>
+                      </button>
+                    );
+                  })}
+                <button
+                  onClick={() => setNewFileModalOpen(true)}
+                  title="Create New File"
+                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                >
+                  <FilePlus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 text-[11px] text-slate-400 shrink-0">
+                <button
+                  onClick={() =>
+                    updateActiveFileContent(
+                      MINIMAL_HELLO_WORLD[activeProject?.language || 'python']
+                    )
+                  }
+                  title="Reset File to Minimal Hello World"
+                  className="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer whitespace-nowrap"
+                >
+                  Reset to Hello World
+                </button>
+                <button
+                  onClick={() =>
+                    setMaximizedPanel((m) => (m === 'editor' ? 'none' : 'editor'))
+                  }
+                  title={maximizedPanel === 'editor' ? 'Restore Split Layout' : 'Maximize Editor'}
+                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  {maximizedPanel === 'editor' ? (
+                    <Minimize2 className="w-3.5 h-3.5" />
+                  ) : (
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Monaco Editor Container */}
+            <div className="flex-1 min-h-0 relative">
+              <Editor
+                height="100%"
+                language={monacoLanguage}
+                theme={editorTheme}
+                value={activeFile?.content || ''}
+                onChange={(val) => updateActiveFileContent(val ?? '')}
+                onMount={handleEditorDidMount}
+                options={{
+                  fontSize,
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontLigatures: true,
+                  minimap: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  wordWrap: wordWrap ? 'on' : 'off',
+                  automaticLayout: true,
+                  tabSize: 4,
+                  insertSpaces: true,
+                  autoClosingBrackets: 'always',
+                  autoClosingQuotes: 'always',
+                  autoIndent: 'full',
+                  formatOnPaste: true,
+                  bracketPairColorization: { enabled: true },
+                  suggestOnTriggerCharacters: true,
+                  quickSuggestions: { other: true, comments: false, strings: true },
+                  padding: { top: 14, bottom: 14 },
+                  lineNumbersMinChars: 3,
+                  renderLineHighlight: 'all',
+                }}
               />
+            </div>
+          </div>
+        )}
+
+        {/* DRAGGABLE SPLITTER HANDLE (Desktop) */}
+        {maximizedPanel === 'none' && (
+          <div
+            onMouseDown={() => setIsDraggingSplit(true)}
+            title="Drag to resize Editor and Output panels"
+            className={`hidden lg:flex w-1.5 cursor-col-resize items-center justify-center bg-slate-900 hover:bg-blue-600/60 transition shrink-0 ${
+              isDraggingSplit ? 'bg-blue-500' : ''
+            }`}
+          >
+            <div className="w-0.5 h-8 bg-slate-600 rounded-full" />
+          </div>
+        )}
+
+        {/* 3. CONSOLE, PLOTS, DATAFRAMES & INPUT PANEL (~37% Desktop Width) */}
+        {maximizedPanel !== 'editor' && (
+          <div className="flex-1 flex flex-col min-w-0 min-h-[280px] lg:min-h-0 bg-[#0B1120] border-t lg:border-t-0 border-slate-800">
+            {/* Output Panel Header Tabs */}
+            <div className="h-9 px-2 bg-[#111827] border-b border-slate-800 flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                <button
+                  onClick={() => setActiveTab('console')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition cursor-pointer whitespace-nowrap ${
+                    activeTab === 'console'
+                      ? 'bg-slate-800 text-white font-semibold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Console</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('plots')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition cursor-pointer whitespace-nowrap ${
+                    activeTab === 'plots'
+                      ? 'bg-slate-800 text-white font-semibold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Plots</span>
+                  {plots.length > 0 && (
+                    <span className="font-mono text-[11px] text-blue-400">({plots.length})</span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('dataframes')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition cursor-pointer whitespace-nowrap ${
+                    activeTab === 'dataframes'
+                      ? 'bg-slate-800 text-white font-semibold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <TableIcon className="w-3.5 h-3.5 text-amber-400" />
+                  <span>DataFrames</span>
+                  {dataframes.length > 0 && (
+                    <span className="font-mono text-[11px] text-amber-400">
+                      ({dataframes.length})
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('stdin')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition cursor-pointer whitespace-nowrap ${
+                    activeTab === 'stdin'
+                      ? 'bg-slate-800 text-white font-semibold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <span>Input (STDIN)</span>
+                  {activeProject?.stdin.trim() && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  )}
+                </button>
+              </div>
+
+              {/* Console Utility Controls */}
+              <div className="flex items-center gap-1 shrink-0">
+                {executionTimeMs !== null && (
+                  <span className="text-[11px] font-mono tabular-nums text-slate-400 px-1.5">
+                    {executionTimeMs}ms
+                  </span>
+                )}
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${stdout}${stderr ? '\n' + stderr : ''}`);
+                    setCopiedOutput(true);
+                    setTimeout(() => setCopiedOutput(false), 1500);
+                  }}
+                  title="Copy Console Output"
+                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  {copiedOutput ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setStdout('');
+                    setStderr('');
+                    setPlots([]);
+                    setDataframes([]);
+                    setExecutionTimeMs(null);
+                    setJobState('idle');
+                  }}
+                  title="Clear Output"
+                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() =>
+                    setMaximizedPanel((m) => (m === 'output' ? 'none' : 'output'))
+                  }
+                  title={maximizedPanel === 'output' ? 'Restore Split Layout' : 'Maximize Output'}
+                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  {maximizedPanel === 'output' ? (
+                    <Minimize2 className="w-3.5 h-3.5" />
+                  ) : (
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Active Output Body */}
+            <div className="flex-1 overflow-y-auto p-3 font-mono text-xs select-text">
+              {/* TAB 1: CONSOLE */}
+              {activeTab === 'console' && (
+                <div className="space-y-3 h-full flex flex-col">
+                  {isRunning && (
+                    <div className="flex items-center gap-2 text-blue-400 bg-blue-950/40 border border-blue-800/50 rounded-lg px-3 py-2">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
+                      <span>{statusMessage || 'Executing program...'}</span>
+                    </div>
+                  )}
+
+                  {!isRunning && !stdout && !stderr && (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-500 py-12">
+                      <Terminal className="w-8 h-8 mb-2 opacity-40" />
+                      <p className="text-xs text-slate-400 font-sans">
+                        Press <strong className="text-slate-200">Run Code</strong> or{' '}
+                        <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[11px]">
+                          Ctrl+Enter
+                        </kbd>{' '}
+                        to execute <span className="font-mono text-slate-300">{activeFile?.name}</span>
+                      </p>
+                    </div>
+                  )}
+
+                  {stdout && (
+                    <pre className="whitespace-pre-wrap break-words text-slate-100 leading-relaxed font-mono">
+                      {stdout}
+                    </pre>
+                  )}
+
+                  {stderr && (
+                    <pre className="whitespace-pre-wrap break-words text-rose-400 bg-rose-950/30 border border-rose-900/50 rounded-lg p-3 leading-relaxed font-mono">
+                      {stderr}
+                    </pre>
+                  )}
+
+                  {plots.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-sans text-blue-400">
+                      <span>{plots.length} Matplotlib figure(s) captured.</span>
+                      <button
+                        onClick={() => setActiveTab('plots')}
+                        className="underline hover:text-blue-300 cursor-pointer"
+                      >
+                        View in Plots tab →
+                      </button>
+                    </div>
+                  )}
+
+                  {dataframes.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-sans text-amber-400">
+                      <span>
+                        {dataframes.length} pandas DataFrame(s) captured (
+                        {dataframes.map((d) => `${d.name} [${d.rows}×${d.cols}]`).join(', ')}).
+                      </span>
+                      <button
+                        onClick={() => setActiveTab('dataframes')}
+                        className="underline hover:text-amber-300 cursor-pointer"
+                      >
+                        Explore interactive table →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 2: MATPLOTLIB PLOTS */}
+              {activeTab === 'plots' && (
+                <div className="space-y-4 font-sans">
+                  {plots.length === 0 ? (
+                    <div className="text-center text-slate-500 py-12">
+                      <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                      <p className="text-xs text-slate-400">
+                        Figures generated via <code className="text-slate-300">plt.show()</code> or{' '}
+                        <code className="text-slate-300">plt.savefig()</code> will render here.
+                      </p>
+                    </div>
+                  ) : (
+                    plots.map((b64, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"
+                      >
+                        <div className="px-3 py-1.5 bg-slate-800/70 flex items-center justify-between text-xs text-slate-300">
+                          <span className="font-medium">Figure #{idx + 1}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setZoomedPlot(b64)}
+                              className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 cursor-pointer"
+                            >
+                              <ZoomIn className="w-3 h-3" />
+                              <span>Zoom</span>
+                            </button>
+                            <a
+                              href={`data:image/png;base64,${b64}`}
+                              download={`figure_${idx + 1}.png`}
+                              className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>PNG</span>
+                            </a>
+                          </div>
+                        </div>
+                        <div className="p-3 bg-white flex items-center justify-center">
+                          <img
+                            src={`data:image/png;base64,${b64}`}
+                            alt={`Matplotlib Figure ${idx + 1}`}
+                            className="max-w-full h-auto rounded"
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: INTERACTIVE PANDAS DATAFRAMES */}
+              {activeTab === 'dataframes' && (
+                <div className="space-y-3 font-sans h-full flex flex-col">
+                  {dataframes.length === 0 ? (
+                    <div className="text-center text-slate-500 py-12">
+                      <TableIcon className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                      <p className="text-xs text-slate-400">
+                        Any <code className="text-slate-300">pandas.DataFrame</code> variable in your
+                        Python script is automatically captured here for sorting, filtering, and CSV
+                        export.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          {dataframes.map((df, idx) => (
+                            <button
+                              key={df.name}
+                              onClick={() => {
+                                setSelectedDfIndex(idx);
+                                setDfSortColumn(null);
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-mono cursor-pointer ${
+                                idx === selectedDfIndex
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold'
+                                  : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              {df.name} ({df.rows}×{df.cols})
+                            </button>
+                          ))}
+                        </div>
+
+                        {activeDataFrame && (
+                          <div className="flex items-center gap-2">
+                            <div className="relative">
+                              <Search className="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
+                              <input
+                                type="text"
+                                value={dfSearchQuery}
+                                onChange={(e) => setDfSearchQuery(e.target.value)}
+                                placeholder="Filter rows..."
+                                className="pl-6 pr-2 py-1 rounded bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-blue-500 w-36"
+                              />
+                            </div>
+                            <button
+                              onClick={() => {
+                                const blob = new Blob([activeDataFrame.csvContent], {
+                                  type: 'text/csv;charset=utf-8',
+                                });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `${activeDataFrame.name}.csv`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              }}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium cursor-pointer"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>CSV</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {activeDataFrame && (
+                        <div className="flex-1 overflow-auto border border-slate-800 rounded-lg">
+                          <table className="w-full text-left border-collapse text-xs font-mono tabular-nums">
+                            <thead className="bg-slate-900 sticky top-0 z-10 border-b border-slate-800">
+                              <tr>
+                                <th className="py-2 px-2.5 text-slate-500 font-semibold border-r border-slate-800 w-12">
+                                  #
+                                </th>
+                                {activeDataFrame.columns.map((col) => (
+                                  <th
+                                    key={col}
+                                    onClick={() => {
+                                      if (dfSortColumn === col) {
+                                        setDfSortAsc((a) => !a);
+                                      } else {
+                                        setDfSortColumn(col);
+                                        setDfSortAsc(true);
+                                      }
+                                    }}
+                                    className="py-2 px-3 text-slate-200 font-semibold border-r border-slate-800 cursor-pointer hover:bg-slate-800/70 select-none whitespace-nowrap"
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span>{col}</span>
+                                      <ArrowUpDown className="w-3 h-3 text-slate-500" />
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 font-normal">
+                                      {activeDataFrame.dtypes?.[col] || ''}
+                                    </div>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800/70">
+                              {displayedDfRows.map((row, rIdx) => (
+                                <tr key={rIdx} className="hover:bg-slate-800/40">
+                                  <td className="py-1.5 px-2.5 text-slate-500 border-r border-slate-800">
+                                    {row.__index__ ?? rIdx}
+                                  </td>
+                                  {activeDataFrame.columns.map((col) => {
+                                    const val = row[col];
+                                    const isNull = val === null || val === undefined;
+                                    return (
+                                      <td
+                                        key={col}
+                                        className="py-1.5 px-3 border-r border-slate-800/60 whitespace-nowrap"
+                                      >
+                                        {isNull ? (
+                                          <span className="text-amber-400/80 italic">NaN</span>
+                                        ) : (
+                                          <span className="text-slate-200">{String(val)}</span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 4: STANDARD INPUT (STDIN) */}
+              {activeTab === 'stdin' && (
+                <div className="space-y-2 h-full flex flex-col font-sans">
+                  <div className="text-xs text-slate-400">
+                    Provide line-by-line input values for <code className="text-slate-200">input()</code>,{' '}
+                    <code className="text-slate-200">sys.stdin</code>, <code className="text-slate-200">std::cin</code>, or{' '}
+                    <code className="text-slate-200">scanf()</code>:
+                  </div>
+                  <textarea
+                    value={activeProject?.stdin || ''}
+                    onChange={(e) => updateStdin(e.target.value)}
+                    placeholder="Enter each input value on a new line..."
+                    className="flex-1 w-full bg-slate-900 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-100 focus:outline-none focus:border-blue-500 resize-none"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Execution Status Bar (Genuine Metrics Only) */}
+            <div className="h-7 px-3 bg-[#111827] border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 shrink-0">
+              <div className="flex items-center gap-2 truncate">
+                <span>Engine: {activeEngineUsed}</span>
+                {runtimeInitMs !== null && activeProject?.language === 'python' && (
+                  <span className="font-mono tabular-nums text-slate-500">
+                    · Init {runtimeInitMs}ms
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0 font-mono tabular-nums">
+                {jobState === 'completed' && (
+                  <span className="text-emerald-400">Completed</span>
+                )}
+                {jobState === 'failed' && <span className="text-rose-400">Error</span>}
+                {jobState === 'cancelled' && <span className="text-amber-400">Stopped</span>}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* PACKAGE MANAGER & OFFLINE SETUP MODAL */}
+      {showOfflineModal && (
+        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-4xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-5 py-4 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  Python Runtime, Package Manager & Offline Setup
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Pinned Pyodide {cacheStatus?.runtimeVersion || 'v0.26.4'} (CPython 3.12 WebAssembly) · Verified CacheStorage & IndexedDB Manifest
+                </p>
+              </div>
+              <button
+                onClick={() => setShowOfflineModal(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-5 text-xs">
+              {/* 1. Automatic First-Run Setup Preferences */}
+              <div className="space-y-2">
+                <div className="font-semibold text-slate-200">
+                  Automatic Setup Preference (Remembered Across Sessions)
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {(
+                    [
+                      {
+                        id: 'standard',
+                        title: 'Standard Setup',
+                        desc: 'Core Python 3.12 only (~11 MB). Scientific libraries load on demand when imported.',
+                      },
+                      {
+                        id: 'datascience',
+                        title: 'Data Science Setup',
+                        desc: 'Core Python + NumPy, pandas, Matplotlib, and scikit-learn ready for offline use.',
+                      },
+                      {
+                        id: 'complete',
+                        title: 'Complete Offline Setup',
+                        desc: 'Caches all 17 verified scientific, ML, Excel, and utility packages (~72 MB).',
+                      },
+                    ] as const
+                  ).map((opt) => {
+                    const active = setupMode === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        onClick={() => handleChangeSetupMode(opt.id)}
+                        className={`text-left p-3 rounded-xl border transition cursor-pointer ${
+                          active
+                            ? 'bg-blue-600/15 border-blue-500 text-white'
+                            : 'bg-slate-800/60 border-slate-700/80 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between font-semibold mb-1">
+                          <span>{opt.title}</span>
+                          {active && <CheckCircle2 className="w-4 h-4 text-blue-400" />}
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">{opt.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Verified Readiness Summary Strip */}
+              <div className="p-3.5 rounded-xl bg-slate-800/70 border border-slate-700 flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="text-slate-200 font-semibold">
+                    Verified Local Availability Status
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-300">
+                    <span>
+                      Python Core:{' '}
+                      <strong className={cacheStatus?.hasCore ? 'text-emerald-400' : 'text-amber-400'}>
+                        {cacheStatus?.hasCore ? 'Ready' : 'Not Cached'}
+                      </strong>
+                    </span>
+                    <span>·</span>
+                    <span>
+                      NumPy:{' '}
+                      <strong
+                        className={
+                          cacheStatus?.packages['numpy'] ? 'text-emerald-400' : 'text-slate-400'
+                        }
+                      >
+                        {cacheStatus?.packages['numpy'] ? 'Ready' : 'On Demand'}
+                      </strong>
+                    </span>
+                    <span>·</span>
+                    <span>
+                      pandas:{' '}
+                      <strong
+                        className={
+                          cacheStatus?.packages['pandas'] ? 'text-emerald-400' : 'text-slate-400'
+                        }
+                      >
+                        {cacheStatus?.packages['pandas'] ? 'Ready' : 'On Demand'}
+                      </strong>
+                    </span>
+                    <span>·</span>
+                    <span>
+                      Matplotlib:{' '}
+                      <strong
+                        className={
+                          cacheStatus?.packages['matplotlib']
+                            ? 'text-emerald-400'
+                            : 'text-slate-400'
+                        }
+                      >
+                        {cacheStatus?.packages['matplotlib'] ? 'Ready' : 'On Demand'}
+                      </strong>
+                    </span>
+                    <span>·</span>
+                    <span>
+                      scikit-learn:{' '}
+                      <strong
+                        className={
+                          cacheStatus?.packages['scikit-learn']
+                            ? 'text-emerald-400'
+                            : 'text-slate-400'
+                        }
+                      >
+                        {cacheStatus?.packages['scikit-learn'] ? 'Ready' : 'On Demand'}
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    disabled={downloadingOffline || !isOnline}
+                    onClick={() => handleDownloadOfflinePreset('core')}
+                    className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white font-medium cursor-pointer"
+                  >
+                    Cache Core Only
+                  </button>
+                  <button
+                    disabled={downloadingOffline || !isOnline}
+                    onClick={() => handleDownloadOfflinePreset('datascience')}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold cursor-pointer"
+                  >
+                    Cache Data Science Bundle
+                  </button>
+                  <button
+                    disabled={downloadingOffline || !isOnline}
+                    onClick={() => handleDownloadOfflinePreset('complete')}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold cursor-pointer"
+                  >
+                    Cache All Offline Packages
+                  </button>
+                </div>
+              </div>
+
+              {/* Progress Bar if downloading */}
+              {downloadProgress && (
+                <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-800/60 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-blue-300">
+                    <span>{downloadProgress.label}</span>
+                    <span className="font-mono tabular-nums">{downloadProgress.percent}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-200"
+                      style={{ width: `${downloadProgress.percent}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Pure-Python Wheel Installer via micropip */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-800/40 border border-slate-800">
+                <div className="space-y-0.5">
+                  <div className="font-semibold text-slate-200">
+                    Install Pure-Python Package Into Active Session (micropip)
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Standard-library modules (csv, json, math, os, re, datetime, pathlib, zipfile) are already built in.
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={customPipInput}
+                    onChange={(e) => setCustomPipInput(e.target.value)}
+                    placeholder="e.g. seaborn or tabulate"
+                    className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-blue-500 w-48 font-mono"
+                  />
+                  <button
+                    disabled={!customPipInput.trim() || Boolean(installingPkgId)}
+                    onClick={() => handleLoadPackageIntoSession(customPipInput)}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold cursor-pointer"
+                  >
+                    {installingPkgId === customPipInput.trim() ? 'Loading...' : 'Load in Session'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Supported Package Catalog with Category Filter & Search */}
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1">
+                    {(
+                      [
+                        'All',
+                        'Numerical Computing',
+                        'Data Analysis',
+                        'Data Visualization',
+                        'Machine Learning',
+                        'Image Processing',
+                        'File & Document',
+                        'Utilities & Web',
+                      ] as const
+                    ).map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => setPkgCategoryFilter(cat)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium cursor-pointer transition ${
+                          pkgCategoryFilter === cat
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={pkgSearchQuery}
+                      onChange={(e) => setPkgSearchQuery(e.target.value)}
+                      placeholder="Search packages..."
+                      className="pl-8 pr-3 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-blue-500 w-48"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {filteredCatalogPackages.map((pkg) => {
+                    const isCached = Boolean(cacheStatus?.packages[pkg.id]);
+                    const isLoaded =
+                      loadedSessionPackages.includes(pkg.id) ||
+                      loadedSessionPackages.includes(pkg.importName);
+                    const isBusy = installingPkgId === pkg.id;
+
+                    return (
+                      <div
+                        key={pkg.id}
+                        className="p-3 rounded-xl bg-slate-800/50 border border-slate-800 flex flex-col justify-between gap-2"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="font-semibold text-slate-100">
+                              {pkg.name}{' '}
+                              <span className="font-mono text-[11px] text-slate-400">
+                                v{pkg.version}
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-mono text-slate-400">
+                              ~{pkg.sizeEstimateMb} MB
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {pkg.category} · <code className="text-slate-300">import {pkg.importName}</code>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                            {pkg.description}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                          <div className="text-[11px]">
+                            {isLoaded ? (
+                              <span className="text-emerald-400 font-medium">
+                                Loaded in Session
+                              </span>
+                            ) : isCached ? (
+                              <span className="text-blue-400 font-medium">Cached Offline</span>
+                            ) : (
+                              <span className="text-slate-500">Available Online</span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {!isLoaded && (
+                              <button
+                                disabled={isBusy}
+                                onClick={() => handleLoadPackageIntoSession(pkg.id)}
+                                className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-[11px] cursor-pointer"
+                              >
+                                {isBusy ? 'Loading...' : 'Load Now'}
+                              </button>
+                            )}
+                            {!isCached ? (
+                              <button
+                                disabled={isBusy || !isOnline}
+                                onClick={() => handleDownloadSinglePackage(pkg.id)}
+                                className="px-2 py-1 rounded bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-[11px] cursor-pointer"
+                              >
+                                Cache Offline
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleRemoveCachedPkg(pkg.id)}
+                                className="px-2 py-1 rounded bg-slate-800 hover:bg-rose-950/50 text-slate-400 hover:text-rose-300 text-[11px] cursor-pointer"
+                              >
+                                Remove Cache
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 bg-slate-800/80 border-t border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+              <div>
+                Cached Files: <strong className="text-slate-200 font-mono">{cacheStatus?.totalCachedFiles || 0}</strong>
+                {cacheStatus?.storageQuota && (
+                  <span>
+                    {' '}
+                    · Browser Storage Used:{' '}
+                    <strong className="text-slate-200 font-mono">
+                      {(cacheStatus.storageQuota.usageBytes / (1024 * 1024)).toFixed(1)} MB
+                    </strong>
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    await clearCompilerCache();
+                    await refreshCacheStatus();
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 text-slate-300 hover:text-rose-300 border border-slate-700 cursor-pointer"
+                >
+                  Clear All Cached Binaries
+                </button>
+                <button
+                  onClick={() => setShowOfflineModal(false)}
+                  className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* KEYBOARD SHORTCUTS MODAL */}
-      {showShortcutsModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
-          onClick={() => setShowShortcutsModal(false)}
-        >
-          <div
-            className="max-w-md w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-2xl space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <h3 className="font-bold text-sm">IDE Keyboard Shortcuts</h3>
-              <button onClick={() => setShowShortcutsModal(false)}>
-                <X className="w-4 h-4 text-slate-400" />
+      {/* NEW FILE MODAL */}
+      {newFileModalOpen && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 w-full max-w-sm space-y-3">
+            <div className="text-sm font-bold text-white">Create New File</div>
+            <input
+              type="text"
+              value={newFileNameInput}
+              onChange={(e) => setNewFileNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreateNewFile();
+              }}
+              placeholder={
+                activeProject?.language === 'python'
+                  ? 'e.g. script.py or data.csv'
+                  : 'e.g. solution.cpp'
+              }
+              autoFocus
+              className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setNewFileModalOpen(false)}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateNewFile}
+                className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold cursor-pointer"
+              >
+                Create
               </button>
             </div>
-            <div className="space-y-2 text-xs">
-              {[
-                ['Run Code / Script', 'Ctrl + Enter / Cmd + Enter'],
-                ['Run Notebook Cell', 'Shift + Enter'],
-                ['Accept Inline Ghost Suggestion', 'Tab'],
-                ['Dismiss Ghost Suggestion', 'Esc'],
-                ['Trigger IntelliSense Popup', 'Ctrl + Space'],
-                ['Find & Replace in Editor', 'Ctrl + F / Cmd + F'],
-                ['Toggle Line Comment', 'Ctrl + /'],
-              ].map(([desc, keys]) => (
-                <div key={desc} className="flex items-center justify-between py-1">
-                  <span className="text-slate-600 dark:text-slate-300">{desc}</span>
-                  <kbd className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[11px] border border-slate-200 dark:border-slate-700">
-                    {keys}
-                  </kbd>
-                </div>
-              ))}
-            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PLOT LIGHTBOX ZOOM MODAL */}
+      {zoomedPlot && (
+        <div
+          onClick={() => setZoomedPlot(null)}
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl p-4 max-w-4xl max-h-[90vh] overflow-auto relative"
+          >
+            <button
+              onClick={() => setZoomedPlot(null)}
+              className="absolute top-2 right-2 p-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-700 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <img
+              src={`data:image/png;base64,${zoomedPlot}`}
+              alt="Zoomed Matplotlib Plot"
+              className="max-w-full h-auto"
+            />
           </div>
         </div>
       )}
