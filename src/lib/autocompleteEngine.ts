@@ -280,6 +280,7 @@ export interface ContextInfo {
   cursorOffset: number;
   importedModules: string[];
   declaredVariables: string[];
+  declaredFunctions: string[];
 }
 
 export function analyzeContext(
@@ -292,6 +293,7 @@ export function analyzeContext(
 
   const importedModules: string[] = [];
   const declaredVariables: string[] = [];
+  const declaredFunctions: string[] = [];
 
   const lines = fullCode.split('\n');
 
@@ -304,6 +306,11 @@ export function analyzeContext(
       } else if (trimmed.startsWith('from ')) {
         const parts = trimmed.split(' import ');
         if (parts[0]) importedModules.push(parts[0].replace('from ', '').trim());
+      }
+
+      const fnMatch = trimmed.match(/^def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/);
+      if (fnMatch && fnMatch[1] && !declaredFunctions.includes(fnMatch[1])) {
+        declaredFunctions.push(fnMatch[1]);
       }
 
       const varMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*/);
@@ -319,8 +326,12 @@ export function analyzeContext(
       if (trimmed.startsWith('#include')) {
         importedModules.push(trimmed);
       }
-      const cppVarMatch = trimmed.match(/(?:int|double|float|std::string|char|auto|std::vector<[^>]+>)\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
-      if (cppVarMatch && cppVarMatch[1]) {
+      const cppFnMatch = trimmed.match(/^(?:int|long|double|float|void|bool|char|string|std::string)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/);
+      if (cppFnMatch && cppFnMatch[1] && cppFnMatch[1] !== 'main' && !declaredFunctions.includes(cppFnMatch[1])) {
+        declaredFunctions.push(cppFnMatch[1]);
+      }
+      const cppVarMatch = trimmed.match(/(?:int|long|double|float|std::string|string|char|auto|vector<[^>]+>|std::vector<[^>]+>)\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+      if (cppVarMatch && cppVarMatch[1] && !declaredVariables.includes(cppVarMatch[1])) {
         declaredVariables.push(cppVarMatch[1]);
       }
     }
@@ -334,6 +345,7 @@ export function analyzeContext(
     cursorOffset,
     importedModules,
     declaredVariables,
+    declaredFunctions,
   };
 }
 

@@ -1,1495 +1,2769 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import CodeMirror from '@uiw/react-codemirror';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import {
+  Play,
+  Trash2,
+  Download,
+  Copy,
+  Check,
+  Terminal,
+  Code2,
+  Cpu,
+  Sparkles,
+  FileCode,
+  RefreshCw,
+  Maximize2,
+  Minimize2,
+  Sliders,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  ChevronRight,
+  ChevronDown,
+  Layers,
+  Image as ImageIcon,
+  Wand2,
+  Keyboard,
+  Wifi,
+  WifiOff,
+  HardDriveDownload,
+  Package,
+  Search,
+  WrapText,
+  FolderOpen,
+  FilePlus,
+  Upload,
+  Table as TableIcon,
+  BookOpen,
+  Plus,
+  ArrowUp,
+  ArrowDown,
+  Square,
+  RotateCcw,
+  FileArchive,
+  ZoomIn,
+  X,
+  FileSpreadsheet,
+  Edit3,
+  FolderPlus,
+} from 'lucide-react';
+
+// CodeMirror 6 imports
+import { EditorState, Compartment } from '@codemirror/state';
+import {
+  EditorView,
+  keymap,
+  lineNumbers,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  drawSelection,
+  dropCursor,
+  rectangularSelection,
+  crosshairCursor,
+} from '@codemirror/view';
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import {
+  indentOnInput,
+  indentUnit,
+  bracketMatching,
+  foldGutter,
+  foldKeymap,
+  syntaxHighlighting,
+  defaultHighlightStyle,
+} from '@codemirror/language';
+import { closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete';
+import { searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search';
 import { python } from '@codemirror/lang-python';
 import { cpp } from '@codemirror/lang-cpp';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
-import { keymap } from '@codemirror/view';
-import {
-  Play,
-  Square,
-  RotateCcw,
-  Download,
-  Upload,
-  Copy,
-  Trash2,
-  FileCode,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  HardDrive,
-  Wifi,
-  WifiOff,
-  Sliders,
-  Sparkles,
-  BarChart3,
-  Layers,
-  Database,
-  Terminal,
-  BookOpen,
-  Info,
-  Maximize2,
-  ExternalLink,
-  ChevronDown,
-  RefreshCw,
-  FolderOpen,
-  Plus
-} from 'lucide-react';
-import { useToolTrack } from '../../context/ToolTrackContext';
+
+import { ghostTextExtension } from '../../lib/ghostTextExtension';
+import { intelliSenseExtension } from '../../lib/intellisenseSource';
 import {
   inspectCompilerCache,
   downloadFullDataScienceBundle,
-  downloadPythonPackage,
   clearCompilerCache,
+  CacheCheckStatus,
   PYTHON_PACKAGES,
-  type CacheCheckStatus
 } from '../../lib/offlineCompilerCache';
-import { runClientCpp } from '../../lib/clientCppRunner';
-import { ghostTextExtension } from '../../lib/ghostTextExtension';
-import { intelliSenseExtension } from '../../lib/intellisenseSource';
+import {
+  runClientCpp,
+  validateSyntax,
+  CompilerDiagnostic,
+} from '../../lib/clientCppRunner';
+import {
+  CompilerLanguage,
+  CompilerProject,
+  ProjectFile,
+  NotebookCellData,
+  COMPILER_TEMPLATES,
+  loadCompilerProjects,
+  saveCompilerProjects,
+  getActiveProjectId,
+  setActiveProjectId,
+  exportProjectAsZip,
+  exportNotebookToIpynb,
+  parseIpynbToCells,
+  getDefaultNotebookCells,
+} from '../../lib/compilerProjectStore';
 
-export type SupportedLanguage = 'python' | 'cpp' | 'c';
-
-export type ExecutionState =
-  | 'idle'
+type RuntimeLifecycleState =
+  | 'not_initialized'
+  | 'downloading_runtime'
   | 'initializing'
   | 'loading_packages'
   | 'ready'
   | 'running'
+  | 'stopping'
   | 'completed'
-  | 'failed'
-  | 'stopped'
-  | 'timed_out';
+  | 'failed';
 
-export const DEFAULT_HELLO_WORLD: Record<SupportedLanguage, string> = {
-  python: 'print("Hello World")',
-  cpp: `#include <iostream>
-using namespace std;
+interface ExtractedDataFrame {
+  name: string;
+  rows: number;
+  cols: number;
+  columns: string[];
+  dtypes: Record<string, string>;
+  previewRows: Record<string, any>[];
+  csvContent: string;
+}
 
-int main() {
-    cout << "Hello World" << endl;
-    return 0;
-}`,
-  c: `#include <stdio.h>
+type StudioTab = 'console' | 'stdin' | 'plots' | 'dataframes' | 'problems' | 'packages';
 
-int main() {
-    printf("Hello World\\n");
-    return 0;
-}`,
-};
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
 
-export const CompilerTool: React.FC = () => {
-  const { darkMode, showToast, addRecentActivity } = useToolTrack();
+export function CompilerTool() {
+  // --- Projects & Multi-File State ---
+  const [projects, setProjects] = useState<CompilerProject[]>(() => loadCompilerProjects());
+  const [activeProjectId, setActiveProjectIdState] = useState<string>(() =>
+    getActiveProjectId(loadCompilerProjects())
+  );
 
-  // Selected Language & State
-  const [language, setLanguage] = useState<SupportedLanguage>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('tt_compiler_lang');
-      if (saved === 'python' || saved === 'cpp' || saved === 'c') return saved;
-    }
-    return 'python';
-  });
+  const activeProject = useMemo(
+    () => projects.find((p) => p.id === activeProjectId) || projects[0],
+    [projects, activeProjectId]
+  );
 
-  // Source code state for each language (defaults to clean Hello World)
-  const [codeMap, setCodeMap] = useState<Record<SupportedLanguage, string>>(() => {
-    const defaults: Record<SupportedLanguage, string> = { ...DEFAULT_HELLO_WORLD };
-    if (typeof window !== 'undefined') {
-      try {
-        const savedPy = localStorage.getItem('tt_code_python');
-        const savedCpp = localStorage.getItem('tt_code_cpp');
-        const savedC = localStorage.getItem('tt_code_c');
-        // Clean out legacy heavy code that caused infinite hangs
-        if (savedPy && !savedPy.includes("Department': ['Engineering'")) {
-          defaults.python = savedPy;
-        }
-        if (savedCpp && !savedCpp.includes("=== ToolTrack C++ STL Engine ===")) {
-          defaults.cpp = savedCpp;
-        }
-        if (savedC && !savedC.includes("=== ToolTrack C Compiler (GCC 12) ===")) {
-          defaults.c = savedC;
-        }
-      } catch {}
-    }
-    return defaults;
-  });
+  const language: CompilerLanguage = activeProject?.language || 'python';
+  const activeFileName = activeProject?.activeFileName || 'main.py';
+  const activeFile = useMemo(
+    () =>
+      activeProject?.files.find((f) => f.name === activeFileName) ||
+      activeProject?.files[0] || { name: 'main.py', content: '', updatedAt: Date.now() },
+    [activeProject, activeFileName]
+  );
 
-  // Editor settings
+  const code = activeFile.content;
+  const stdin = activeProject?.stdin || '';
+
+  // --- Workspace Mode: 'editor' (VS Code style) or 'notebook' (Colab style for Python) ---
+  const [workspaceMode, setWorkspaceMode] = useState<'editor' | 'notebook'>('editor');
+  const [showExplorer, setShowExplorer] = useState<boolean>(true);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // --- Project Management UI State ---
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectLang, setNewProjectLang] = useState<CompilerLanguage>('python');
+  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
+  const [renameProjectText, setRenameProjectText] = useState('');
+  const [confirmDeleteProjectId, setConfirmDeleteProjectId] = useState<string | null>(null);
+
+  // --- File Management UI State ---
+  const [isCreatingFile, setIsCreatingFile] = useState(false);
+  const [newFileName, setNewFileName] = useState('');
+  const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const ipynbInputRef = useRef<HTMLInputElement | null>(null);
+
+  // --- Execution & Output State ---
+  const [runtimeState, setRuntimeState] = useState<RuntimeLifecycleState>('not_initialized');
+  const [runtimeStatusText, setRuntimeStatusText] = useState<string>('Python 3.12 Worker Idle');
+  const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [stdout, setStdout] = useState<string>('');
+  const [stderr, setStderr] = useState<string>('');
+  const [plots, setPlots] = useState<string[]>([]);
+  const [dataframes, setDataframes] = useState<ExtractedDataFrame[]>([]);
+  const [selectedDfIndex, setSelectedDfIndex] = useState<number>(0);
+  const [dfSearchQuery, setDfSearchQuery] = useState<string>('');
+  const [diagnostics, setDiagnostics] = useState<CompilerDiagnostic[]>([]);
+  const [errorLine, setErrorLine] = useState<number | null>(null);
+  const [execTimeMs, setExecTimeMs] = useState<number | null>(null);
+  const [exitCode, setExitCode] = useState<number | null>(null);
+  const [compilerUsed, setCompilerUsed] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<StudioTab>('console');
+  const [copiedOutput, setCopiedOutput] = useState<boolean>(false);
+  const [plotDarkBg, setPlotDarkBg] = useState<boolean>(false);
+  const [zoomedPlotIndex, setZoomedPlotIndex] = useState<number | null>(null);
+
+  // --- Editor Preferences ---
   const [fontSize, setFontSize] = useState<number>(14);
-  const [themeMode, setThemeMode] = useState<'dark' | 'light'>(darkMode ? 'dark' : 'light');
+  const [tabSize, setTabSize] = useState<number>(4);
+  const [wordWrap, setWordWrap] = useState<boolean>(true);
+  const [editorTheme, setEditorTheme] = useState<'dark' | 'light'>(() =>
+    document.documentElement.classList.contains('dark') ? 'dark' : 'dark'
+  );
+  const [preferredEngine, setPreferredEngine] = useState<'auto' | 'cloud' | 'wasm'>('auto');
+  const [showSettingsMenu, setShowSettingsMenu] = useState<boolean>(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
+  const [goToLineOpen, setGoToLineOpen] = useState<boolean>(false);
+  const [goToLineInput, setGoToLineInput] = useState<string>('');
+  const [cursorPos, setCursorPos] = useState<{ line: number; col: number }>({ line: 1, col: 1 });
 
-  useEffect(() => {
-    setThemeMode(darkMode ? 'dark' : 'light');
-  }, [darkMode]);
-
-  // Standard I/O State
-  const [stdinText, setStdinText] = useState<string>('');
-  const [stdoutText, setStdoutText] = useState<string>('');
-  const [stderrText, setStderrText] = useState<string>('');
-  const [isExecuting, setIsExecuting] = useState<boolean>(false);
-  const [executionState, setExecutionState] = useState<ExecutionState>('idle');
-  const [executionStatusText, setExecutionStatusText] = useState<string>('');
-  const [executionStats, setExecutionStats] = useState<{
-    durationMs?: number;
-    exitCode?: number;
-    compilerUsed?: string;
-  } | null>(null);
-
-  // Preferred Engine: 'auto' (Fastest available), 'wasm' (In-Browser Pyodide / Client WASM), or 'server' (GCC / Python3 Native)
-  const [preferredEngine, setPreferredEngine] = useState<'auto' | 'wasm' | 'server'>('auto');
-
-  // Active right pane tab
-  const [activeTab, setActiveTab] = useState<'console' | 'stdin' | 'plots' | 'datasets' | 'packages' | 'offline'>('console');
-
-  // Matplotlib plots
-  const [generatedPlots, setGeneratedPlots] = useState<string[]>([]);
-
-  // Virtual datasets
-  const [virtualFiles, setVirtualFiles] = useState<{ name: string; size: number }[]>([]);
-
-  // Connectivity
-  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
-
-  // Offline cache status
+  // --- Offline & Package State ---
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
   const [cacheStatus, setCacheStatus] = useState<CacheCheckStatus | null>(null);
-  const [isDownloadingBundle, setIsDownloadingBundle] = useState<boolean>(false);
   const [downloadProgress, setDownloadProgress] = useState<{
     loaded: number;
     total: number;
     currentFile: string;
     percent: number;
   } | null>(null);
+  const [isDownloadingOffline, setIsDownloadingOffline] = useState<boolean>(false);
+  const [loadedPyPackages, setLoadedPyPackages] = useState<string[]>([]);
+  const [customPackageName, setCustomPackageName] = useState<string>('');
+  const [isInstallingPackage, setIsInstallingPackage] = useState<boolean>(false);
+  const [packageInstallMessage, setPackageInstallMessage] = useState<string | null>(null);
 
-  // Python worker & timer references
-  const pythonWorkerRef = useRef<Worker | null>(null);
-  const activeJobIdRef = useRef<number>(0);
-  const timeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // --- Refs ---
+  const editorContainerRef = useRef<HTMLDivElement | null>(null);
+  const editorViewRef = useRef<EditorView | null>(null);
+  const languageCompartment = useRef(new Compartment());
+  const themeCompartment = useRef(new Compartment());
+  const wrapCompartment = useRef(new Compartment());
+  const tabSizeCompartment = useRef(new Compartment());
+  const pyWorkerRef = useRef<Worker | null>(null);
+  const pendingWorkerCallbacks = useRef<Map<string, (msg: any) => void>>(new Map());
+  const runCodeRef = useRef<() => void>(() => {});
 
-  // Custom micropip package input
-  const [customPackageName, setCustomPackageName] = useState('');
-  const [isInstallingCustomPkg, setIsInstallingCustomPkg] = useState(false);
-
-  // Save drafts on code change
-  const currentCode = codeMap[language];
-  const updateCode = (newVal: string) => {
-    setCodeMap((prev) => {
-      const updated = { ...prev, [language]: newVal };
-      try {
-        localStorage.setItem(`tt_code_${language}`, newVal);
-      } catch {}
-      return updated;
-    });
-  };
-
-  const handleLanguageChange = (newLang: SupportedLanguage) => {
-    setLanguage(newLang);
-    try {
-      localStorage.setItem('tt_compiler_lang', newLang);
-    } catch {}
-  };
-
-  // Online / Offline window listeners
+  // --- Persist Projects whenever updated ---
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    saveCompilerProjects(projects);
+  }, [projects]);
+
+  useEffect(() => {
+    if (activeProjectId) {
+      setActiveProjectId(activeProjectId);
+    }
+  }, [activeProjectId]);
+
+  // --- Online / Offline Detection & Cache Inspection ---
+  const refreshOfflineStatus = useCallback(async () => {
+    try {
+      const status = await inspectCompilerCache();
+      setCacheStatus(status);
+    } catch {
+      // Ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshOfflineStatus();
+    const handleOnline = () => {
+      setIsOnline(true);
+      refreshOfflineStatus();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      refreshOfflineStatus();
+    };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [refreshOfflineStatus]);
 
-  // Inspect offline cache on load
-  const refreshCacheInfo = useCallback(async () => {
-    const status = await inspectCompilerCache();
-    setCacheStatus(status);
-  }, []);
+  // --- Helper to update current project ---
+  const updateActiveProject = useCallback(
+    (updater: (proj: CompilerProject) => CompilerProject) => {
+      setProjects((prev) =>
+        prev.map((p) => (p.id === activeProject.id ? { ...updater(p), updatedAt: Date.now() } : p))
+      );
+    },
+    [activeProject.id]
+  );
 
+  const setCode = useCallback(
+    (newCode: string) => {
+      updateActiveProject((proj) => ({
+        ...proj,
+        files: proj.files.map((f) =>
+          f.name === proj.activeFileName ? { ...f, content: newCode, updatedAt: Date.now() } : f
+        ),
+      }));
+    },
+    [updateActiveProject]
+  );
+
+  const setStdin = useCallback(
+    (newStdin: string) => {
+      updateActiveProject((proj) => ({
+        ...proj,
+        stdin: newStdin,
+      }));
+    },
+    [updateActiveProject]
+  );
+
+  // --- Initialize and Manage Persistent Pyodide 3.12 Web Worker ---
+  const createOrGetPythonWorker = useCallback(() => {
+    if (pyWorkerRef.current) {
+      return pyWorkerRef.current;
+    }
+    const worker = new Worker(new URL('../../workers/pythonWorker.ts', import.meta.url), {
+      type: 'module',
+    });
+
+    worker.onmessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data) return;
+
+      if (data.type === 'STATUS') {
+        setRuntimeStatusText(data.status || 'Initializing Python 3.12...');
+        if (data.lifecycle) {
+          setRuntimeState(data.lifecycle as RuntimeLifecycleState);
+        }
+        return;
+      }
+
+      if (data.type === 'INIT_DONE') {
+        setRuntimeState('ready');
+        setRuntimeStatusText('Python 3.12 Ready');
+        if (Array.isArray(data.loadedPackages)) {
+          setLoadedPyPackages(data.loadedPackages);
+        }
+        refreshOfflineStatus();
+      }
+
+      if (data.id && pendingWorkerCallbacks.current.has(data.id)) {
+        const cb = pendingWorkerCallbacks.current.get(data.id)!;
+        pendingWorkerCallbacks.current.delete(data.id);
+        cb(data);
+      }
+    };
+
+    worker.onerror = (err) => {
+      setRuntimeState('failed');
+      setRuntimeStatusText('Python Worker Error');
+      setIsRunning(false);
+      setStderr((prev) => `${prev}\nWorker Runtime Error: ${err.message || 'Unknown worker error'}`.trim());
+    };
+
+    pyWorkerRef.current = worker;
+    return worker;
+  }, [refreshOfflineStatus]);
+
+  // Pre-warm Python Worker when language is Python
   useEffect(() => {
-    refreshCacheInfo();
-  }, [refreshCacheInfo]);
+    if (language === 'python' && runtimeState === 'not_initialized') {
+      const worker = createOrGetPythonWorker();
+      const initId = `init-${Date.now()}`;
+      worker.postMessage({ type: 'INIT', id: initId });
+    }
+  }, [language, runtimeState, createOrGetPythonWorker]);
 
-  // Clean timeout timer on unmount
+  // Cleanup worker on unmount
   useEffect(() => {
     return () => {
-      if (timeoutTimerRef.current) {
-        clearTimeout(timeoutTimerRef.current);
+      if (pyWorkerRef.current) {
+        pyWorkerRef.current.terminate();
+        pyWorkerRef.current = null;
       }
     };
   }, []);
 
-  // Spawn Pyodide Web Worker with full error capture
-  const spawnWorker = useCallback(() => {
-    if (pythonWorkerRef.current) {
-      try {
-        pythonWorkerRef.current.terminate();
-      } catch {}
-      pythonWorkerRef.current = null;
+  // --- Switch Language Handler (Preserves per-language project state) ---
+  const handleSelectLanguage = (targetLang: CompilerLanguage) => {
+    if (targetLang === language) return;
+    if (targetLang !== 'python' && workspaceMode === 'notebook') {
+      setWorkspaceMode('editor');
     }
+    // Find most recently updated project for targetLang
+    const existingProj = [...projects]
+      .filter((p) => p.language === targetLang)
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0];
 
-    try {
-      const worker = new Worker(new URL('../../workers/pythonWorker.ts', import.meta.url), {
-        type: 'module',
-      });
-
-      worker.onerror = (err) => {
-        console.error('[Pyodide Worker Error]:', err);
-        if (timeoutTimerRef.current) {
-          clearTimeout(timeoutTimerRef.current);
-          timeoutTimerRef.current = null;
-        }
-        setIsExecuting(false);
-        setExecutionState('failed');
-        setExecutionStatusText('');
-        setStderrText((prev) => prev + `\n[Runtime Worker Error]: ${err.message || 'Worker thread encountered an unhandled issue.'}\n`);
+    if (existingProj) {
+      setActiveProjectIdState(existingProj.id);
+    } else {
+      const tpl = COMPILER_TEMPLATES.find((t) => t.language === targetLang) || COMPILER_TEMPLATES[0];
+      const now = Date.now();
+      const newProj: CompilerProject = {
+        id: `proj-${targetLang}-${now}`,
+        name: `${targetLang.toUpperCase()} Workspace`,
+        language: targetLang,
+        activeFileName: tpl.fileName,
+        stdin: tpl.defaultStdin || '',
+        files: [{ name: tpl.fileName, content: tpl.code, updatedAt: now }],
+        notebookCells: targetLang === 'python' ? getDefaultNotebookCells() : undefined,
+        createdAt: now,
+        updatedAt: now,
       };
-
-      worker.onmessageerror = (err) => {
-        console.error('[Pyodide Message Error]:', err);
-        if (timeoutTimerRef.current) {
-          clearTimeout(timeoutTimerRef.current);
-          timeoutTimerRef.current = null;
-        }
-        setIsExecuting(false);
-        setExecutionState('failed');
-      };
-
-      worker.onmessage = (e: MessageEvent) => {
-        const { type, text, message, plots, executionTimeMs, success, files, package: pkg, error, state } = e.data;
-
-        if (type === 'executionStarted') {
-          // Packages & runtime are ready; start real code execution timeout timer
-          if (timeoutTimerRef.current) {
-            clearTimeout(timeoutTimerRef.current);
-          }
-          timeoutTimerRef.current = setTimeout(() => {
-            if (activeJobIdRef.current === e.data.id) {
-              handleTimeout(25000);
-            }
-          }, 25000);
-          setExecutionState('running');
-          setExecutionStatusText(message || 'Executing program...');
-        } else if (type === 'stdout') {
-          setStdoutText((prev) => prev + text);
-        } else if (type === 'stderr') {
-          setStderrText((prev) => prev + text);
-        } else if (type === 'status') {
-          if (state) setExecutionState(state);
-          setExecutionStatusText(message || '');
-        } else if (type === 'initialized') {
-          setExecutionState((prev) => (prev === 'initializing' ? 'ready' : prev));
-          setExecutionStatusText('');
-        } else if (type === 'runComplete') {
-          if (timeoutTimerRef.current) {
-            clearTimeout(timeoutTimerRef.current);
-            timeoutTimerRef.current = null;
-          }
-          setIsExecuting(false);
-          setExecutionState(success ? 'completed' : 'failed');
-          setExecutionStatusText('');
-
-          if (plots && Array.isArray(plots) && plots.length > 0) {
-            setGeneratedPlots(plots);
-            setActiveTab('plots');
-          }
-          setExecutionStats({
-            durationMs: executionTimeMs,
-            exitCode: success ? 0 : 1,
-            compilerUsed: 'Pyodide WebAssembly (Python 3.12)',
-          });
-        } else if (type === 'error') {
-          if (timeoutTimerRef.current) {
-            clearTimeout(timeoutTimerRef.current);
-            timeoutTimerRef.current = null;
-          }
-          setIsExecuting(false);
-          setExecutionState('failed');
-          setExecutionStatusText('');
-          setStderrText((prev) => prev + `\n[Python Runtime Error]: ${message}\n`);
-        } else if (type === 'fileList') {
-          if (files) {
-            setVirtualFiles(files.map((name: string) => ({ name, size: 0 })));
-          }
-        } else if (type === 'fileUploaded') {
-          showToast('success', `Dataset ${e.data.name} mounted into virtual filesystem at ${e.data.path}`);
-          worker.postMessage({ action: 'listFiles', id: Date.now() });
-        } else if (type === 'micropipSuccess') {
-          setIsInstallingCustomPkg(false);
-          showToast('success', `Python package '${pkg}' installed successfully.`);
-          refreshCacheInfo();
-        } else if (type === 'micropipError') {
-          setIsInstallingCustomPkg(false);
-          showToast('error', `Package '${pkg}' installation failed: ${error}`);
-        }
-      };
-
-      worker.postMessage({ action: 'listFiles', id: Date.now() });
-      pythonWorkerRef.current = worker;
-      return worker;
-    } catch (err: any) {
-      console.error('[Failed to spawn Web Worker]:', err);
-      return null;
+      setProjects((prev) => [newProj, ...prev]);
+      setActiveProjectIdState(newProj.id);
     }
-  }, [showToast, refreshCacheInfo]);
-
-  // Initialize Worker on mount
-  useEffect(() => {
-    const worker = spawnWorker();
-    return () => {
-      if (worker) {
-        worker.terminate();
-      }
-      pythonWorkerRef.current = null;
-    };
-  }, [spawnWorker]);
-
-  // Handle execution timeout safely
-  const handleTimeout = (limitMs: number) => {
-    if (timeoutTimerRef.current) {
-      clearTimeout(timeoutTimerRef.current);
-      timeoutTimerRef.current = null;
-    }
-
-    if (language === 'python' && pythonWorkerRef.current) {
-      try {
-        pythonWorkerRef.current.terminate();
-      } catch {}
-      pythonWorkerRef.current = null;
-      setTimeout(() => spawnWorker(), 150);
-    }
-
-    setIsExecuting(false);
-    setExecutionState('timed_out');
-    setExecutionStatusText('');
-    setStderrText((prev) =>
-      prev +
-      `\n[Execution Timed Out]: Program exceeded the ${limitMs / 1000}s limit (e.g. possible infinite loop or blocked resource). Execution was stopped safely.\n`
-    );
-    showToast('error', `Execution timed out after ${limitMs / 1000} seconds.`);
+    setDiagnostics([]);
+    setErrorLine(null);
   };
 
-  // Execute Code Action (Ctrl+Enter or Run Click)
-  const handleRunCode = async () => {
-    if (isExecuting) return;
-
-    const codeToRun = codeMap[language];
-    if (!codeToRun.trim()) {
-      showToast('info', 'Editor is empty. Enter code to execute.');
-      return;
+  // --- Stop / Interrupt Execution ---
+  const handleStopExecution = () => {
+    if (!isRunning) return;
+    setRuntimeState('stopping');
+    setRuntimeStatusText('Stopping execution...');
+    if (pyWorkerRef.current) {
+      pyWorkerRef.current.terminate();
+      pyWorkerRef.current = null;
+      pendingWorkerCallbacks.current.clear();
     }
+    setIsRunning(false);
+    setRuntimeState('not_initialized');
+    setRuntimeStatusText('Execution interrupted by user. Kernel reset.');
+    setStderr((prev) => (prev ? `${prev}\n[KeyboardInterrupt: Execution stopped by user]` : '[KeyboardInterrupt: Execution stopped by user]'));
+  };
 
-    setIsExecuting(true);
-    setStdoutText('');
-    setStderrText('');
-    setGeneratedPlots([]);
-    setExecutionStats(null);
-    setActiveTab('console');
-    setExecutionState('running');
-
-    const jobId = Date.now();
-    activeJobIdRef.current = jobId;
-
-    addRecentActivity('compiler', `${language.toUpperCase()} Execution`, `${language}-source`, 'completed');
-
-    if (timeoutTimerRef.current) {
-      clearTimeout(timeoutTimerRef.current);
-      timeoutTimerRef.current = null;
+  // --- Reset Python Kernel ---
+  const handleResetKernel = () => {
+    if (pyWorkerRef.current) {
+      const worker = pyWorkerRef.current;
+      const resetId = `reset-${Date.now()}`;
+      pendingWorkerCallbacks.current.set(resetId, () => {
+        setRuntimeState('ready');
+        setRuntimeStatusText('Python Kernel Reset');
+        setDataframes([]);
+      });
+      worker.postMessage({ type: 'RESET_KERNEL', id: resetId });
     }
+  };
 
-    if (language === 'python') {
-      // 1. When online (in 'auto' or 'server' mode), use the high-speed server engine.
-      // Host server has native NumPy, Pandas, Matplotlib, Scikit-learn, Scipy preinstalled.
-      const canUseServer = (preferredEngine === 'server' || preferredEngine === 'auto') && isOnline;
+  // --- Execute Python Code in Persistent Pyodide Worker ---
+  const executePythonInWorker = useCallback(
+    async (
+      sourceCode: string,
+      inputStdin: string,
+      resetGlobals: boolean
+    ): Promise<{
+      success: boolean;
+      stdout: string;
+      stderr: string;
+      plots: string[];
+      dataframes: ExtractedDataFrame[];
+      errorLine: number | null;
+      executionTimeMs: number;
+    }> => {
+      const worker = createOrGetPythonWorker();
+      const runId = `py-run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-      if (canUseServer) {
-        setExecutionStatusText('Running on high-speed Python 3 engine...');
-        timeoutTimerRef.current = setTimeout(() => {
-          if (activeJobIdRef.current === jobId) {
-            handleTimeout(15000);
+      const syncFiles = activeProject.files
+        .filter((f) => f.name !== activeProject.activeFileName || workspaceMode === 'notebook')
+        .map((f) => ({
+          name: f.name,
+          content: f.content,
+          encoding: f.isBinary ? ('base64' as const) : ('utf8' as const),
+        }));
+
+      return new Promise((resolve) => {
+        pendingWorkerCallbacks.current.set(runId, (data: any) => {
+          if (Array.isArray(data.loadedPackages)) {
+            setLoadedPyPackages(data.loadedPackages);
           }
-        }, 15000);
 
-        try {
-          const controller = new AbortController();
-          const serverTimer = setTimeout(() => controller.abort(), 12000);
+          // Sync any newly generated files from /home/pyodide back to project explorer
+          if (Array.isArray(data.workspaceFiles) && data.workspaceFiles.length > 0) {
+            updateActiveProject((proj) => {
+              const updatedFiles = [...proj.files];
+              for (const wf of data.workspaceFiles) {
+                const existingIdx = updatedFiles.findIndex((f) => f.name === wf.name);
+                const newFileObj: ProjectFile = {
+                  name: wf.name,
+                  content: wf.content,
+                  isBinary: wf.isBinary,
+                  size: wf.size,
+                  updatedAt: Date.now(),
+                };
+                if (existingIdx >= 0) {
+                  updatedFiles[existingIdx] = newFileObj;
+                } else {
+                  updatedFiles.push(newFileObj);
+                }
+              }
+              return { ...proj, files: updatedFiles };
+            });
+          }
 
-          const res = await fetch('/api/compile-run', {
+          refreshOfflineStatus();
+
+          if (data.type === 'RESULT') {
+            resolve({
+              success: true,
+              stdout: data.stdout || '',
+              stderr: data.stderr || '',
+              plots: data.plots || [],
+              dataframes: data.dataframes || [],
+              errorLine: data.errorLine || null,
+              executionTimeMs: data.executionTimeMs || 0,
+            });
+          } else {
+            resolve({
+              success: false,
+              stdout: data.stdout || '',
+              stderr: data.stderr || data.error || 'Python execution failed.',
+              plots: data.plots || [],
+              dataframes: data.dataframes || [],
+              errorLine: data.errorLine || null,
+              executionTimeMs: data.executionTimeMs || 0,
+            });
+          }
+        });
+
+        worker.postMessage({
+          type: 'RUN',
+          id: runId,
+          code: sourceCode,
+          stdin: inputStdin,
+          files: syncFiles,
+          resetGlobals,
+        });
+      });
+    },
+    [activeProject, workspaceMode, createOrGetPythonWorker, updateActiveProject, refreshOfflineStatus]
+  );
+
+  // --- Primary Run Handler (Editor Mode) ---
+  const handleRunCode = async () => {
+    if (isRunning) return;
+    setIsRunning(true);
+    setStdout('');
+    setStderr('');
+    setPlots([]);
+    setDataframes([]);
+    setDiagnostics([]);
+    setErrorLine(null);
+    setExecTimeMs(null);
+    setExitCode(null);
+
+    const startTime = performance.now();
+
+    try {
+      // Pre-validate syntax for immediate feedback
+      const localDiags = validateSyntax(code, language);
+      const hasFatalSyntax = localDiags.some((d) => d.severity === 'error');
+      if (localDiags.length > 0) {
+        setDiagnostics(localDiags);
+      }
+
+      if (language === 'python') {
+        // Use Pyodide 3.12 WebAssembly Worker as primary engine for full scientific stack support
+        // Only use cloud first if user explicitly forced 'cloud' and is online
+        if (preferredEngine === 'cloud' && isOnline) {
+          const response = await fetch('/api/compile-run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               language: 'python',
-              code: codeToRun,
-              stdin: stdinText,
+              code,
+              stdin,
+              files: activeProject.files.filter((f) => f.name !== activeFileName),
             }),
-            signal: controller.signal,
           });
-          clearTimeout(serverTimer);
-
-          if (res.ok) {
-            const data = await res.json();
-            if (timeoutTimerRef.current) {
-              clearTimeout(timeoutTimerRef.current);
-              timeoutTimerRef.current = null;
-            }
-
-            setStdoutText(data.stdout || '');
-            setStderrText(data.stderr || '');
-
-            if (data.plots && Array.isArray(data.plots) && data.plots.length > 0) {
-              setGeneratedPlots(data.plots);
+          const data = await response.json();
+          if (!data.fallbackToWasm) {
+            setStdout(data.stdout || '');
+            setStderr(data.stderr || '');
+            setPlots(data.plots || []);
+            setExitCode(data.exitCode ?? (data.success ? 0 : 1));
+            setExecTimeMs(data.executionTimeMs ?? Math.round(performance.now() - startTime));
+            setCompilerUsed(data.compiler || 'Python 3.11 Server Engine');
+            if (data.plots && data.plots.length > 0) {
               setActiveTab('plots');
+            } else {
+              setActiveTab('console');
             }
-
-            setExecutionStats({
-              durationMs: data.executionTimeMs,
-              exitCode: data.exitCode,
-              compilerUsed: data.compiler || 'Python 3.11 High-Speed Engine',
-            });
-            setIsExecuting(false);
-            setExecutionState(data.success ? 'completed' : 'failed');
-            setExecutionStatusText('');
+            setIsRunning(false);
             return;
           }
-        } catch (serverErr) {
-          console.warn('[CompilerTool] Server engine error, switching to Pyodide WebAssembly:', serverErr);
         }
+
+        setCompilerUsed(
+          isOnline
+            ? 'Python 3.12 (Pyodide WebAssembly Worker)'
+            : 'Python 3.12 (Offline Cached WebAssembly)'
+        );
+        const res = await executePythonInWorker(code, stdin, true);
+        setStdout(res.stdout);
+        setStderr(res.stderr);
+        setPlots(res.plots);
+        setDataframes(res.dataframes);
+        setSelectedDfIndex(0);
+        setErrorLine(res.errorLine);
+
+        if (res.errorLine) {
+          setDiagnostics((prev) => [
+            ...prev,
+            {
+              line: res.errorLine!,
+              column: 1,
+              severity: 'error',
+              message: res.stderr.split('\n').filter(Boolean).pop() || 'Python Runtime Exception',
+            },
+          ]);
+        }
+
+        setExitCode(res.success ? 0 : 1);
+        setExecTimeMs(res.executionTimeMs || Math.round(performance.now() - startTime));
+
+        if (res.plots.length > 0) {
+          setActiveTab('plots');
+        } else if (res.dataframes.length > 0 && !res.stdout.trim() && res.success) {
+          setActiveTab('dataframes');
+        } else {
+          setActiveTab('console');
+        }
+        setIsRunning(false);
+        return;
       }
 
-      // 2. Offline or WebAssembly mode fallback: Run via Pyodide WebAssembly Worker
-      let worker = pythonWorkerRef.current;
-      if (!worker) {
-        worker = spawnWorker();
-      }
-
-      if (worker) {
-        setExecutionStatusText('Preparing Python WebAssembly runtime & packages...');
-        // Generous 90s watchdog for package downloads over network; the real 25s execution timer
-        // will be armed once the worker fires 'executionStarted'
-        if (timeoutTimerRef.current) {
-          clearTimeout(timeoutTimerRef.current);
-        }
-        timeoutTimerRef.current = setTimeout(() => {
-          if (activeJobIdRef.current === jobId) {
-            handleTimeout(90000);
-          }
-        }, 90000);
-
-        worker.postMessage({
-          action: 'runCode',
-          id: jobId,
-          payload: {
-            code: codeToRun,
-            stdin: stdinText,
-          },
-        });
-      } else {
-        if (timeoutTimerRef.current) {
-          clearTimeout(timeoutTimerRef.current);
-          timeoutTimerRef.current = null;
-        }
-        setStderrText('Python runtime worker is unavailable. Please refresh.');
-        setIsExecuting(false);
-        setExecutionState('failed');
-        setExecutionStatusText('');
-      }
-    } else {
-      // C or C++: Try native server compiler if online, otherwise in-browser engine
-      if (isOnline) {
-        setExecutionStatusText(`Compiling with ${language === 'cpp' ? 'G++ 12' : 'GCC 12'}...`);
+      // C and C++ Execution
+      const shouldTryCloud = preferredEngine !== 'wasm' && isOnline && !hasFatalSyntax;
+      if (shouldTryCloud) {
         try {
-          const res = await fetch('/api/compile-run', {
+          const response = await fetch('/api/compile-run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               language,
-              code: codeToRun,
-              stdin: stdinText,
+              code,
+              stdin,
               standard: language === 'cpp' ? 'c++20' : 'c17',
             }),
           });
-
-          if (res.ok) {
-            const data = await res.json();
-            if (timeoutTimerRef.current) {
-              clearTimeout(timeoutTimerRef.current);
-              timeoutTimerRef.current = null;
+          if (response.ok) {
+            const data = await response.json();
+            setStdout(data.stdout || '');
+            setStderr(data.stderr || '');
+            if (Array.isArray(data.diagnostics) && data.diagnostics.length > 0) {
+              setDiagnostics(data.diagnostics);
+              setErrorLine(data.diagnostics[0].line);
             }
-            setStdoutText(data.stdout || '');
-            setStderrText(data.stderr || '');
-            setExecutionStats({
-              durationMs: data.executionTimeMs,
-              exitCode: data.exitCode,
-              compilerUsed: data.compiler || (language === 'cpp' ? 'G++ 12 (Linux)' : 'GCC 12 (Linux)'),
-            });
-            setIsExecuting(false);
-            setExecutionState(data.success ? 'completed' : 'failed');
-            setExecutionStatusText('');
+            setExitCode(data.exitCode ?? (data.success ? 0 : 1));
+            setExecTimeMs(data.executionTimeMs ?? Math.round(performance.now() - startTime));
+            setCompilerUsed(data.compiler || (language === 'cpp' ? 'GCC C++20' : 'GCC C17'));
+            setActiveTab('console');
+            setIsRunning(false);
             return;
           }
-        } catch (serverErr) {
-          console.warn('[CompilerTool] Server compile error, switching to in-browser engine:', serverErr);
+        } catch {
+          // Network unreachable — fall through to built-in AST compiler
         }
       }
 
-      // Offline In-Browser C/C++ Engine fallback
-      if (timeoutTimerRef.current) {
-        clearTimeout(timeoutTimerRef.current);
-        timeoutTimerRef.current = null;
+      // Offline / Browser C17 & C++20 AST Compiler
+      const localResult = await runClientCpp(code, stdin, language);
+      setStdout(localResult.stdout);
+      setStderr(localResult.stderr);
+      if (localResult.diagnostics.length > 0) {
+        setDiagnostics(localResult.diagnostics);
+        setErrorLine(localResult.diagnostics[0].line);
       }
-      setExecutionStatusText('Running offline in-browser parser...');
-      const localResult = runClientCpp(codeToRun, stdinText, language);
-      setStdoutText(localResult.stdout);
-      setStderrText(localResult.stderr);
-      setExecutionStats({
-        durationMs: localResult.executionTimeMs,
-        exitCode: localResult.exitCode,
-        compilerUsed: localResult.compiler,
-      });
-      setIsExecuting(false);
-      setExecutionState(localResult.exitCode === 0 ? 'completed' : 'failed');
-      setExecutionStatusText('');
+      setExitCode(localResult.exitCode);
+      setExecTimeMs(Math.round(performance.now() - startTime));
+      setCompilerUsed(localResult.compiler);
+      setActiveTab('console');
+    } catch (err: any) {
+      setStderr(`Execution Error: ${err?.message || String(err)}`);
+      setExitCode(1);
+    } finally {
+      setIsRunning(false);
     }
   };
 
-  // Stop Execution
-  const handleStop = () => {
-    if (timeoutTimerRef.current) {
-      clearTimeout(timeoutTimerRef.current);
-      timeoutTimerRef.current = null;
-    }
+  runCodeRef.current = handleRunCode;
 
-    if (language === 'python' && pythonWorkerRef.current) {
-      try {
-        pythonWorkerRef.current.terminate();
-      } catch {}
-      pythonWorkerRef.current = null;
-      setTimeout(() => spawnWorker(), 100);
-    }
+  // --- Notebook Mode Execution Handlers ---
+  const notebookCells = useMemo(
+    () => activeProject.notebookCells || getDefaultNotebookCells(),
+    [activeProject.notebookCells]
+  );
 
-    setIsExecuting(false);
-    setExecutionState('stopped');
-    setExecutionStatusText('');
-    setStderrText((prev) => prev + '\n[Execution aborted by user]\n');
-    showToast('info', 'Execution stopped.');
+  const updateNotebookCells = useCallback(
+    (updater: (cells: NotebookCellData[]) => NotebookCellData[]) => {
+      updateActiveProject((proj) => ({
+        ...proj,
+        notebookCells: updater(proj.notebookCells || getDefaultNotebookCells()),
+      }));
+    },
+    [updateActiveProject]
+  );
+
+  const handleRunNotebookCell = async (cellId: string) => {
+    const targetCell = notebookCells.find((c) => c.id === cellId);
+    if (!targetCell || targetCell.type !== 'code' || isRunning) return;
+
+    setIsRunning(true);
+    updateNotebookCells((cells) =>
+      cells.map((c) => (c.id === cellId ? { ...c, status: 'running', stdout: '', stderr: '', plots: [] } : c))
+    );
+
+    const res = await executePythonInWorker(targetCell.content, stdin, false);
+
+    updateNotebookCells((cells) => {
+      const maxCount = cells.reduce((acc, c) => Math.max(acc, c.executionCount || 0), 0);
+      return cells.map((c) =>
+        c.id === cellId
+          ? {
+              ...c,
+              status: res.success ? 'completed' : 'error',
+              executionCount: maxCount + 1,
+              stdout: res.stdout,
+              stderr: res.stderr,
+              plots: res.plots,
+              dataframes: res.dataframes,
+              executionTimeMs: res.executionTimeMs,
+            }
+          : c
+      );
+    });
+
+    if (res.plots.length > 0) {
+      setPlots((prev) => [...prev, ...res.plots]);
+    }
+    if (res.dataframes.length > 0) {
+      setDataframes(res.dataframes);
+    }
+    setIsRunning(false);
   };
 
-  // Reset to Minimal Hello World
-  const handleResetToHelloWorld = () => {
-    const hwCode = DEFAULT_HELLO_WORLD[language];
-    updateCode(hwCode);
-    setStdinText('');
-    showToast('info', `Reset ${language.toUpperCase()} to Hello World.`);
+  const handleRunAllNotebookCells = async () => {
+    if (isRunning) return;
+    for (const cell of notebookCells) {
+      if (cell.type === 'code') {
+        await handleRunNotebookCell(cell.id);
+      }
+    }
   };
 
-  // Keyboard shortcut: Ctrl+Enter / Cmd+Enter to Run
+  // --- CodeMirror 6 Setup & Synchronization ---
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        handleRunCode();
+    if (!editorContainerRef.current || workspaceMode !== 'editor') return;
+
+    const getLangExt = (lang: CompilerLanguage) => (lang === 'python' ? python() : cpp());
+
+    const updateListener = EditorView.updateListener.of((update) => {
+      if (update.docChanged) {
+        const currentDoc = update.state.doc.toString();
+        setCode(currentDoc);
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [codeMap, language, stdinText, isOnline]);
-
-  // Download Source Code
-  const handleDownloadCode = () => {
-    const ext = language === 'python' ? 'py' : language === 'cpp' ? 'cpp' : 'c';
-    const blob = new Blob([codeMap[language]], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `main.${ext}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('success', `Saved as main.${ext}`);
-  };
-
-  // Open / Upload Local File
-  const handleOpenFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const content = evt.target?.result as string;
-      if (content) {
-        updateCode(content);
-        showToast('success', `Loaded ${file.name}`);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
-  // Upload Dataset File into Python Virtual Filesystem
-  const handleDatasetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !pythonWorkerRef.current) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const data = evt.target?.result;
-      if (data) {
-        pythonWorkerRef.current?.postMessage({
-          action: 'uploadFile',
-          payload: {
-            name: file.name,
-            data,
-            isBinary: file.name.endsWith('.xlsx') || file.name.endsWith('.parquet'),
-          },
+      if (update.selectionSet || update.docChanged) {
+        const pos = update.state.selection.main.head;
+        const lineObj = update.state.doc.lineAt(pos);
+        setCursorPos({
+          line: lineObj.number,
+          col: pos - lineObj.from + 1,
         });
       }
+    });
+
+    const runShortcutKeymap = keymap.of([
+      {
+        key: 'Mod-Enter',
+        run: () => {
+          runCodeRef.current();
+          return true;
+        },
+      },
+    ]);
+
+    const state = EditorState.create({
+      doc: code,
+      extensions: [
+        lineNumbers(),
+        highlightActiveLineGutter(),
+        highlightActiveLine(),
+        history(),
+        foldGutter(),
+        drawSelection(),
+        dropCursor(),
+        EditorState.allowMultipleSelections.of(true),
+        indentOnInput(),
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        bracketMatching(),
+        closeBrackets(),
+        rectangularSelection(),
+        crosshairCursor(),
+        highlightSelectionMatches(),
+        runShortcutKeymap,
+        ghostTextExtension(language),
+        intelliSenseExtension(language),
+        keymap.of([
+          ...closeBracketsKeymap,
+          ...defaultKeymap,
+          ...searchKeymap,
+          ...historyKeymap,
+          ...foldKeymap,
+          ...completionKeymap,
+          indentWithTab,
+        ]),
+        languageCompartment.current.of(getLangExt(language)),
+        themeCompartment.current.of(editorTheme === 'dark' ? oneDark : []),
+        wrapCompartment.current.of(wordWrap ? EditorView.lineWrapping : []),
+        tabSizeCompartment.current.of([
+          EditorState.tabSize.of(tabSize),
+          indentUnit.of(' '.repeat(tabSize)),
+        ]),
+        updateListener,
+        EditorView.theme({
+          '&': {
+            height: '100%',
+            fontSize: `${fontSize}px`,
+            fontFamily: '"JetBrains Mono", "Fira Code", Menlo, Monaco, Consolas, monospace',
+          },
+          '.cm-scroller': {
+            overflow: 'auto',
+            fontFamily: '"JetBrains Mono", "Fira Code", Menlo, Monaco, Consolas, monospace',
+            lineHeight: '1.6',
+          },
+          '.cm-content': {
+            padding: '12px 0',
+          },
+          '.cm-gutters': {
+            borderRight: '1px solid rgba(148, 163, 184, 0.12)',
+            backgroundColor: 'transparent',
+          },
+        }),
+      ],
+    });
+
+    const view = new EditorView({
+      state,
+      parent: editorContainerRef.current,
+    });
+
+    editorViewRef.current = view;
+
+    return () => {
+      view.destroy();
+      editorViewRef.current = null;
     };
-    if (file.name.endsWith('.xlsx') || file.name.endsWith('.parquet')) {
-      reader.readAsArrayBuffer(file);
-    } else {
-      reader.readAsText(file);
-    }
-    e.target.value = '';
-  };
+    // Re-create editor when switching workspaceMode, activeProjectId, activeFileName, language, fontSize, editorTheme
+  }, [workspaceMode, activeProjectId, activeFileName, language, fontSize, editorTheme]);
 
-
-  // Download Offline Data Science Bundle
-  const handleDownloadOfflineBundle = async () => {
-    if (isDownloadingBundle) return;
-    setIsDownloadingBundle(true);
-    setDownloadProgress(null);
-
-    try {
-      await downloadFullDataScienceBundle((prog) => {
-        setDownloadProgress(prog);
+  // Sync external code changes (like template load) into CodeMirror
+  useEffect(() => {
+    const view = editorViewRef.current;
+    if (!view) return;
+    const currentText = view.state.doc.toString();
+    if (currentText !== code) {
+      view.dispatch({
+        changes: { from: 0, to: currentText.length, insert: code },
       });
-      showToast('success', 'Python Data Science bundle cached! 100% Offline execution ready.');
-      await refreshCacheInfo();
-    } catch (err: any) {
-      showToast('error', `Failed to download offline cache: ${err.message}`);
-    } finally {
-      setIsDownloadingBundle(false);
     }
+  }, [code]);
+
+  // Sync wordWrap & tabSize compartments
+  useEffect(() => {
+    const view = editorViewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: wrapCompartment.current.reconfigure(wordWrap ? EditorView.lineWrapping : []),
+    });
+  }, [wordWrap]);
+
+  useEffect(() => {
+    const view = editorViewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: tabSizeCompartment.current.reconfigure([
+        EditorState.tabSize.of(tabSize),
+        indentUnit.of(' '.repeat(tabSize)),
+      ]),
+    });
+  }, [tabSize]);
+
+  // --- Editor Utility Actions ---
+  const handleJumpToLine = (lineNum: number) => {
+    const view = editorViewRef.current;
+    if (!view) return;
+    const clampedLine = Math.max(1, Math.min(lineNum, view.state.doc.lines));
+    const lineInfo = view.state.doc.line(clampedLine);
+    view.dispatch({
+      selection: { anchor: lineInfo.from },
+      effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
+    });
+    view.focus();
   };
 
-  // Download individual Python package
-  const handleDownloadSinglePackage = async (packageId: string) => {
+  const handleFormatCode = () => {
+    const lines = code.split('\n');
+    let formatted: string[] = [];
+    if (language === 'python') {
+      formatted = lines.map((line) => line.replace(/\s+$/, '').replace(/\t/g, ' '.repeat(tabSize)));
+    } else {
+      let indentLevel = 0;
+      for (const rawLine of lines) {
+        const trimmed = rawLine.trim();
+        if (!trimmed) {
+          formatted.push('');
+          continue;
+        }
+        if (trimmed.startsWith('}') || trimmed.startsWith('};')) {
+          indentLevel = Math.max(0, indentLevel - 1);
+        }
+        const pad = trimmed.startsWith('#') ? '' : ' '.repeat(indentLevel * tabSize);
+        formatted.push(pad + trimmed);
+        if (trimmed.endsWith('{')) {
+          indentLevel++;
+        }
+      }
+    }
+    setCode(formatted.join('\n'));
+  };
+
+  // --- Offline Download & Package Management Handlers ---
+  const handleDownloadOfflineBundle = async () => {
+    if (isDownloadingOffline) return;
+    setIsDownloadingOffline(true);
     try {
-      showToast('info', `Downloading ${packageId} for offline use...`);
-      await downloadPythonPackage(packageId);
-      showToast('success', `${packageId} is now available offline!`);
-      await refreshCacheInfo();
+      await downloadFullDataScienceBundle((progress) => {
+        setDownloadProgress(progress);
+      });
+      const status = await inspectCompilerCache();
+      setCacheStatus(status);
     } catch (err: any) {
-      showToast('error', `Could not cache ${packageId}: ${err.message}`);
+      setStderr(`Offline bundle download failed: ${err?.message || String(err)}`);
+    } finally {
+      setIsDownloadingOffline(false);
     }
   };
 
-  // Install custom package via micropip
-  const handleInstallMicropip = () => {
-    if (!customPackageName.trim() || !pythonWorkerRef.current) return;
-    setIsInstallingCustomPkg(true);
-    pythonWorkerRef.current.postMessage({
-      action: 'installMicropip',
-      payload: { package: customPackageName.trim() },
+  const handleClearOfflineCache = async () => {
+    await clearCompilerCache();
+    await refreshOfflineStatus();
+    setDownloadProgress(null);
+  };
+
+  const handleInstallCustomPackage = async (pkgToInstall?: string) => {
+    const pkg = (pkgToInstall || customPackageName).trim();
+    if (!pkg || isInstallingPackage) return;
+    setIsInstallingPackage(true);
+    setPackageInstallMessage(`Installing '${pkg}' via micropip...`);
+
+    const worker = createOrGetPythonWorker();
+    const msgId = `pkg-${Date.now()}`;
+    pendingWorkerCallbacks.current.set(msgId, (data: any) => {
+      setIsInstallingPackage(false);
+      if (Array.isArray(data.loadedPackages)) {
+        setLoadedPyPackages(data.loadedPackages);
+      }
+      if (data.type === 'PACKAGE_INSTALLED') {
+        setPackageInstallMessage(`Successfully installed '${pkg}' in Python 3.12 environment.`);
+        setCustomPackageName('');
+        refreshOfflineStatus();
+      } else {
+        setPackageInstallMessage(`Failed to install '${pkg}': ${data.error || 'Unknown error'}`);
+      }
+    });
+
+    worker.postMessage({
+      type: 'INSTALL_PACKAGE',
+      id: msgId,
+      packageName: pkg,
     });
   };
 
-  // Copy helper
-  const copyToClipboard = (text: string, label: string) => {
-    if (!text) return;
-    navigator.clipboard.writeText(text);
-    showToast('success', `${label} copied to clipboard!`);
+  // --- Project & File Operations ---
+  const handleCreateProject = () => {
+    const trimmed = newProjectName.trim();
+    if (!trimmed) return;
+    const tpl = COMPILER_TEMPLATES.find((t) => t.language === newProjectLang) || COMPILER_TEMPLATES[0];
+    const now = Date.now();
+    const newProj: CompilerProject = {
+      id: `proj-${newProjectLang}-${now}`,
+      name: trimmed,
+      language: newProjectLang,
+      activeFileName: tpl.fileName,
+      stdin: tpl.defaultStdin || '',
+      files: [{ name: tpl.fileName, content: tpl.code, updatedAt: now }],
+      notebookCells: newProjectLang === 'python' ? getDefaultNotebookCells() : undefined,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setProjects((prev) => [newProj, ...prev]);
+    setActiveProjectIdState(newProj.id);
+    setNewProjectName('');
+    setIsCreatingProject(false);
   };
 
-  // CodeMirror language extension with auto bracket closing, VS Code-style ghost text & IntelliSense autocomplete
-  const getLanguageExtension = () => {
-    const langExt = language === 'python' ? python() : cpp();
-    return [
-      langExt,
-      closeBrackets(),
-      keymap.of(closeBracketsKeymap),
-      ghostTextExtension(language),
-      intelliSenseExtension(language),
-    ];
+  const handleDeleteProject = (projId: string) => {
+    if (projects.length <= 1) return;
+    const remaining = projects.filter((p) => p.id !== projId);
+    setProjects(remaining);
+    if (activeProjectId === projId) {
+      setActiveProjectIdState(remaining[0].id);
+    }
+    setConfirmDeleteProjectId(null);
   };
+
+  const handleCreateNewFile = () => {
+    const rawName = newFileName.trim();
+    if (!rawName) return;
+    const defaultExt = language === 'python' ? '.py' : language === 'cpp' ? '.cpp' : '.c';
+    const finalName = rawName.includes('.') ? rawName : `${rawName}${defaultExt}`;
+
+    updateActiveProject((proj) => {
+      if (proj.files.some((f) => f.name === finalName)) {
+        return { ...proj, activeFileName: finalName };
+      }
+      return {
+        ...proj,
+        activeFileName: finalName,
+        files: [
+          ...proj.files,
+          {
+            name: finalName,
+            content: finalName.endsWith('.py')
+              ? `# ${finalName}\n`
+              : finalName.endsWith('.cpp') || finalName.endsWith('.c')
+              ? `// ${finalName}\n`
+              : '',
+            updatedAt: Date.now(),
+          },
+        ],
+      };
+    });
+    setNewFileName('');
+    setIsCreatingFile(false);
+  };
+
+  const handleDeleteFile = (fileName: string) => {
+    if (activeProject.files.length <= 1) return;
+    updateActiveProject((proj) => {
+      const nextFiles = proj.files.filter((f) => f.name !== fileName);
+      return {
+        ...proj,
+        files: nextFiles,
+        activeFileName:
+          proj.activeFileName === fileName ? nextFiles[0].name : proj.activeFileName,
+      };
+    });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    for (const file of Array.from(fileList)) {
+      if (file.name.endsWith('.ipynb')) {
+        const text = await file.text();
+        try {
+          const cells = parseIpynbToCells(text);
+          updateActiveProject((proj) => ({ ...proj, notebookCells: cells }));
+          setWorkspaceMode('notebook');
+        } catch (err: any) {
+          setStderr(`Invalid .ipynb file: ${err?.message}`);
+        }
+        continue;
+      }
+
+      const isBinary = /\.(xlsx|xls|png|jpg|jpeg|pdf|zip|sqlite|db)$/i.test(file.name);
+      if (isBinary) {
+        const buf = await file.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const b64 = btoa(binary);
+        updateActiveProject((proj) => {
+          const filtered = proj.files.filter((f) => f.name !== file.name);
+          return {
+            ...proj,
+            files: [
+              ...filtered,
+              { name: file.name, content: b64, isBinary: true, size: file.size, updatedAt: Date.now() },
+            ],
+          };
+        });
+      } else {
+        const text = await file.text();
+        updateActiveProject((proj) => {
+          const filtered = proj.files.filter((f) => f.name !== file.name);
+          const isCodeFile = /\.(py|cpp|c|h|hpp)$/i.test(file.name);
+          return {
+            ...proj,
+            activeFileName: isCodeFile ? file.name : proj.activeFileName,
+            files: [
+              ...filtered,
+              { name: file.name, content: text, isBinary: false, size: file.size, updatedAt: Date.now() },
+            ],
+          };
+        });
+      }
+    }
+    e.target.value = '';
+  };
+
+  const handleDownloadFile = (file: ProjectFile) => {
+    let blob: Blob;
+    if (file.isBinary) {
+      const binStr = atob(file.content);
+      const bytes = new Uint8Array(binStr.length);
+      for (let i = 0; i < binStr.length; i++) {
+        bytes[i] = binStr.charCodeAt(i);
+      }
+      blob = new Blob([bytes], { type: 'application/octet-stream' });
+    } else {
+      blob = new Blob([file.content], { type: 'text/plain;charset=utf-8' });
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportProjectZip = async () => {
+    const zipBlob = await exportProjectAsZip(activeProject);
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${activeProject.name.replace(/[^a-zA-Z0-9_-]/g, '_') || 'tooltrack_project'}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportIpynb = () => {
+    const content = exportNotebookToIpynb(notebookCells);
+    const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${activeProject.name.replace(/[^a-zA-Z0-9_-]/g, '_')}.ipynb`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadPlot = (base64Png: string, index: number) => {
+    const a = document.createElement('a');
+    a.href = `data:image/png;base64,${base64Png}`;
+    a.download = `tooltrack_figure_${index + 1}.png`;
+    a.click();
+  };
+
+  const handleDownloadDataFrameCsv = (df: ExtractedDataFrame) => {
+    const blob = new Blob([df.csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${df.name}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const activeDataFrame = dataframes[selectedDfIndex] || dataframes[0] || null;
+  const filteredDfRows = useMemo(() => {
+    if (!activeDataFrame) return [];
+    if (!dfSearchQuery.trim()) return activeDataFrame.previewRows;
+    const q = dfSearchQuery.toLowerCase();
+    return activeDataFrame.previewRows.filter((row) =>
+      Object.values(row).some((val) => String(val ?? '').toLowerCase().includes(q))
+    );
+  }, [activeDataFrame, dfSearchQuery]);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
-      {/* Top Banner: Compiler Header & Connectivity */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-indigo-600 text-white shadow-sm">
-              <FileCode className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                <span>ToolTrack Compiler</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-                  IDE Studio
-                </span>
-              </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Run Python 3 with Pandas, NumPy, Matplotlib & Scikit-learn, plus real C and C++ (GCC 12) with full offline PWA support.
-              </p>
-            </div>
-          </div>
-        </div>
+    <div
+      className={`flex flex-col bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 transition-all duration-200 ${
+        isFullscreen
+          ? 'fixed inset-0 z-50 h-screen w-screen'
+          : 'rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-xl overflow-hidden min-h-[780px]'
+      }`}
+    >
+      {/* Hidden File Inputs */}
+      <input
+        ref={fileUploadInputRef}
+        type="file"
+        multiple
+        accept=".py,.cpp,.c,.h,.hpp,.csv,.xlsx,.xls,.json,.txt,.ipynb"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
+      <input
+        ref={ipynbInputRef}
+        type="file"
+        accept=".ipynb"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
 
-        {/* Connectivity & Offline Runtime Badge */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Online/Offline status */}
-          <div
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${
-              isOnline
-                ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-850 text-emerald-700 dark:text-emerald-300'
-                : 'bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-850 text-amber-700 dark:text-amber-300'
+      {/* TOP IDE COMMAND HEADER */}
+      <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-800">
+        {/* Left: Explorer toggle, Brand, Language Switcher, Mode Toggle */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={() => setShowExplorer((v) => !v)}
+            title="Toggle Workspace Explorer"
+            className={`p-2 rounded-lg border transition-colors ${
+              showExplorer
+                ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/50 dark:border-blue-800 dark:text-blue-400'
+                : 'bg-slate-100 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
             }`}
           >
-            {isOnline ? <Wifi className="w-3.5 h-3.5 text-emerald-500" /> : <WifiOff className="w-3.5 h-3.5 text-amber-500" />}
-            <span>{isOnline ? 'Connected (Online)' : 'Offline Mode (Local WebAssembly)'}</span>
-          </div>
-
-          {/* Enable Offline Mode / Offline Ready Badge */}
-          <button
-            onClick={cacheStatus?.hasCore ? () => setActiveTab('offline') : handleDownloadOfflineBundle}
-            disabled={isDownloadingBundle}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
-              cacheStatus?.hasCore
-                ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
-                : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600 shadow-sm'
-            }`}
-          >
-            {isDownloadingBundle ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                <span>Caching Assets ({downloadProgress?.percent || 0}%)...</span>
-              </>
-            ) : cacheStatus?.hasCore ? (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Offline Ready</span>
-              </>
-            ) : (
-              <>
-                <HardDrive className="w-3.5 h-3.5" />
-                <span>Enable Offline Mode</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Language Switcher Tabs & Quick Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs">
-        {/* Languages: Python 3, C++, C */}
-        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl">
-          {[
-            { id: 'python', label: 'Python 3', badge: 'Data Science' },
-            { id: 'cpp', label: 'C++ 20', badge: 'G++ 12' },
-            { id: 'c', label: 'C 17', badge: 'GCC 12' },
-          ].map((langItem) => (
-            <button
-              key={langItem.id}
-              onClick={() => handleLanguageChange(langItem.id as SupportedLanguage)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                language === langItem.id
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <span>{langItem.label}</span>
-              <span className={`text-[10px] font-mono px-1 rounded ${
-                language === langItem.id ? 'bg-white/20 text-white' : 'text-slate-400'
-              }`}>
-                {langItem.badge}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* Toolbar Controls: Reset to Hello World, Engine Selector & Actions */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Reset to Hello World Button */}
-          <button
-            onClick={handleResetToHelloWorld}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-xs font-bold transition cursor-pointer"
-            title="Reset code to clean, minimal Hello World"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span>Hello World</span>
+            <FolderOpen className="w-4 h-4" />
           </button>
 
-          {/* Engine Selector */}
-          <div className="relative">
-            <select
-              value={preferredEngine}
-              onChange={(e) => setPreferredEngine(e.target.value as any)}
-              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              title="Execution Engine: Auto switches to cloud compiler when online, WebAssembly offline"
-            >
-              <option value="auto">Auto (Best Speed)</option>
-              <option value="server">Cloud Native (GCC / Python 3)</option>
-              <option value="wasm">WebAssembly (Pyodide / WASM)</option>
-            </select>
-          </div>
-
-          {/* Open local file */}
-          <label className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition" title="Open local source file">
-            <Upload className="w-3.5 h-3.5" />
-            <input type="file" accept=".py,.cpp,.c,.h,.hpp,.txt" onChange={handleOpenFile} className="hidden" />
-          </label>
-
-          {/* Download Code */}
-          <button
-            onClick={handleDownloadCode}
-            className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition"
-            title="Download source code"
-          >
-            <Download className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Copy Code */}
-          <button
-            onClick={() => copyToClipboard(currentCode, 'Code')}
-            className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition"
-            title="Copy source code"
-          >
-            <Copy className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Clear Code */}
-          <button
-            onClick={() => updateCode('')}
-            className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 cursor-pointer transition"
-            title="Clear editor"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Font size toggle */}
-          <div className="flex items-center gap-1 border-l border-slate-200 dark:border-slate-700 pl-2">
-            {[12, 14, 16].map((sz) => (
+          {/* Language Selector */}
+          <div className="inline-flex items-center bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/70">
+            {(
+              [
+                { id: 'python', label: 'Python 3.12' },
+                { id: 'cpp', label: 'C++20' },
+                { id: 'c', label: 'C17' },
+              ] as const
+            ).map((langItem) => (
               <button
-                key={sz}
-                onClick={() => setFontSize(sz)}
-                className={`px-2 py-1 rounded text-[11px] font-mono font-bold transition cursor-pointer ${
-                  fontSize === sz
-                    ? 'bg-slate-200 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400'
-                    : 'text-slate-400 hover:text-slate-600'
+                key={langItem.id}
+                onClick={() => handleSelectLanguage(langItem.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  language === langItem.id
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                {sz}px
+                {langItem.label}
               </button>
             ))}
           </div>
 
-          {/* Run button */}
-          <button
-            onClick={handleRunCode}
-            disabled={isExecuting}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md transition cursor-pointer disabled:opacity-50"
-          >
-            {isExecuting ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                <span>{executionStatusText ? (executionStatusText.length > 20 ? executionStatusText.slice(0, 20) + '...' : executionStatusText) : 'Running...'}</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Run (Ctrl+Enter)</span>
-              </>
-            )}
-          </button>
-
-          {/* Stop button */}
-          {isExecuting && (
-            <button
-              onClick={handleStop}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
-              title="Stop execution immediately"
-            >
-              <Square className="w-3.5 h-3.5 fill-current" />
-              <span>Stop</span>
-            </button>
+          {/* Editor vs Notebook Mode Toggle (for Python) */}
+          {language === 'python' && (
+            <div className="inline-flex items-center bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/70">
+              <button
+                onClick={() => setWorkspaceMode('editor')}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  workspaceMode === 'editor'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <Code2 className="w-3.5 h-3.5" />
+                Editor
+              </button>
+              <button
+                onClick={() => setWorkspaceMode('notebook')}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  workspaceMode === 'notebook'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                Notebook
+              </button>
+            </div>
           )}
-        </div>
-      </div>
 
-      {/* Main Studio Grid: Editor (Left 7 Cols) + I/O & Panels (Right 5 Cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: CodeMirror Editor (7 cols) */}
-        <div className="lg:col-span-7 space-y-3">
-          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden flex flex-col min-h-[560px]">
-            {/* Editor Header Bar */}
-            <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 text-xs font-mono">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
-                <span className="text-slate-600 dark:text-slate-400 font-bold ml-2">
-                  main.{language === 'python' ? 'py' : language === 'cpp' ? 'cpp' : 'c'}
-                </span>
-              </div>
+          {/* Online / Offline & Runtime Badge */}
+          <div className="hidden md:flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${
+                isOnline
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60'
+                  : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60'
+              }`}
+            >
+              {isOnline ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
+              {isOnline ? 'Online' : 'Offline Mode'}
+            </span>
 
-              <div className="text-[11px] text-slate-400">
-                {currentCode.split('\n').length} lines · {currentCode.length} chars
-              </div>
-            </div>
-
-            {/* CodeMirror Surface */}
-            <div className="flex-1 overflow-auto text-sm" style={{ fontSize: `${fontSize}px` }}>
-              <CodeMirror
-                value={currentCode}
-                height="510px"
-                theme={themeMode === 'dark' ? oneDark : 'light'}
-                extensions={getLanguageExtension()}
-                onChange={(value) => updateCode(value)}
-                basicSetup={{
-                  lineNumbers: true,
-                  highlightActiveLineGutter: true,
-                  highlightSpecialChars: true,
-                  history: true,
-                  foldGutter: true,
-                  drawSelection: true,
-                  dropCursor: true,
-                  allowMultipleSelections: true,
-                  indentOnInput: true,
-                  bracketMatching: true,
-                  closeBrackets: true,
-                  autocompletion: true,
-                  rectangularSelection: true,
-                  crosshairCursor: true,
-                  highlightActiveLine: true,
-                  highlightSelectionMatches: true,
-                  closeBracketsKeymap: true,
-                  searchKeymap: true,
-                  foldKeymap: true,
-                  completionKeymap: true,
-                  lintKeymap: true,
+            {cacheStatus?.isDataScienceReady ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800/60">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Offline Ready
+              </span>
+            ) : (
+              <button
+                onClick={() => {
+                  setActiveTab('packages');
+                  handleDownloadOfflineBundle();
                 }}
-              />
-            </div>
+                disabled={isDownloadingOffline}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+              >
+                <HardDriveDownload className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                {isDownloadingOffline
+                  ? `Caching ${downloadProgress?.percent || 0}%...`
+                  : 'Enable Offline Mode'}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Right Column: Multi-tab Output & Tools Studio (5 cols) */}
-        <div className="lg:col-span-5 space-y-3">
-          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden flex flex-col min-h-[560px]">
-            {/* Tabs Header */}
-            <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 px-2 pt-2 gap-1 overflow-x-auto text-xs">
-              <button
-                onClick={() => setActiveTab('console')}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl font-bold transition cursor-pointer whitespace-nowrap ${
-                  activeTab === 'console'
-                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                <Terminal className="w-3.5 h-3.5" />
-                <span>Output Console</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('stdin')}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl font-bold transition cursor-pointer whitespace-nowrap ${
-                  activeTab === 'stdin'
-                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                <Sliders className="w-3.5 h-3.5" />
-                <span>Input (stdin)</span>
-                {stdinText.trim() && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />}
-              </button>
-
-              {language === 'python' && (
-                <>
-                  <button
-                    onClick={() => setActiveTab('plots')}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl font-bold transition cursor-pointer whitespace-nowrap ${
-                      activeTab === 'plots'
-                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                    }`}
-                  >
-                    <BarChart3 className="w-3.5 h-3.5" />
-                    <span>Plots ({generatedPlots.length})</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab('datasets')}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl font-bold transition cursor-pointer whitespace-nowrap ${
-                      activeTab === 'datasets'
-                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                    }`}
-                  >
-                    <Database className="w-3.5 h-3.5" />
-                    <span>Datasets ({virtualFiles.length})</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab('packages')}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl font-bold transition cursor-pointer whitespace-nowrap ${
-                      activeTab === 'packages'
-                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                    }`}
-                  >
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>Libraries</span>
-                  </button>
-                </>
+        {/* Right: Primary Run / Stop / Format / Settings / Fullscreen Controls */}
+        <div className="flex items-center gap-2">
+          {workspaceMode === 'editor' ? (
+            <>
+              {isRunning ? (
+                <button
+                  onClick={handleStopExecution}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white shadow-sm transition-colors"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" />
+                  Stop
+                </button>
+              ) : (
+                <button
+                  onClick={handleRunCode}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  Run Code
+                  <span className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] bg-blue-700/80 rounded text-blue-100 font-mono">
+                    Ctrl+Enter
+                  </span>
+                </button>
               )}
-
+            </>
+          ) : (
+            <div className="flex items-center gap-1.5">
               <button
-                onClick={() => setActiveTab('offline')}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl font-bold transition cursor-pointer whitespace-nowrap ${
-                  activeTab === 'offline'
-                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
+                onClick={handleRunAllNotebookCells}
+                disabled={isRunning}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white shadow-sm transition-all"
               >
-                <HardDrive className="w-3.5 h-3.5" />
-                <span>Offline PWA</span>
+                <Play className="w-3.5 h-3.5 fill-current" />
+                Run All Cells
+              </button>
+              <button
+                onClick={handleResetKernel}
+                className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                title="Reset Python Kernel Globals"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset Kernel
               </button>
             </div>
+          )}
 
-            {/* Tab 1: Terminal Output Console */}
-            {activeTab === 'console' && (
-              <div className="flex-1 flex flex-col p-4 space-y-3">
-                {/* Console Actions Bar */}
-                <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center gap-2">
-                    {isExecuting ? (
-                      <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1.5 animate-pulse">
-                        <div className="w-3 h-3 border-2 border-indigo-500/40 border-t-indigo-500 rounded-full animate-spin" />
-                        <span>{executionStatusText || 'Running...'}</span>
-                      </span>
-                    ) : executionState === 'completed' && executionStats ? (
-                      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Finished in {executionStats.durationMs}ms</span>
-                        <span className="text-slate-400 font-normal">
-                          (Exit {executionStats.exitCode})
-                        </span>
-                      </span>
-                    ) : executionState === 'failed' ? (
-                      <span className="font-mono text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        <span>Execution Failed</span>
-                        {executionStats?.durationMs !== undefined && (
-                          <span className="text-slate-400 font-normal">({executionStats.durationMs}ms)</span>
+          {workspaceMode === 'editor' && (
+            <button
+              onClick={handleFormatCode}
+              title="Format Code"
+              className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+            >
+              <Wand2 className="w-4 h-4" />
+            </button>
+          )}
+
+          <button
+            onClick={handleExportProjectZip}
+            title="Export Project as ZIP"
+            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+          >
+            <FileArchive className="w-4 h-4" />
+          </button>
+
+          {/* Editor Settings Popover Button */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSettingsMenu((v) => !v)}
+              title="IDE Settings & Engine Preferences"
+              className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+            >
+              <Sliders className="w-4 h-4" />
+            </button>
+            {showSettingsMenu && (
+              <div className="absolute right-0 mt-2 w-72 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-4 z-50 space-y-3 text-xs">
+                <div className="flex items-center justify-between font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <span>IDE & Runtime Settings</span>
+                  <button
+                    onClick={() => setShowSettingsMenu(false)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 dark:text-slate-400">Editor Theme</span>
+                  <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+                    <button
+                      onClick={() => setEditorTheme('dark')}
+                      className={`px-2.5 py-1 rounded-md ${
+                        editorTheme === 'dark' ? 'bg-blue-600 text-white' : 'text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      Dark
+                    </button>
+                    <button
+                      onClick={() => setEditorTheme('light')}
+                      className={`px-2.5 py-1 rounded-md ${
+                        editorTheme === 'light' ? 'bg-blue-600 text-white' : 'text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      Light
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 dark:text-slate-400">Font Size</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setFontSize((s) => Math.max(12, s - 1))}
+                      className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800"
+                    >
+                      -
+                    </button>
+                    <span className="font-mono tabular-nums w-10 text-center">{fontSize}px</span>
+                    <button
+                      onClick={() => setFontSize((s) => Math.min(20, s + 1))}
+                      className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 dark:text-slate-400">Tab Indentation</span>
+                  <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+                    {[2, 4].map((sz) => (
+                      <button
+                        key={sz}
+                        onClick={() => setTabSize(sz)}
+                        className={`px-2.5 py-1 rounded-md font-mono tabular-nums ${
+                          tabSize === sz ? 'bg-blue-600 text-white' : 'text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        {sz} spaces
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 dark:text-slate-400">Word Wrap</span>
+                  <button
+                    onClick={() => setWordWrap((w) => !w)}
+                    className={`px-2.5 py-1 rounded-md font-medium ${
+                      wordWrap
+                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400'
+                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                    }`}
+                  >
+                    {wordWrap ? 'Enabled' : 'Disabled'}
+                  </button>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <label className="block text-slate-600 dark:text-slate-400 mb-1.5">
+                    Execution Engine Priority
+                  </label>
+                  <select
+                    value={preferredEngine}
+                    onChange={(e) => setPreferredEngine(e.target.value as any)}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="auto">Auto (Pyodide 3.12 + GCC Sandbox / Offline AST)</option>
+                    <option value="wasm">Local Browser Only (100% Offline WebAssembly / AST)</option>
+                    <option value="cloud">Server Sandbox First</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => setShowShortcutsModal(true)}
+            title="Keyboard Shortcuts"
+            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+          >
+            <Keyboard className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => setIsFullscreen((f) => !f)}
+            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen IDE'}
+            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
+        </div>
+      </header>
+
+      {/* MAIN IDE BODY: Left Explorer + Center Editor/Notebook + Right Output Studio */}
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+        {/* 1. LEFT WORKSPACE EXPLORER SIDEBAR */}
+        {showExplorer && (
+          <aside className="w-full lg:w-64 shrink-0 bg-slate-50/90 dark:bg-[#0F172A] border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 flex flex-col max-h-72 lg:max-h-none overflow-y-auto">
+            {/* Active Project Selector & Actions */}
+            <div className="p-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Projects
+                </span>
+                <button
+                  onClick={() => {
+                    setNewProjectLang(language);
+                    setIsCreatingProject((v) => !v);
+                  }}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  <FolderPlus className="w-3.5 h-3.5" />
+                  New
+                </button>
+              </div>
+
+              {isCreatingProject && (
+                <div className="mb-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2">
+                  <input
+                    type="text"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="Project name..."
+                    className="w-full px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
+                  />
+                  <div className="flex items-center justify-between gap-1">
+                    <select
+                      value={newProjectLang}
+                      onChange={(e) => setNewProjectLang(e.target.value as CompilerLanguage)}
+                      className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                    >
+                      <option value="python">Python 3.12</option>
+                      <option value="cpp">C++20</option>
+                      <option value="c">C17</option>
+                    </select>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => setIsCreatingProject(false)}
+                        className="px-2 py-1 text-xs text-slate-500"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleCreateProject}
+                        className="px-2.5 py-1 text-xs font-semibold bg-blue-600 text-white rounded"
+                      >
+                        Create
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                {projects.map((proj) => {
+                  const isCurrent = proj.id === activeProject.id;
+                  return (
+                    <div
+                      key={proj.id}
+                      className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
+                        isCurrent
+                          ? 'bg-blue-600/10 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300 font-semibold'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
+                      }`}
+                      onClick={() => setActiveProjectIdState(proj.id)}
+                    >
+                      {renamingProjectId === proj.id ? (
+                        <input
+                          type="text"
+                          value={renameProjectText}
+                          onChange={(e) => setRenameProjectText(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              setProjects((prev) =>
+                                prev.map((p) =>
+                                  p.id === proj.id
+                                    ? { ...p, name: renameProjectText.trim() || p.name }
+                                    : p
+                                )
+                              );
+                              setRenamingProjectId(null);
+                            }
+                          }}
+                          onBlur={() => setRenamingProjectId(null)}
+                          autoFocus
+                          className="w-full px-1.5 py-0.5 text-xs bg-white dark:bg-slate-900 border border-blue-500 rounded"
+                        />
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="uppercase text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                              {proj.language}
+                            </span>
+                            <span className="truncate">{proj.name}</span>
+                          </div>
+                          <div
+                            className="hidden group-hover:flex items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              onClick={() => {
+                                setRenamingProjectId(proj.id);
+                                setRenameProjectText(proj.name);
+                              }}
+                              title="Rename Project"
+                              className="p-0.5 hover:text-blue-600"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                            </button>
+                            {projects.length > 1 && (
+                              <button
+                                onClick={() => setConfirmDeleteProjectId(proj.id)}
+                                title="Delete Project"
+                                className="p-0.5 hover:text-red-600"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {confirmDeleteProjectId && (
+                <div className="mt-2 p-2 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-xs">
+                  <p className="text-red-700 dark:text-red-300 mb-1.5">Delete this project?</p>
+                  <div className="flex justify-end gap-1.5">
+                    <button
+                      onClick={() => setConfirmDeleteProjectId(null)}
+                      className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleDeleteProject(confirmDeleteProjectId)}
+                      className="px-2 py-0.5 rounded bg-red-600 text-white font-semibold"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Project Files & Virtual FS Datasets */}
+            <div className="p-3 border-b border-slate-200 dark:border-slate-800 flex-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Workspace Files
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setIsCreatingFile((v) => !v)}
+                    title="New File"
+                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+                  >
+                    <FilePlus className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => fileUploadInputRef.current?.click()}
+                    title="Upload Code or Dataset (.csv, .xlsx, .json, .py, .cpp)"
+                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {isCreatingFile && (
+                <div className="mb-2 flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={newFileName}
+                    onChange={(e) => setNewFileName(e.target.value)}
+                    placeholder={language === 'python' ? 'module.py or data.csv' : 'utils.h'}
+                    className="w-full px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    onKeyDown={(e) => e.key === 'Enter' && handleCreateNewFile()}
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleCreateNewFile}
+                    className="px-2 py-1 text-xs font-semibold bg-blue-600 text-white rounded"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                {activeProject.files.map((file) => {
+                  const isActive = file.name === activeFileName && workspaceMode === 'editor';
+                  const isDataset = /\.(csv|xlsx|xls|json|txt)$/i.test(file.name);
+                  return (
+                    <div
+                      key={file.name}
+                      onClick={() => {
+                        if (!file.isBinary) {
+                          updateActiveProject((p) => ({ ...p, activeFileName: file.name }));
+                          setWorkspaceMode('editor');
+                        }
+                      }}
+                      className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
+                        isActive
+                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 font-medium'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        {isDataset ? (
+                          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        ) : (
+                          <FileCode className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                         )}
+                        <span className="truncate font-mono">{file.name}</span>
+                      </div>
+                      <div
+                        className="hidden group-hover:flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={() => handleDownloadFile(file)}
+                          title="Download File"
+                          className="p-0.5 hover:text-blue-600"
+                        >
+                          <Download className="w-3 h-3" />
+                        </button>
+                        {activeProject.files.length > 1 && (
+                          <button
+                            onClick={() => handleDeleteFile(file.name)}
+                            title="Delete File"
+                            className="p-0.5 hover:text-red-600"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Starter Templates Section */}
+            <div className="p-3">
+              <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
+                Starter Templates
+              </span>
+              <div className="space-y-1.5">
+                {COMPILER_TEMPLATES.filter((t) => t.language === language).map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    onClick={() => {
+                      updateActiveProject((proj) => ({
+                        ...proj,
+                        activeFileName: tpl.fileName,
+                        stdin: tpl.defaultStdin ?? proj.stdin,
+                        files: proj.files.some((f) => f.name === tpl.fileName)
+                          ? proj.files.map((f) =>
+                              f.name === tpl.fileName
+                                ? { ...f, content: tpl.code, updatedAt: Date.now() }
+                                : f
+                            )
+                          : [
+                              ...proj.files,
+                              { name: tpl.fileName, content: tpl.code, updatedAt: Date.now() },
+                            ],
+                      }));
+                      setWorkspaceMode('editor');
+                    }}
+                    className="w-full text-left p-2 rounded-lg bg-white dark:bg-slate-900/70 hover:bg-blue-50/60 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 transition-colors"
+                  >
+                    <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      {tpl.name}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                      {tpl.description}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+        )}
+
+        {/* 2. CENTER CODE EDITOR OR NOTEBOOK WORKSPACE */}
+        <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0D1117] border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800">
+          {workspaceMode === 'editor' ? (
+            <>
+              {/* File Tabs & Editor Action Sub-bar */}
+              <div className="flex items-center justify-between px-2 bg-slate-100/80 dark:bg-[#161B22] border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+                <div className="flex items-center">
+                  {activeProject.files
+                    .filter((f) => !f.isBinary)
+                    .map((file) => {
+                      const active = file.name === activeFileName;
+                      return (
+                        <button
+                          key={file.name}
+                          onClick={() =>
+                            updateActiveProject((p) => ({ ...p, activeFileName: file.name }))
+                          }
+                          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-mono border-r border-slate-200 dark:border-slate-800 transition-colors ${
+                            active
+                              ? 'bg-white dark:bg-[#0D1117] text-blue-600 dark:text-blue-400 font-semibold border-t-2 border-t-blue-600'
+                              : 'text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-800/40'
+                          }`}
+                        >
+                          <FileCode className="w-3.5 h-3.5" />
+                          <span>{file.name}</span>
+                        </button>
+                      );
+                    })}
+                </div>
+
+                {/* Quick Search / Go to Line Bar */}
+                <div className="flex items-center gap-1.5 py-1 pr-2">
+                  {goToLineOpen ? (
+                    <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-blue-500 rounded-md px-2 py-0.5">
+                      <span className="text-[11px] text-slate-400">Line:</span>
+                      <input
+                        type="number"
+                        value={goToLineInput}
+                        onChange={(e) => setGoToLineInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const num = parseInt(goToLineInput, 10);
+                            if (!isNaN(num)) handleJumpToLine(num);
+                            setGoToLineOpen(false);
+                            setGoToLineInput('');
+                          } else if (e.key === 'Escape') {
+                            setGoToLineOpen(false);
+                          }
+                        }}
+                        className="w-14 text-xs font-mono bg-transparent focus:outline-none tabular-nums"
+                        autoFocus
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setGoToLineOpen(true)}
+                      className="px-2 py-1 rounded text-[11px] font-mono tabular-nums text-slate-500 hover:bg-slate-200/70 dark:hover:bg-slate-800"
+                      title="Go to Line"
+                    >
+                      Ln {cursorPos.line}, Col {cursorPos.col}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      if (editorViewRef.current) {
+                        openSearchPanel(editorViewRef.current);
+                      }
+                    }}
+                    title="Find & Replace (Ctrl+F)"
+                    className="p-1 rounded text-slate-500 hover:bg-slate-200/70 dark:hover:bg-slate-800"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Error Line Diagnostic Banner (if active) */}
+              {errorLine && (
+                <div className="flex items-center justify-between px-3.5 py-1.5 bg-red-50 dark:bg-red-950/50 border-b border-red-200 dark:border-red-900/60 text-xs text-red-700 dark:text-red-300">
+                  <div className="flex items-center gap-2 truncate">
+                    <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+                    <span className="font-medium truncate">
+                      Diagnostic reported on Line {errorLine}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleJumpToLine(errorLine)}
+                    className="px-2.5 py-0.5 rounded bg-red-600 text-white font-semibold text-[11px] shrink-0 hover:bg-red-700"
+                  >
+                    Jump to Line {errorLine}
+                  </button>
+                </div>
+              )}
+
+              {/* CodeMirror 6 Mount Container */}
+              <div
+                ref={editorContainerRef}
+                className="flex-1 min-h-[380px] overflow-hidden relative"
+              />
+
+              {/* Editor Status Footer */}
+              <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 dark:bg-[#161B22] border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        runtimeState === 'ready' || runtimeState === 'completed'
+                          ? 'bg-emerald-500'
+                          : runtimeState === 'running'
+                          ? 'bg-blue-500 animate-pulse'
+                          : runtimeState === 'failed'
+                          ? 'bg-red-500'
+                          : 'bg-amber-500'
+                      }`}
+                    />
+                    {language === 'python'
+                      ? runtimeStatusText
+                      : language === 'cpp'
+                      ? 'GCC C++20 / AST Ready'
+                      : 'GCC C17 / AST Ready'}
+                  </span>
+                  <span className="hidden sm:inline">Tab: Accept Ghost Text</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span>UTF-8</span>
+                  <span>Spaces: {tabSize}</span>
+                  <span>
+                    Ln {cursorPos.line}, Col {cursorPos.col}
+                  </span>
+                </div>
+              </div>
+            </>
+          ) : (
+            /* COLAB-STYLE PYTHON NOTEBOOK WORKSPACE */
+            <div className="flex-1 flex flex-col min-h-[420px] overflow-y-auto p-4 space-y-4 bg-slate-50/50 dark:bg-[#0B0F17]">
+              {/* Notebook Toolbar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-[#161B22] border border-slate-200 dark:border-slate-800 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      updateNotebookCells((cells) => [
+                        ...cells,
+                        {
+                          id: `cell-code-${Date.now()}`,
+                          type: 'code',
+                          content: '# New Python cell\n',
+                          status: 'idle',
+                        },
+                      ])
+                    }
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Code Cell
+                  </button>
+                  <button
+                    onClick={() =>
+                      updateNotebookCells((cells) => [
+                        ...cells,
+                        {
+                          id: `cell-md-${Date.now()}`,
+                          type: 'markdown',
+                          content: '### Documentation Note\nDescribe your analysis step here.',
+                        },
+                      ])
+                    }
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Markdown Cell
+                  </button>
+                  <button
+                    onClick={() =>
+                      updateNotebookCells((cells) =>
+                        cells.map((c) => ({
+                          ...c,
+                          stdout: '',
+                          stderr: '',
+                          plots: [],
+                          dataframes: [],
+                          status: 'idle',
+                          executionCount: null,
+                        }))
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    Clear Outputs
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => ipynbInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    Import .ipynb
+                  </button>
+                  <button
+                    onClick={handleExportIpynb}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export .ipynb
+                  </button>
+                </div>
+              </div>
+
+              {/* Notebook Cells List */}
+              {notebookCells.map((cell, idx) => (
+                <div
+                  key={cell.id}
+                  className="rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden"
+                >
+                  {/* Cell Header */}
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-[#161B22] border-b border-slate-200 dark:border-slate-800 text-xs">
+                    <div className="flex items-center gap-2">
+                      {cell.type === 'code' ? (
+                        <button
+                          onClick={() => handleRunNotebookCell(cell.id)}
+                          disabled={isRunning}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold"
+                        >
+                          <Play className="w-3 h-3 fill-current" />
+                          Run
+                        </button>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">
+                          Markdown
+                        </span>
+                      )}
+                      {cell.type === 'code' && (
+                        <span className="font-mono text-slate-400 tabular-nums">
+                          [{cell.status === 'running' ? '*' : cell.executionCount || ' '}]
+                        </span>
+                      )}
+                      {cell.executionTimeMs !== undefined && (
+                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">
+                          {cell.executionTimeMs}ms
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        disabled={idx === 0}
+                        onClick={() =>
+                          updateNotebookCells((cells) => {
+                            const copy = [...cells];
+                            [copy[idx - 1], copy[idx]] = [copy[idx], copy[idx - 1]];
+                            return copy;
+                          })
+                        }
+                        className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        disabled={idx === notebookCells.length - 1}
+                        onClick={() =>
+                          updateNotebookCells((cells) => {
+                            const copy = [...cells];
+                            [copy[idx], copy[idx + 1]] = [copy[idx + 1], copy[idx]];
+                            return copy;
+                          })
+                        }
+                        className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                      {notebookCells.length > 1 && (
+                        <button
+                          onClick={() =>
+                            updateNotebookCells((cells) => cells.filter((c) => c.id !== cell.id))
+                          }
+                          className="p-1 text-slate-400 hover:text-red-600"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Cell Content Editor */}
+                  <div className="p-3">
+                    <textarea
+                      value={cell.content}
+                      onChange={(e) =>
+                        updateNotebookCells((cells) =>
+                          cells.map((c) =>
+                            c.id === cell.id ? { ...c, content: e.target.value } : c
+                          )
+                        )
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.shiftKey && cell.type === 'code') {
+                          e.preventDefault();
+                          handleRunNotebookCell(cell.id);
+                        }
+                      }}
+                      rows={Math.max(3, cell.content.split('\n').length)}
+                      className="w-full font-mono text-xs bg-slate-50 dark:bg-[#0D1117] text-slate-900 dark:text-slate-100 p-3 rounded-lg border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-blue-500 resize-y"
+                      placeholder={
+                        cell.type === 'code'
+                          ? 'Write Python code... (Press Shift+Enter to run cell)'
+                          : 'Write Markdown notes...'
+                      }
+                    />
+                  </div>
+
+                  {/* Cell Execution Output */}
+                  {cell.type === 'code' &&
+                    (cell.stdout ||
+                      cell.stderr ||
+                      (cell.plots && cell.plots.length > 0) ||
+                      (cell.dataframes && cell.dataframes.length > 0)) && (
+                      <div className="px-4 py-3 bg-slate-950 text-slate-100 border-t border-slate-800 space-y-3 text-xs font-mono">
+                        {cell.stdout && (
+                          <pre className="whitespace-pre-wrap text-emerald-300 leading-relaxed">
+                            {cell.stdout}
+                          </pre>
+                        )}
+                        {cell.stderr && (
+                          <pre className="whitespace-pre-wrap text-red-400 leading-relaxed">
+                            {cell.stderr}
+                          </pre>
+                        )}
+                        {cell.plots && cell.plots.length > 0 && (
+                          <div className="grid grid-cols-1 gap-3 pt-2">
+                            {cell.plots.map((b64, pIdx) => (
+                              <div
+                                key={pIdx}
+                                className="bg-white p-3 rounded-lg inline-block max-w-full"
+                              >
+                                <img
+                                  src={`data:image/png;base64,${b64}`}
+                                  alt={`Cell Plot ${pIdx + 1}`}
+                                  className="max-h-80 w-auto object-contain mx-auto"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 3. RIGHT / BOTTOM OUTPUT, PLOTS, DATAFRAMES & PACKAGES STUDIO */}
+        <div className="w-full lg:w-[44%] xl:w-[45%] shrink-0 flex flex-col bg-white dark:bg-[#0F172A] min-h-[360px]">
+          {/* Studio Navigation Tabs */}
+          <div className="flex items-center justify-between px-2 bg-slate-100/90 dark:bg-[#161B22] border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+            <div className="flex items-center">
+              {(
+                [
+                  { id: 'console', label: 'Console', icon: Terminal, badge: null },
+                  {
+                    id: 'stdin',
+                    label: 'Input (stdin)',
+                    icon: Code2,
+                    badge: stdin.trim() ? stdin.trim().split('\n').length : null,
+                  },
+                  {
+                    id: 'plots',
+                    label: 'Plots',
+                    icon: ImageIcon,
+                    badge: plots.length > 0 ? plots.length : null,
+                  },
+                  {
+                    id: 'dataframes',
+                    label: 'DataFrames',
+                    icon: TableIcon,
+                    badge: dataframes.length > 0 ? dataframes.length : null,
+                  },
+                  {
+                    id: 'problems',
+                    label: 'Problems',
+                    icon: AlertCircle,
+                    badge: diagnostics.length > 0 ? diagnostics.length : null,
+                  },
+                  {
+                    id: 'packages',
+                    label: 'Offline & Packages',
+                    icon: Package,
+                    badge: null,
+                  },
+                ] as const
+              ).map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      isActive
+                        ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-white dark:bg-[#0F172A]'
+                        : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{tab.label}</span>
+                    {tab.badge !== null && (
+                      <span
+                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono tabular-nums ${
+                          tab.id === 'problems'
+                            ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+                            : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                        }`}
+                      >
+                        {tab.badge}
                       </span>
-                    ) : executionState === 'timed_out' ? (
-                      <span className="font-mono text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>Timed Out</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Studio Tab Content Area */}
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            {/* TAB 1: CONSOLE OUTPUT */}
+            {activeTab === 'console' && (
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* Console Status Header */}
+                <div className="flex items-center justify-between px-3.5 py-2 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-xs">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {exitCode !== null && (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono text-[11px] tabular-nums ${
+                          exitCode === 0
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
+                            : 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-400'
+                        }`}
+                      >
+                        {exitCode === 0 ? (
+                          <CheckCircle2 className="w-3 h-3" />
+                        ) : (
+                          <AlertCircle className="w-3 h-3" />
+                        )}
+                        Exit: {exitCode}
                       </span>
-                    ) : executionState === 'stopped' ? (
-                      <span className="font-mono text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
-                        <Square className="w-3 h-3 fill-current" />
-                        <span>Stopped</span>
+                    )}
+                    {execTimeMs !== null && (
+                      <span className="inline-flex items-center gap-1 text-slate-500 font-mono text-[11px] tabular-nums">
+                        <Clock className="w-3 h-3" />
+                        {execTimeMs} ms
                       </span>
-                    ) : (
-                      <span className="text-slate-400 font-medium">Console Output</span>
+                    )}
+                    {compilerUsed && (
+                      <span className="text-[11px] text-slate-400 truncate max-w-[200px]">
+                        {compilerUsed}
+                      </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => copyToClipboard(stdoutText + '\n' + stderrText, 'Output')}
-                      className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
-                      title="Copy console output"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${stdout}\n${stderr}`.trim());
+                        setCopiedOutput(true);
+                        setTimeout(() => setCopiedOutput(false), 1500);
+                      }}
+                      className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500"
+                      title="Copy Console Output"
                     >
-                      <Copy className="w-3 h-3" />
+                      {copiedOutput ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
                     </button>
                     <button
                       onClick={() => {
-                        setStdoutText('');
-                        setStderrText('');
-                        setExecutionStats(null);
-                        setExecutionState('idle');
+                        setStdout('');
+                        setStderr('');
+                        setExitCode(null);
+                        setExecTimeMs(null);
                       }}
-                      className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
-                      title="Clear console"
+                      className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500"
+                      title="Clear Console"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
 
-                {/* Console Text Area */}
-                <div className="flex-1 rounded-xl bg-slate-950 p-3.5 font-mono text-xs text-slate-100 overflow-auto min-h-[420px] max-h-[460px] whitespace-pre-wrap select-text leading-relaxed flex flex-col">
-                  {isExecuting && (
-                    <div className="flex items-center gap-2.5 p-2.5 mb-3 rounded-lg bg-indigo-950/90 border border-indigo-500/40 text-indigo-200 font-mono text-xs">
-                      <div className="w-3.5 h-3.5 border-2 border-indigo-400/40 border-t-indigo-400 rounded-full animate-spin flex-shrink-0" />
-                      <div>
-                        <span className="font-bold text-indigo-300">{executionStatusText || 'Executing program...'}</span>
-                      </div>
+                {/* Console Body */}
+                <div className="flex-1 p-4 overflow-y-auto font-mono text-xs bg-[#0B0F17] text-slate-100 space-y-3">
+                  {isRunning && (
+                    <div className="flex items-center gap-2.5 text-blue-400 py-2">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>
+                        {language === 'python'
+                          ? runtimeStatusText || 'Executing Python 3.12 code...'
+                          : `Compiling & executing ${language.toUpperCase()}...`}
+                      </span>
                     </div>
                   )}
 
-                  {stdoutText && <span className="text-emerald-300">{stdoutText}</span>}
-                  {stderrText && <span className="text-rose-400 font-semibold">{stderrText}</span>}
-                  {!stdoutText && !stderrText && !isExecuting && (
-                    <span className="text-slate-500 italic">
-                      Click 'Run' or press Ctrl+Enter to execute program...
-                    </span>
+                  {!isRunning && !stdout && !stderr && (
+                    <div className="h-full flex flex-col items-center justify-center text-center py-12 text-slate-500">
+                      <Terminal className="w-8 h-8 mb-2 opacity-40" />
+                      <p className="text-xs font-sans">
+                        Click <strong className="text-slate-300">Run Code</strong> or press{' '}
+                        <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]">
+                          Ctrl+Enter
+                        </kbd>{' '}
+                        to execute.
+                      </p>
+                      {/\b(input\s*\(|cin\s*>>|scanf\s*\()/.test(code) && (
+                        <button
+                          onClick={() => setActiveTab('stdin')}
+                          className="mt-3 px-3 py-1.5 rounded-lg bg-blue-950/60 border border-blue-800/70 text-blue-300 text-[11px] font-sans hover:bg-blue-900/60"
+                        >
+                          Program uses standard input — Configure Stdin ({stdin.trim() ? 'Provided' : 'Empty'})
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {stdout && (
+                    <pre className="whitespace-pre-wrap break-words leading-relaxed text-slate-100">
+                      {stdout}
+                    </pre>
+                  )}
+
+                  {stderr && (
+                    <pre className="whitespace-pre-wrap break-words leading-relaxed text-red-400 bg-red-950/30 border border-red-900/50 rounded-lg p-3">
+                      {stderr}
+                    </pre>
+                  )}
+
+                  {plots.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800">
+                      <button
+                        onClick={() => setActiveTab('plots')}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/40 text-blue-300 text-xs font-sans hover:bg-blue-600/30"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        View {plots.length} Generated Matplotlib {plots.length === 1 ? 'Figure' : 'Figures'}
+                      </button>
+                    </div>
+                  )}
+
+                  {dataframes.length > 0 && (
+                    <div className="pt-1">
+                      <button
+                        onClick={() => setActiveTab('dataframes')}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 text-xs font-sans hover:bg-emerald-600/30"
+                      >
+                        <TableIcon className="w-3.5 h-3.5" />
+                        Inspect {dataframes.length} Pandas {dataframes.length === 1 ? 'DataFrame' : 'DataFrames'} in Table Viewer
+                      </button>
+                    </div>
                   )}
                 </div>
-
-                {executionStats?.compilerUsed && (
-                  <div className="text-[11px] text-slate-400 font-mono text-right">
-                    Engine: {executionStats.compilerUsed}
-                  </div>
-                )}
               </div>
             )}
 
-            {/* Tab 2: Standard Input (stdin) */}
+            {/* TAB 2: STANDARD INPUT (STDIN) */}
             {activeTab === 'stdin' && (
-              <div className="flex-1 flex flex-col p-4 space-y-3">
-                <div className="space-y-1">
-                  <h3 className="font-bold text-xs text-slate-900 dark:text-white">
-                    Standard Input (stdin)
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Values supplied to Python <code className="font-mono">input()</code>, C <code className="font-mono">scanf()</code>, or C++ <code className="font-mono">cin</code>. Multiple lines supported.
-                  </p>
+              <div className="flex-1 flex flex-col p-4 space-y-3 overflow-y-auto">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      Standard Input Stream (stdin)
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Enter each input value on a new line for Python <code>input()</code>, C++{' '}
+                      <code>cin</code>, or C <code>scanf()</code>.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setStdin('')}
+                    className="px-2.5 py-1 rounded text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    Clear
+                  </button>
                 </div>
 
                 <textarea
-                  value={stdinText}
-                  onChange={(e) => setStdinText(e.target.value)}
-                  placeholder="Enter input values here..."
-                  className="flex-1 w-full rounded-xl p-3.5 font-mono text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none min-h-[380px]"
+                  value={stdin}
+                  onChange={(e) => setStdin(e.target.value)}
+                  placeholder={'Line 1 for first input()\nLine 2 for second input()\n...'}
+                  className="flex-1 min-h-[220px] w-full p-3 rounded-xl font-mono text-xs bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-blue-500 resize-none"
                 />
-
-                <div className="flex justify-between items-center text-xs">
-                  <button
-                    onClick={() => setStdinText('')}
-                    className="text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    Clear Input
-                  </button>
-                  <button
-                    onClick={handleRunCode}
-                    className="px-4 py-1.5 rounded-lg bg-indigo-600 text-white font-bold cursor-pointer"
-                  >
-                    Run with this Input
-                  </button>
-                </div>
               </div>
             )}
 
-            {/* Tab 3: Matplotlib Generated Plots */}
+            {/* TAB 3: MATPLOTLIB PLOTS VIEWER */}
             {activeTab === 'plots' && (
-              <div className="flex-1 flex flex-col p-4 space-y-4 overflow-auto">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <div className="space-y-0.5">
-                    <h3 className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <BarChart3 className="w-4 h-4 text-indigo-600" />
-                      <span>Matplotlib Visualizations</span>
-                    </h3>
-                  </div>
-                  {generatedPlots.length > 0 && (
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between px-3.5 py-2 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-xs">
+                  <span className="font-medium text-slate-700 dark:text-slate-300 tabular-nums">
+                    {plots.length} {plots.length === 1 ? 'Figure' : 'Figures'} Rendered (Agg High-DPI PNG)
+                  </span>
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setGeneratedPlots([])}
-                      className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer font-semibold flex items-center gap-1"
+                      onClick={() => setPlotDarkBg((v) => !v)}
+                      className="px-2.5 py-1 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px]"
                     >
-                      <Trash2 className="w-3 h-3" />
-                      <span>Clear Plots</span>
+                      {plotDarkBg ? 'Light Canvas' : 'Dark Canvas'}
                     </button>
-                  )}
+                    {plots.length > 0 && (
+                      <button
+                        onClick={() => setPlots([])}
+                        className="px-2.5 py-1 rounded text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 text-[11px]"
+                      >
+                        Clear Plots
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {generatedPlots.length > 0 ? (
-                  <div className="space-y-4">
-                    {generatedPlots.map((plotBase64, idx) => (
+                <div className="flex-1 p-4 overflow-y-auto space-y-4">
+                  {plots.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center py-12 text-slate-400">
+                      <ImageIcon className="w-8 h-8 mb-2 opacity-40" />
+                      <p className="text-xs">
+                        No Matplotlib figures generated yet. Call <code>plt.plot()</code>,{' '}
+                        <code>plt.bar()</code>, and <code>plt.show()</code> in Python.
+                      </p>
+                    </div>
+                  ) : (
+                    plots.map((b64, idx) => (
                       <div
                         key={idx}
-                        className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs space-y-2"
+                        className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs"
                       >
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-slate-700 dark:text-slate-300">
-                            Figure #{idx + 1}
+                        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-xs">
+                          <span className="font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
+                            Figure {idx + 1}
                           </span>
-                          <a
-                            href={`data:image/png;base64,${plotBase64}`}
-                            download={`tooltrack-plot-${idx + 1}.png`}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 font-bold hover:bg-indigo-100 cursor-pointer text-xs"
-                          >
-                            <Download className="w-3 h-3" />
-                            <span>Download PNG</span>
-                          </a>
-                        </div>
-                        <img
-                          src={`data:image/png;base64,${plotBase64}`}
-                          alt={`Matplotlib Figure ${idx + 1}`}
-                          className="w-full rounded-xl border border-slate-100 dark:border-slate-700/60 shadow-inner"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 space-y-2 min-h-[300px]">
-                    <BarChart3 className="w-10 h-10 stroke-1 text-slate-300 dark:text-slate-600" />
-                    <p className="text-xs font-semibold">No Matplotlib plots generated yet.</p>
-                    <p className="text-[11px] max-w-xs">
-                      Run Python code with Matplotlib (e.g. <span className="font-mono text-indigo-500 font-semibold">plt.show()</span>) to generate and view plots here.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Tab 4: Virtual Datasets */}
-            {activeTab === 'datasets' && (
-              <div className="flex-1 flex flex-col p-4 space-y-4 overflow-auto">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <div className="space-y-0.5">
-                    <h3 className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <Database className="w-4 h-4 text-emerald-600" />
-                      <span>Dataset Filesystem</span>
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
-                      Upload CSV/TXT files to use with <code className="font-mono">pd.read_csv('filename')</code>
-                    </p>
-                  </div>
-
-                  <label className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer shadow-xs">
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Upload CSV</span>
-                    <input
-                      type="file"
-                      accept=".csv,.txt,.json,.tsv,.parquet,.xlsx"
-                      onChange={handleDatasetUpload}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-
-                {virtualFiles.length > 0 ? (
-                  <div className="space-y-2">
-                    {virtualFiles.map((f, i) => (
-                      <div
-                        key={i}
-                        className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between text-xs"
-                      >
-                        <div className="flex items-center gap-2">
-                          <FileCode className="w-4 h-4 text-emerald-500" />
-                          <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                            /{f.name}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => {
-                            updateCode(
-                              `import pandas as pd\n\n# Loaded from ToolTrack virtual filesystem\ndf = pd.read_csv("${f.name}")\nprint(df.head())\nprint(df.info())\n`
-                            );
-                            showToast('info', `Snippet for ${f.name} added to editor`);
-                          }}
-                          className="px-2 py-1 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                        >
-                          Use in Python
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 space-y-2 min-h-[300px]">
-                    <Database className="w-10 h-10 stroke-1 text-slate-300 dark:text-slate-600" />
-                    <p className="text-xs font-semibold">No datasets uploaded yet.</p>
-                    <p className="text-[11px] max-w-xs">
-                      Upload any CSV or tabular file to read it directly into your Python scripts without uploading to external servers.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Tab 5: Python Libraries & Package Manager */}
-            {activeTab === 'packages' && (
-              <div className="flex-1 flex flex-col p-4 space-y-4 overflow-auto">
-                <div className="space-y-1">
-                  <h3 className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-indigo-600" />
-                    <span>Scientific Python Libraries</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Official Pyodide WebAssembly package distribution. Real execution in browser.
-                  </p>
-                </div>
-
-                {/* Pre-configured major libraries list */}
-                <div className="space-y-2.5">
-                  {PYTHON_PACKAGES.map((pkg) => {
-                    const isCached = cacheStatus?.packages[pkg.id];
-                    return (
-                      <div
-                        key={pkg.id}
-                        className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between gap-3 text-xs"
-                      >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white">
-                            <span>{pkg.name}</span>
-                            <span className="text-[10px] font-mono text-slate-400 font-normal">
-                              (~{pkg.sizeEstimateMb} MB)
-                            </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => setZoomedPlotIndex(idx)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px]"
+                            >
+                              <ZoomIn className="w-3 h-3" />
+                              Zoom
+                            </button>
+                            <button
+                              onClick={() => handleDownloadPlot(b64, idx)}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-blue-600 text-white font-medium text-[11px]"
+                            >
+                              <Download className="w-3 h-3" />
+                              PNG
+                            </button>
                           </div>
-                          <p className="text-[11px] text-slate-500 leading-tight">
-                            {pkg.description}
-                          </p>
                         </div>
+                        <div
+                          className={`p-4 flex items-center justify-center ${
+                            plotDarkBg ? 'bg-slate-950' : 'bg-white'
+                          }`}
+                        >
+                          <img
+                            src={`data:image/png;base64,${b64}`}
+                            alt={`Matplotlib Figure ${idx + 1}`}
+                            className="max-w-full h-auto object-contain rounded"
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              isCached
-                                ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
-                                : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+            {/* TAB 4: PANDAS DATAFRAMES TABLE VIEWER */}
+            {activeTab === 'dataframes' && (
+              <div className="flex-1 flex flex-col min-h-0">
+                {dataframes.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-400">
+                    <TableIcon className="w-8 h-8 mb-2 opacity-40" />
+                    <p className="text-xs">
+                      Any Pandas <code>DataFrame</code> variables created in your Python script
+                      automatically appear here for interactive tabular inspection and CSV export.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {/* DataFrame Variable Selector & Export Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        {dataframes.map((df, idx) => (
+                          <button
+                            key={df.name}
+                            onClick={() => setSelectedDfIndex(idx)}
+                            className={`px-2.5 py-1 rounded-lg font-mono text-xs transition-colors ${
+                              selectedDfIndex === idx
+                                ? 'bg-blue-600 text-white font-semibold'
+                                : 'bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                             }`}
                           >
-                            {isCached ? 'Offline Ready' : 'Online Auto-fetch'}
-                          </span>
-
-                          {!isCached && (
-                            <button
-                              onClick={() => handleDownloadSinglePackage(pkg.id)}
-                              className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-semibold cursor-pointer"
-                              title="Download package for offline use"
-                            >
-                              Cache
-                            </button>
-                          )}
-                        </div>
+                            {df.name}{' '}
+                            <span className="opacity-80 text-[10px] tabular-nums">
+                              ({df.rows}×{df.cols})
+                            </span>
+                          </button>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
 
-                {/* Micropip custom install */}
-                <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 space-y-2 text-xs">
-                  <span className="font-bold text-slate-800 dark:text-slate-200 block">
-                    Install Package via Micropip (Online)
-                  </span>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={customPackageName}
-                      onChange={(e) => setCustomPackageName(e.target.value)}
-                      placeholder="e.g. networkx, statsmodels..."
-                      className="flex-1 p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
-                    />
-                    <button
-                      onClick={handleInstallMicropip}
-                      disabled={isInstallingCustomPkg || !customPackageName.trim()}
-                      className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs disabled:opacity-50 cursor-pointer"
-                    >
-                      {isInstallingCustomPkg ? 'Installing...' : 'Install'}
-                    </button>
-                  </div>
-                </div>
+                      {activeDataFrame && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={dfSearchQuery}
+                            onChange={(e) => setDfSearchQuery(e.target.value)}
+                            placeholder="Filter rows..."
+                            className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs w-32"
+                          />
+                          <button
+                            onClick={() => handleDownloadDataFrameCsv(activeDataFrame)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs"
+                          >
+                            <Download className="w-3 h-3" />
+                            Export CSV
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* DataFrame Table */}
+                    {activeDataFrame && (
+                      <div className="flex-1 overflow-auto">
+                        <table className="w-full text-left border-collapse text-xs font-mono tabular-nums">
+                          <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-3 py-2 border-b border-r border-slate-200 dark:border-slate-800 text-slate-400 w-10">
+                                #
+                              </th>
+                              {activeDataFrame.columns.map((col) => (
+                                <th
+                                  key={col}
+                                  className="px-3 py-2 border-b border-r border-slate-200 dark:border-slate-800 font-semibold text-slate-800 dark:text-slate-200"
+                                >
+                                  <div>{col}</div>
+                                  <div className="text-[10px] font-normal text-slate-400">
+                                    {activeDataFrame.dtypes[col] || 'object'}
+                                  </div>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200 dark:divide-slate-800/70">
+                            {filteredDfRows.map((row, rIdx) => (
+                              <tr
+                                key={rIdx}
+                                className="hover:bg-blue-50/40 dark:hover:bg-slate-800/40"
+                              >
+                                <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-slate-400">
+                                  {rIdx}
+                                </td>
+                                {activeDataFrame.columns.map((col) => (
+                                  <td
+                                    key={col}
+                                    className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 whitespace-nowrap"
+                                  >
+                                    {row[col] === null || row[col] === undefined ? (
+                                      <span className="text-amber-500 italic">NaN</span>
+                                    ) : (
+                                      String(row[col])
+                                    )}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
-            {/* Tab 6: Offline PWA & Cache Management */}
-            {activeTab === 'offline' && (
-              <div className="flex-1 flex flex-col p-4 space-y-4 overflow-auto">
-                <div className="space-y-1">
-                  <h3 className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <HardDrive className="w-4 h-4 text-indigo-600" />
-                    <span>Complete Offline PWA Runtime Manager</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Pre-cache Pyodide WebAssembly runtime and scientific wheels once, then disconnect from the internet and run programs offline.
-                  </p>
-                </div>
-
-                {/* Status overview card */}
-                <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-3 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-indigo-900 dark:text-indigo-200">
-                      Core Pyodide WebAssembly
-                    </span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      cacheStatus?.hasCore
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
-                    }`}>
-                      {cacheStatus?.hasCore ? 'Cached (Offline Ready)' : 'Not Yet Cached'}
-                    </span>
+            {/* TAB 5: PROBLEMS & COMPILER DIAGNOSTICS */}
+            {activeTab === 'problems' && (
+              <div className="flex-1 p-4 overflow-y-auto space-y-2">
+                {diagnostics.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center py-12 text-slate-400">
+                    <CheckCircle2 className="w-8 h-8 mb-2 text-emerald-500 opacity-60" />
+                    <p className="text-xs">No syntax or compiler diagnostics detected.</p>
                   </div>
-
-                  <div className="space-y-1 text-slate-600 dark:text-slate-400 text-[11px]">
-                    <div className="flex justify-between">
-                      <span>Total Cached Compiler Assets:</span>
-                      <span className="font-mono font-bold text-slate-900 dark:text-white">
-                        {cacheStatus?.totalCachedFiles || 0} Files
-                      </span>
-                    </div>
-                    {cacheStatus?.storageQuota && (
-                      <div className="flex justify-between">
-                        <span>Browser Storage Used:</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">
-                          {(cacheStatus.storageQuota.usageBytes / (1024 * 1024)).toFixed(1)} MB
-                        </span>
+                ) : (
+                  diagnostics.map((diag, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleJumpToLine(diag.line)}
+                      className="w-full text-left p-3 rounded-xl bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200 dark:border-slate-800 flex items-start gap-3 transition-colors"
+                    >
+                      <AlertCircle
+                        className={`w-4 h-4 shrink-0 mt-0.5 ${
+                          diag.severity === 'error' ? 'text-red-500' : 'text-amber-500'
+                        }`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-200">
+                          <span className="uppercase text-[10px] tracking-wider">
+                            {diag.severity}
+                          </span>
+                          <span className="font-mono text-blue-600 dark:text-blue-400 tabular-nums">
+                            Line {diag.line}, Col {diag.column}
+                          </span>
+                        </div>
+                        <p className="text-xs font-mono text-slate-600 dark:text-slate-300 mt-1 break-words">
+                          {diag.message}
+                        </p>
                       </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* TAB 6: OFFLINE RUNTIME & SCIENTIFIC PYTHON PACKAGES */}
+            {activeTab === 'packages' && (
+              <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs">
+                {/* Offline Runtime Card */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-slate-900 dark:text-white">
+                        Offline WebAssembly Runtime & Scientific Wheels
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        Caches Python 3.12 (Pyodide), NumPy, Pandas, Matplotlib, Scikit-Learn, and
+                        C/C++ AST runtimes in browser CacheStorage.
+                      </p>
+                    </div>
+                    {cacheStatus?.isDataScienceReady ? (
+                      <span className="px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-semibold shrink-0">
+                        Offline Ready
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-md bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
+                        {cacheStatus ? `${cacheStatus.totalCachedFiles} files cached` : 'Checking...'}
+                      </span>
                     )}
                   </div>
 
                   {downloadProgress && (
-                    <div className="space-y-1.5 pt-2">
-                      <div className="flex justify-between text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
-                        <span>Downloading: {downloadProgress.currentFile}</span>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] font-mono tabular-nums">
+                        <span>{downloadProgress.currentFile}</span>
                         <span>{downloadProgress.percent}%</span>
                       </div>
-                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                      <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                         <div
-                          className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                          className="h-full bg-blue-600 transition-all duration-200"
                           style={{ width: `${downloadProgress.percent}%` }}
                         />
                       </div>
                     </div>
                   )}
 
-                  <button
-                    onClick={handleDownloadOfflineBundle}
-                    disabled={isDownloadingBundle}
-                    className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {isDownloadingBundle ? (
-                      <>
-                        <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                        <span>Caching Offline Assets...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Download Full Offline Bundle (~45 MB)</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[11px] font-mono text-slate-500 tabular-nums">
+                      Cached Storage: {formatBytes(cacheStatus?.totalCachedBytes || 0)}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {cacheStatus && cacheStatus.totalCachedFiles > 0 && (
+                        <button
+                          onClick={handleClearOfflineCache}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                          Clear Cache
+                        </button>
+                      )}
+                      <button
+                        onClick={handleDownloadOfflineBundle}
+                        disabled={isDownloadingOffline}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold"
+                      >
+                        <HardDriveDownload className="w-3.5 h-3.5" />
+                        {isDownloadingOffline
+                          ? 'Downloading...'
+                          : cacheStatus?.isDataScienceReady
+                          ? 'Verify & Refresh Cache'
+                          : 'Download Full Offline Bundle'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-                  <span className="text-slate-400 text-[11px]">
-                    Clear cached runtimes to free space:
-                  </span>
-                  <button
-                    onClick={async () => {
-                      await clearCompilerCache();
-                      await refreshCacheInfo();
-                      showToast('info', 'Offline cache cleared.');
-                    }}
-                    className="text-rose-500 hover:text-rose-700 font-semibold cursor-pointer"
-                  >
-                    Clear Cache
-                  </button>
+                {/* Custom Micropip Package Installer */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                  <h4 className="font-semibold text-slate-900 dark:text-white">
+                    Install Pure-Python PyPI Package (micropip)
+                  </h4>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={customPackageName}
+                      onChange={(e) => setCustomPackageName(e.target.value)}
+                      placeholder="e.g. seaborn, openpyxl, tabulate..."
+                      className="flex-1 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700"
+                      onKeyDown={(e) => e.key === 'Enter' && handleInstallCustomPackage()}
+                    />
+                    <button
+                      onClick={() => handleInstallCustomPackage()}
+                      disabled={isInstallingPackage || !customPackageName.trim()}
+                      className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold"
+                    >
+                      {isInstallingPackage ? 'Installing...' : 'Install'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                    <span className="text-[11px] text-slate-400">Quick install:</span>
+                    {['seaborn', 'openpyxl', 'tabulate'].map((pkg) => (
+                      <button
+                        key={pkg}
+                        onClick={() => handleInstallCustomPackage(pkg)}
+                        className="px-2 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px] hover:bg-blue-100 dark:hover:bg-blue-950"
+                      >
+                        + {pkg}
+                      </button>
+                    ))}
+                  </div>
+                  {packageInstallMessage && (
+                    <p className="text-[11px] font-mono text-blue-600 dark:text-blue-400 pt-1">
+                      {packageInstallMessage}
+                    </p>
+                  )}
+                </div>
+
+                {/* Pre-configured Scientific Packages List */}
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-slate-900 dark:text-white">
+                    Scientific & Standard Library Packages
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {PYTHON_PACKAGES.map((pkg) => {
+                      const isLoaded = loadedPyPackages.includes(pkg.id);
+                      const isCached = Boolean(cacheStatus?.packages[pkg.id]);
+                      return (
+                        <div
+                          key={pkg.id}
+                          className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between"
+                        >
+                          <div>
+                            <div className="font-semibold text-slate-800 dark:text-slate-200">
+                              {pkg.name}{' '}
+                              <span className="text-[10px] font-mono text-slate-400">
+                                v{pkg.version}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500">{pkg.description}</div>
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold shrink-0 ${
+                              isLoaded
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                : isCached
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                                : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                            }`}
+                          >
+                            {isLoaded ? 'Active' : isCached ? 'Cached' : 'Auto-Load'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -1497,59 +2771,84 @@ export const CompilerTool: React.FC = () => {
         </div>
       </div>
 
-      {/* Comprehensive How to Use Guidance */}
-      <div className="p-6 rounded-3xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs space-y-6">
-        <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <BookOpen className="w-5 h-5 text-indigo-600" />
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            How to Use ToolTrack Compiler
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-slate-600 dark:text-slate-400">
-          {/* Python 3 Guide */}
-          <div className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-            <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-sm">
-              <span className="w-2 h-2 rounded-full bg-indigo-500" />
-              <span>Python 3 with Data Science</span>
-            </h3>
-            <ul className="space-y-1.5 list-disc list-inside leading-relaxed">
-              <li>Genuine WebAssembly Python running in a background Web Worker.</li>
-              <li>Supports <code className="font-mono text-indigo-500 font-bold">pandas</code>, <code className="font-mono text-indigo-500 font-bold">numpy</code>, <code className="font-mono text-indigo-500 font-bold">scikit-learn</code>, and <code className="font-mono text-indigo-500 font-bold">scipy</code>.</li>
-              <li>Generated plots using <code className="font-mono">plt.show()</code> automatically export into the <strong>Plots</strong> tab with full PNG downloads.</li>
-              <li>Upload CSV files to access them directly in Python with <code className="font-mono">pd.read_csv('filename')</code>.</li>
-            </ul>
-          </div>
-
-          {/* C++ 20 Guide */}
-          <div className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-            <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-sm">
-              <span className="w-2 h-2 rounded-full bg-blue-500" />
-              <span>C++ 20 (GCC/G++ 12)</span>
-            </h3>
-            <ul className="space-y-1.5 list-disc list-inside leading-relaxed">
-              <li>Full competitive programming support with <code className="font-mono text-blue-500 font-bold">&lt;bits/stdc++.h&gt;</code> and modern STL.</li>
-              <li>Provide input values inside the <strong>Input (stdin)</strong> tab for <code className="font-mono">cin</code> reading.</li>
-              <li>Compiles natively with <code className="font-mono">-O2 -std=c++20</code> with process isolation and timeout protection.</li>
-              <li>Falls back to the in-browser C++ runner when disconnected from the network.</li>
-            </ul>
-          </div>
-
-          {/* C 17 Guide */}
-          <div className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-            <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-sm">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>C 17 (GCC 12)</span>
-            </h3>
-            <ul className="space-y-1.5 list-disc list-inside leading-relaxed">
-              <li>Standard C runtime supporting <code className="font-mono text-emerald-500 font-bold">&lt;stdio.h&gt;</code>, <code className="font-mono">&lt;stdlib.h&gt;</code>, <code className="font-mono">&lt;math.h&gt;</code>, and pointers.</li>
-              <li>Accepts formatted input for <code className="font-mono">scanf()</code> via the Input panel.</li>
-              <li>Shows detailed compiler error diagnostics with exact line and column numbers.</li>
-              <li>Zero server storage—source code and executions remain private.</li>
-            </ul>
+      {/* ZOOMED PLOT MODAL */}
+      {zoomedPlotIndex !== null && plots[zoomedPlotIndex] && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6"
+          onClick={() => setZoomedPlotIndex(null)}
+        >
+          <div
+            className="max-w-4xl w-full bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+              <span className="font-semibold text-sm">Figure {zoomedPlotIndex + 1}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDownloadPlot(plots[zoomedPlotIndex], zoomedPlotIndex)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-600 text-white text-xs font-semibold"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download PNG
+                </button>
+                <button
+                  onClick={() => setZoomedPlotIndex(null)}
+                  className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 bg-white flex justify-center">
+              <img
+                src={`data:image/png;base64,${plots[zoomedPlotIndex]}`}
+                alt="Zoomed Plot"
+                className="max-h-[75vh] w-auto object-contain"
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* KEYBOARD SHORTCUTS MODAL */}
+      {showShortcutsModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => setShowShortcutsModal(false)}
+        >
+          <div
+            className="max-w-md w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="font-bold text-sm">IDE Keyboard Shortcuts</h3>
+              <button onClick={() => setShowShortcutsModal(false)}>
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
+            <div className="space-y-2 text-xs">
+              {[
+                ['Run Code / Script', 'Ctrl + Enter / Cmd + Enter'],
+                ['Run Notebook Cell', 'Shift + Enter'],
+                ['Accept Inline Ghost Suggestion', 'Tab'],
+                ['Dismiss Ghost Suggestion', 'Esc'],
+                ['Trigger IntelliSense Popup', 'Ctrl + Space'],
+                ['Find & Replace in Editor', 'Ctrl + F / Cmd + F'],
+                ['Toggle Line Comment', 'Ctrl + /'],
+              ].map(([desc, keys]) => (
+                <div key={desc} className="flex items-center justify-between py-1">
+                  <span className="text-slate-600 dark:text-slate-300">{desc}</span>
+                  <kbd className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[11px] border border-slate-200 dark:border-slate-700">
+                    {keys}
+                  </kbd>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
+}
+
+export default CompilerTool;

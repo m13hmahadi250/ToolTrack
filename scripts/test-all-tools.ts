@@ -265,33 +265,71 @@ async function runTests() {
   // --- 5. COMPILER & RUNTIME TESTS ---
   console.log('\n--- 5. COMPILER & RUNTIME ENGINES ---');
 
-  await test('Client C++ Offline Runner: executes basic C++ with cout and arithmetic', async () => {
+  await test('Client C++20 Offline Runner: executes C++ with STL vector, sort, recursion, and cin/cout', async () => {
     const { runClientCpp } = await import('../src/lib/clientCppRunner');
     const code = `#include <iostream>
+#include <vector>
+#include <algorithm>
 using namespace std;
+
+int fib(int n) {
+    if (n <= 1) return n;
+    return fib(n - 1) + fib(n - 2);
+}
+
 int main() {
-    int x = 20, y = 22;
-    int sum = x + y;
-    cout << "Answer: " << sum << endl;
+    int n;
+    cin >> n;
+    vector<int> nums;
+    for (int i = 0; i < n; i++) {
+        int val;
+        cin >> val;
+        nums.push_back(val);
+    }
+    sort(nums.begin(), nums.end());
+    cout << "Sorted: ";
+    for (int x : nums) {
+        cout << x << " ";
+    }
+    cout << "\\nFib(7): " << fib(7) << endl;
     return 0;
 }`;
-    const res = runClientCpp(code, '', 'cpp');
+    const res = await runClientCpp(code, '5\n42 10 99 7 23', 'cpp');
     assert.strictEqual(res.success, true);
-    assert.ok(res.stdout.includes('Answer: 42'), 'Output should contain computed sum 42');
+    assert.ok(res.stdout.includes('Sorted: 7 10 23 42 99'), 'Output should contain sorted vector');
+    assert.ok(res.stdout.includes('Fib(7): 13'), 'Output should contain Fib(7): 13');
   });
 
-  await test('Client C Offline Runner: executes C printf and stdin parsing', async () => {
+  await test('Client C17 Offline Runner: executes C printf, scanf, math.h, and recursion', async () => {
     const { runClientCpp } = await import('../src/lib/clientCppRunner');
     const code = `#include <stdio.h>
+#include <math.h>
 int main() {
     int val = 0;
     scanf("%d", &val);
-    printf("Value received: %d\\n", val);
+    printf("Value received: %d, Sqrt: %.1f\\n", val, sqrt(val));
     return 0;
 }`;
-    const res = runClientCpp(code, '100', 'c');
+    const res = await runClientCpp(code, '100', 'c');
     assert.strictEqual(res.success, true);
-    assert.ok(res.stdout.includes('Value received: 100'), 'Output should reflect input value 100');
+    assert.ok(res.stdout.includes('Value received: 100, Sqrt: 10.0'), 'Output should reflect input value 100 and sqrt 10.0');
+  });
+
+  await test('C/C++ Syntax Validator: detects unclosed delimiters with accurate line diagnostics', async () => {
+    const { validateSyntax } = await import('../src/lib/clientCppRunner');
+    const brokenCode = `#include <iostream>\nint main() {\n  std::cout << "Hello";\n`;
+    const diags = validateSyntax(brokenCode, 'cpp');
+    assert.ok(diags.length > 0, 'Should report unclosed brace diagnostic');
+    assert.strictEqual(diags[0].severity, 'error');
+  });
+
+  await test('Smart Autocomplete & Fuzzy Matching: ranks abbreviations, prefixes, and typos', async () => {
+    const { fuzzyMatchScore, analyzeContext } = await import('../src/lib/autocompleteEngine');
+    assert.ok(fuzzyMatchScore('tts', 'train_test_split') >= 70, 'Acronym tts should match train_test_split');
+    assert.ok(fuzzyMatchScore('head', 'head') === 100, 'Exact match should score 100');
+    const ctx = analyzeContext('import pandas as pd\ndf = pd.DataFrame()\ndef compute_metrics(x):\n    return x\n', 60, 'python');
+    assert.ok(ctx.declaredVariables.includes('df'), 'Should detect declared variable df');
+    assert.ok(ctx.declaredFunctions.includes('compute_metrics'), 'Should detect declared function compute_metrics');
   });
 
   console.log('\n====================================================');

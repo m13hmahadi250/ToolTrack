@@ -10,6 +10,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { PDFDocument } from 'pdf-lib';
 import { generateSitemapXml, runSeoAudit } from './src/data/seoRegistry';
+import { runClientCpp, parseCompilerDiagnostics } from './src/lib/clientCppRunner';
 
 const execFileAsync = promisify(execFile);
 
@@ -1504,7 +1505,7 @@ app.post('/api/compile-run', async (req: Request, res: Response) => {
   const startTime = Date.now();
 
   try {
-    const { language, code, stdin = '', standard } = req.body;
+    const { language, code, stdin = '', standard, files = [] } = req.body;
 
     if (!code || typeof code !== 'string') {
       return res.status(400).json({ error: 'Source code is required.' });
@@ -1521,15 +1522,30 @@ app.post('/api/compile-run', async (req: Request, res: Response) => {
     const runId = crypto.randomUUID ? crypto.randomUUID() : `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `tt-comp-${runId}-`));
 
-    const EXECUTION_TIMEOUT_MS = 8000;
+    const EXECUTION_TIMEOUT_MS = 10000;
     const MAX_OUTPUT_BYTES = 512 * 1024; // 512 KB
+
+    // Write any auxiliary project files into tmpDir
+    if (Array.isArray(files)) {
+      for (const f of files) {
+        if (f && typeof f.name === 'string' && typeof f.content === 'string') {
+          const safeName = path.basename(f.name);
+          if (safeName && safeName !== 'runner.py' && safeName !== 'script.py') {
+            await fs.promises.writeFile(
+              path.join(tmpDir, safeName),
+              f.isBinary ? Buffer.from(f.content, 'base64') : f.content
+            );
+          }
+        }
+      }
+    }
 
     if (language === 'python') {
       const scriptPath = path.join(tmpDir, 'script.py');
       const runnerPath = path.join(tmpDir, 'runner.py');
       await fs.promises.writeFile(scriptPath, code, 'utf-8');
 
-      // Headless execution wrapper that catches Matplotlib plt.show() and saves figures to PNG
+      // Headless execution wrapper that catches Matplotlib plt.show() and any unclosed figures
       const runnerCode = `import os, sys, warnings
 os.environ['MPLBACKEND'] = 'Agg'
 warnings.filterwarnings('ignore', category=DeprecationWarning)
@@ -1537,21 +1553,44 @@ warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', message='.*Pyarrow.*')
 
 try:
+    import pandas as pd
+    pd.set_option('display.max_columns', 20)
+    pd.set_option('display.width', 1000)
+except Exception:
+    pass
+
+_mpl_loaded = False
+_fig_id = [0]
+try:
     import matplotlib
-    matplotlib.use('Agg')
+    matplotlib.use('Agg', force=True)
     import matplotlib.pyplot as plt
-    _fig_id = [0]
+    _mpl_loaded = True
     def _tooltrack_show(*args, **kwargs):
-        _fig_id[0] += 1
-        plt.savefig(f"_plot_{_fig_id[0]}.png", bbox_inches='tight', dpi=150)
-        plt.close()
+        for num in list(plt.get_fignums()):
+            fig = plt.figure(num)
+            if fig.axes:
+                _fig_id[0] += 1
+                fig.savefig(f"_plot_{_fig_id[0]}.png", bbox_inches='tight', dpi=150)
+        plt.close('all')
     plt.show = _tooltrack_show
 except Exception:
     pass
 
 with open(${JSON.stringify(scriptPath)}, 'rb') as _f:
-    code_obj = compile(_f.read(), ${JSON.stringify(scriptPath)}, 'exec')
+    code_obj = compile(_f.read(), 'main.py', 'exec')
     exec(code_obj, {'__name__': '__main__'})
+
+if _mpl_loaded:
+    try:
+        for num in list(plt.get_fignums()):
+            fig = plt.figure(num)
+            if fig.axes:
+                _fig_id[0] += 1
+                fig.savefig(f"_plot_{_fig_id[0]}.png", bbox_inches='tight', dpi=150)
+        plt.close('all')
+    except Exception:
+        pass
 `;
       await fs.promises.writeFile(runnerPath, runnerCode, 'utf-8');
 
@@ -1579,7 +1618,7 @@ with open(${JSON.stringify(scriptPath)}, 'rb') as _f:
       }
 
       if (pyProc.stdin && stdin) {
-        pyProc.stdin.write(stdin);
+        pyProc.stdin.write(stdin.endsWith('\n') ? stdin : stdin + '\n');
         pyProc.stdin.end();
       } else if (pyProc.stdin) {
         pyProc.stdin.end();
@@ -1593,11 +1632,27 @@ with open(${JSON.stringify(scriptPath)}, 'rb') as _f:
         });
       });
 
+      // If local system python3 lacks scientific packages (e.g. numpy/pandas/matplotlib/sklearn),
+      // signal the frontend to execute via the Pyodide 3.12 WebAssembly Worker
+      if (exitCode !== 0 && /ModuleNotFoundError:\s*No module named/i.test(stderr)) {
+        return res.json({
+          success: false,
+          fallbackToWasm: true,
+          phase: 'execution',
+          stdout,
+          stderr,
+          exitCode,
+          plots: [],
+          executionTimeMs: Date.now() - startTime,
+          compiler: 'Python 3.12 Pyodide WebAssembly Redirect',
+        });
+      }
+
       // Collect any generated plots
       const plots: string[] = [];
       try {
-        const files = await fs.promises.readdir(tmpDir);
-        for (const file of files) {
+        const dirFiles = (await fs.promises.readdir(tmpDir)).sort();
+        for (const file of dirFiles) {
           if (file.endsWith('.png') && (file.startsWith('_plot_') || file.includes('plot'))) {
             const imgBuf = await fs.promises.readFile(path.join(tmpDir, file));
             plots.push(imgBuf.toString('base64'));
@@ -1614,147 +1669,150 @@ with open(${JSON.stringify(scriptPath)}, 'rb') as _f:
         exitCode,
         plots,
         executionTimeMs: execDuration,
-        compiler: 'Python 3.11 High-Speed Engine',
+        compiler: 'Python 3.11 System Engine',
       });
     }
 
-    if (language === 'c') {
-      const srcPath = path.join(tmpDir, 'main.c');
+    if (language === 'c' || language === 'cpp') {
+      const isCpp = language === 'cpp';
+      const srcFileName = isCpp ? 'main.cpp' : 'main.c';
+      const srcPath = path.join(tmpDir, srcFileName);
       const binPath = path.join(tmpDir, 'main');
       await fs.promises.writeFile(srcPath, code, 'utf-8');
 
-      const stdFlag = standard ? `-std=${standard}` : '-std=c17';
-      const gccArgs = ['-O2', stdFlag, '-Wall', srcPath, '-o', binPath, '-lm'];
+      const stdFlag = standard
+        ? `-std=${standard}`
+        : isCpp
+        ? '-std=c++20'
+        : '-std=c17';
+      const compilerCmd = isCpp ? 'g++' : 'gcc';
+      const compilerArgs = isCpp
+        ? ['-O2', stdFlag, '-Wall', srcPath, '-o', binPath]
+        : ['-O2', stdFlag, '-Wall', srcPath, '-o', binPath, '-lm'];
 
+      let localBinaryMissing = false;
       try {
-        await execFileAsync('gcc', gccArgs, { timeout: 10000 });
+        await execFileAsync(compilerCmd, compilerArgs, { timeout: 12000 });
       } catch (compileErr: any) {
-        const compileStderr = compileErr.stderr || compileErr.message || 'Compilation failed';
+        if (compileErr?.code === 'ENOENT' || String(compileErr?.message || '').includes('ENOENT')) {
+          localBinaryMissing = true;
+        } else {
+          const compileStderr = compileErr.stderr || compileErr.message || 'Compilation failed';
+          return res.json({
+            success: false,
+            phase: 'compilation',
+            stdout: '',
+            stderr: compileStderr,
+            diagnostics: parseCompilerDiagnostics(compileStderr),
+            exitCode: 1,
+            executionTimeMs: Date.now() - startTime,
+            compiler: isCpp ? 'g++ (GCC C++20)' : 'gcc (GCC C17)',
+          });
+        }
+      }
+
+      if (!localBinaryMissing) {
+        const runProc = execFile(binPath, [], {
+          cwd: tmpDir,
+          timeout: EXECUTION_TIMEOUT_MS,
+          maxBuffer: MAX_OUTPUT_BYTES,
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        if (runProc.stdout) {
+          runProc.stdout.on('data', (d) => {
+            if (stdout.length < MAX_OUTPUT_BYTES) stdout += d.toString();
+          });
+        }
+        if (runProc.stderr) {
+          runProc.stderr.on('data', (d) => {
+            if (stderr.length < MAX_OUTPUT_BYTES) stderr += d.toString();
+          });
+        }
+
+        if (runProc.stdin && stdin) {
+          runProc.stdin.write(stdin.endsWith('\n') ? stdin : stdin + '\n');
+          runProc.stdin.end();
+        } else if (runProc.stdin) {
+          runProc.stdin.end();
+        }
+
+        const exitCode = await new Promise<number>((resolve) => {
+          runProc.on('close', (code) => resolve(code ?? 0));
+          runProc.on('error', (err) => {
+            stderr += `\nRuntime execution error: ${err.message}`;
+            resolve(1);
+          });
+        });
+
+        const execDuration = Date.now() - startTime;
         return res.json({
-          success: false,
-          phase: 'compilation',
-          stdout: '',
-          stderr: compileStderr,
-          exitCode: 1,
-          executionTimeMs: Date.now() - startTime,
-          compiler: 'gcc 12.3 (Debian/Ubuntu)',
+          success: exitCode === 0,
+          phase: 'execution',
+          stdout,
+          stderr,
+          diagnostics: parseCompilerDiagnostics(stderr),
+          exitCode,
+          executionTimeMs: execDuration,
+          compiler: isCpp ? 'g++ (GCC C++20)' : 'gcc (GCC C17)',
         });
       }
 
-      const runProc = execFile(binPath, [], {
-        cwd: tmpDir,
-        timeout: EXECUTION_TIMEOUT_MS,
-        maxBuffer: MAX_OUTPUT_BYTES,
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      if (runProc.stdout) {
-        runProc.stdout.on('data', (d) => {
-          if (stdout.length < MAX_OUTPUT_BYTES) stdout += d.toString();
-        });
-      }
-      if (runProc.stderr) {
-        runProc.stderr.on('data', (d) => {
-          if (stderr.length < MAX_OUTPUT_BYTES) stderr += d.toString();
-        });
-      }
-
-      if (runProc.stdin && stdin) {
-        runProc.stdin.write(stdin);
-        runProc.stdin.end();
-      } else if (runProc.stdin) {
-        runProc.stdin.end();
-      }
-
-      const exitCode = await new Promise<number>((resolve) => {
-        runProc.on('close', (code) => resolve(code ?? 0));
-        runProc.on('error', (err) => {
-          stderr += `\nRuntime execution error: ${err.message}`;
-          resolve(1);
-        });
-      });
-
-      const execDuration = Date.now() - startTime;
-      return res.json({
-        success: exitCode === 0,
-        phase: 'execution',
-        stdout,
-        stderr,
-        exitCode,
-        executionTimeMs: execDuration,
-        compiler: 'gcc 12.3 (Debian/Ubuntu)',
-      });
-    }
-
-    if (language === 'cpp') {
-      const srcPath = path.join(tmpDir, 'main.cpp');
-      const binPath = path.join(tmpDir, 'main');
-      await fs.promises.writeFile(srcPath, code, 'utf-8');
-
-      const stdFlag = standard ? `-std=${standard}` : '-std=c++20';
-      const gppArgs = ['-O2', stdFlag, '-Wall', srcPath, '-o', binPath];
-
+      // When local gcc/g++ is not installed in the container, use the isolated Wandbox GCC/G++ Linux Sandbox
       try {
-        await execFileAsync('g++', gppArgs, { timeout: 12000 });
-      } catch (compileErr: any) {
-        const compileStderr = compileErr.stderr || compileErr.message || 'Compilation failed';
-        return res.json({
-          success: false,
-          phase: 'compilation',
-          stdout: '',
-          stderr: compileStderr,
-          exitCode: 1,
-          executionTimeMs: Date.now() - startTime,
-          compiler: 'g++ 12.3 (Debian/Ubuntu)',
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 9000);
+        const wandboxRes = await fetch('https://wandbox.org/api/compile.json', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            compiler: isCpp ? 'gcc-head' : 'gcc-head-c',
+            code,
+            stdin: stdin || '',
+            options: isCpp ? 'warning,c++20' : 'warning,c17',
+            'compiler-option-raw': '-O2',
+          }),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
+
+        if (wandboxRes.ok) {
+          const wbData: any = await wandboxRes.json();
+          const status = Number(wbData.status ?? 0);
+          const compilerMessage = String(wbData.compiler_error || wbData.compiler_message || '');
+          const programStdout = String(wbData.program_output || wbData.program_message || '');
+          const programStderr = String(wbData.program_error || '');
+          const hasCompileError = status !== 0 && !programStdout && Boolean(compilerMessage);
+
+          const combinedStderr = [compilerMessage, programStderr].filter(Boolean).join('\n').trim();
+          return res.json({
+            success: status === 0,
+            phase: hasCompileError ? 'compilation' : 'execution',
+            stdout: hasCompileError ? '' : programStdout,
+            stderr: combinedStderr,
+            diagnostics: parseCompilerDiagnostics(compilerMessage),
+            exitCode: status,
+            executionTimeMs: Date.now() - startTime,
+            compiler: isCpp ? 'GCC 13+ C++20 Sandbox' : 'GCC 13+ C17 Sandbox',
+          });
+        }
+      } catch {
+        // Network unavailable or sandbox timeout — fall through to built-in AST compiler
       }
 
-      const runProc = execFile(binPath, [], {
-        cwd: tmpDir,
-        timeout: EXECUTION_TIMEOUT_MS,
-        maxBuffer: MAX_OUTPUT_BYTES,
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      if (runProc.stdout) {
-        runProc.stdout.on('data', (d) => {
-          if (stdout.length < MAX_OUTPUT_BYTES) stdout += d.toString();
-        });
-      }
-      if (runProc.stderr) {
-        runProc.stderr.on('data', (d) => {
-          if (stderr.length < MAX_OUTPUT_BYTES) stderr += d.toString();
-        });
-      }
-
-      if (runProc.stdin && stdin) {
-        runProc.stdin.write(stdin);
-        runProc.stdin.end();
-      } else if (runProc.stdin) {
-        runProc.stdin.end();
-      }
-
-      const exitCode = await new Promise<number>((resolve) => {
-        runProc.on('close', (code) => resolve(code ?? 0));
-        runProc.on('error', (err) => {
-          stderr += `\nRuntime execution error: ${err.message}`;
-          resolve(1);
-        });
-      });
-
-      const execDuration = Date.now() - startTime;
+      // Offline / fallback execution via built-in C/C++ AST Compiler & STL Runtime
+      const fallbackResult = await runClientCpp(code, stdin, language);
       return res.json({
-        success: exitCode === 0,
-        phase: 'execution',
-        stdout,
-        stderr,
-        exitCode,
-        executionTimeMs: execDuration,
-        compiler: 'g++ 12.3 (Debian/Ubuntu)',
+        success: fallbackResult.success,
+        phase: fallbackResult.phase,
+        stdout: fallbackResult.stdout,
+        stderr: fallbackResult.stderr,
+        diagnostics: fallbackResult.diagnostics,
+        exitCode: fallbackResult.exitCode,
+        executionTimeMs: Date.now() - startTime,
+        compiler: fallbackResult.compiler,
       });
     }
 
