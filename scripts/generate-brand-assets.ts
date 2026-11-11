@@ -2,10 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 
-// Exact ToolTrack Icon SVG
+// Exact ToolTrack Icon SVG (used ONLY for favicons & PWA icons, never as the landscape OG banner)
 export const TOOLTRACK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
   <defs>
-    <!-- Outer Document Ribbon Gradient (Purple -> Blue -> Cyan) -->
     <linearGradient id="ttOuterGrad" x1="0.1" y1="0.95" x2="0.9" y2="0.05">
       <stop offset="0%" stop-color="#7c3aed" />
       <stop offset="22%" stop-color="#6366f1" />
@@ -14,36 +13,24 @@ export const TOOLTRACK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewB
       <stop offset="100%" stop-color="#38bdf8" />
     </linearGradient>
 
-    <!-- Top-Right Fold Flap Gradient -->
     <linearGradient id="ttFoldGrad" x1="0.1" y1="0.9" x2="0.85" y2="0.15">
       <stop offset="0%" stop-color="#0284c7" />
       <stop offset="45%" stop-color="#38bdf8" />
       <stop offset="100%" stop-color="#7dd3fc" />
     </linearGradient>
 
-    <!-- Inner Dark Page Gradient -->
     <linearGradient id="ttInnerBg" x1="0.2" y1="0.1" x2="0.8" y2="0.9">
       <stop offset="0%" stop-color="#0d1b3e" />
       <stop offset="100%" stop-color="#070c1e" />
     </linearGradient>
 
-    <!-- Drop Shadow for Fold -->
     <filter id="ttFoldShadow" x="-20%" y="-20%" width="160%" height="160%">
       <feDropShadow dx="-4" dy="8" stdDeviation="10" flood-color="#020817" flood-opacity="0.55" />
     </filter>
 
-    <!-- Soft Glow Filter for Icon -->
     <filter id="ttIconGlow" x="-10%" y="-10%" width="120%" height="120%">
       <feDropShadow dx="0" dy="12" stdDeviation="24" flood-color="#2563eb" flood-opacity="0.3" />
     </filter>
-
-    <!-- Wordmark Track Gradient -->
-    <linearGradient id="ttTrackGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#0ea5e9" />
-      <stop offset="35%" stop-color="#3b82f6" />
-      <stop offset="75%" stop-color="#8b5cf6" />
-      <stop offset="100%" stop-color="#a855f7" />
-    </linearGradient>
   </defs>
 
   <g filter="url(#ttIconGlow)">
@@ -214,44 +201,45 @@ export const TOOLTRACK_FULL_LOGO_DARK_SVG = `<svg xmlns="http://www.w3.org/2000/
 
 /**
  * 1. Homepage / Platform Open Graph Social Preview Image (1200 x 630)
+ * Designed for WhatsApp, Telegram, Messenger, LinkedIn, Twitter/X, and Discord:
+ * - Left section: Small ToolTrack logo + wordmark, strong headline ("Your All-in-One Productivity Workspace"),
+ *   clear capability bar ("PDF • Images • Compiler • Whiteboard • Documents"), concise copy & URL badge.
+ * - Right section: 2x2 product-interface cards with visual UI illustrations for PDF Tools, Compiler IDE,
+ *   Image Studio, and Interactive Whiteboard.
  */
 export const OG_HOMEPAGE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
   <defs>
     <linearGradient id="bgGrad" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#070B14" />
-      <stop offset="45%" stop-color="#0B1220" />
-      <stop offset="100%" stop-color="#111C33" />
+      <stop offset="0%" stop-color="#060A14" />
+      <stop offset="48%" stop-color="#0B1220" />
+      <stop offset="100%" stop-color="#111C35" />
     </linearGradient>
-    <radialGradient id="glowBlue" cx="0.2" cy="0.25" r="0.55">
-      <stop offset="0%" stop-color="#2563EB" stop-opacity="0.28" />
+    <radialGradient id="glowBlue" cx="0.18" cy="0.24" r="0.55">
+      <stop offset="0%" stop-color="#2563EB" stop-opacity="0.32" />
       <stop offset="100%" stop-color="#2563EB" stop-opacity="0" />
     </radialGradient>
-    <radialGradient id="glowCyan" cx="0.82" cy="0.7" r="0.5">
-      <stop offset="0%" stop-color="#0EA5E9" stop-opacity="0.22" />
-      <stop offset="100%" stop-color="#0EA5E9" stop-opacity="0" />
+    <radialGradient id="glowViolet" cx="0.82" cy="0.72" r="0.52">
+      <stop offset="0%" stop-color="#7C3AED" stop-opacity="0.24" />
+      <stop offset="100%" stop-color="#7C3AED" stop-opacity="0" />
     </radialGradient>
-    <linearGradient id="brandBlue" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#3B82F6" />
-      <stop offset="100%" stop-color="#1D4ED8" />
-    </linearGradient>
-    <linearGradient id="brandCyan" x1="0" y1="0" x2="1" y2="0">
+    <linearGradient id="headlineGrad" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#38BDF8" />
       <stop offset="50%" stop-color="#60A5FA" />
-      <stop offset="100%" stop-color="#818CF8" />
+      <stop offset="100%" stop-color="#A78BFA" />
     </linearGradient>
-    <linearGradient id="cardBg" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="cardSurface" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#152238" />
-      <stop offset="100%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#0D1627" />
     </linearGradient>
   </defs>
 
-  <!-- Background -->
+  <!-- Deep Navy Background -->
   <rect width="1200" height="630" fill="url(#bgGrad)" />
   <rect width="1200" height="630" fill="url(#glowBlue)" />
-  <rect width="1200" height="630" fill="url(#glowCyan)" />
+  <rect width="1200" height="630" fill="url(#glowViolet)" />
 
-  <!-- Subtle Grid -->
-  <g stroke="#1E293B" stroke-width="1" opacity="0.55">
+  <!-- Subtle Architectural Grid -->
+  <g stroke="#1E293B" stroke-width="1" opacity="0.45">
     <line x1="0" y1="105" x2="1200" y2="105" />
     <line x1="0" y1="210" x2="1200" y2="210" />
     <line x1="0" y1="315" x2="1200" y2="315" />
@@ -264,111 +252,184 @@ export const OG_HOMEPAGE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1
     <line x1="1000" y1="0" x2="1000" y2="630" />
   </g>
 
-  <!-- Outer Frame Border -->
+  <!-- Outer Precision Border Frame -->
   <rect x="28" y="28" width="1144" height="574" rx="28" fill="none" stroke="#1E293B" stroke-width="2" />
 
-  <!-- LEFT COLUMN: Brand Logo, Headline & Core Positioning -->
-  <g transform="translate(76, 86)">
-    <!-- ToolTrack Geometric Mark -->
-    <rect x="0" y="0" width="76" height="76" rx="20" fill="#0F172A" stroke="#3B82F6" stroke-width="2" />
-    <rect x="18" y="18" width="18" height="12" rx="4" fill="#3B82F6" />
-    <rect x="40" y="18" width="18" height="12" rx="4" fill="#38BDF8" />
-    <rect x="31" y="34" width="14" height="24" rx="4" fill="#2563EB" />
-    <path d="M 52 41 L 58 47 L 52 53" stroke="#38BDF8" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
-    <circle cx="22" cy="47" r="2.5" fill="#3B82F6" />
+  <!-- ======================================================================= -->
+  <!-- LEFT SECTION: Small Brand Mark, Strong Headline & Supporting Subtitle    -->
+  <!-- ======================================================================= -->
+  <g transform="translate(68, 76)">
+    <!-- Small ToolTrack Logo & Wordmark -->
+    <rect x="0" y="0" width="56" height="56" rx="15" fill="#0F172A" stroke="#3B82F6" stroke-width="2" />
+    <rect x="13" y="13" width="13" height="9" rx="3" fill="#3B82F6" />
+    <rect x="30" y="13" width="13" height="9" rx="3" fill="#38BDF8" />
+    <rect x="22.5" y="25" width="11" height="18" rx="3" fill="#2563EB" />
+    <path d="M 39 30.5 L 44 35 L 39 39.5" stroke="#38BDF8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="16.5" cy="35" r="2" fill="#3B82F6" />
 
-    <!-- Wordmark -->
-    <text x="94" y="48" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="44" font-weight="800" fill="#F8FAFC" letter-spacing="-1">
+    <text x="72" y="36" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="34" font-weight="800" fill="#F8FAFC" letter-spacing="-0.8">
       Tool<tspan fill="#3B82F6">Track</tspan>
     </text>
-    <text x="96" y="70" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#38BDF8" letter-spacing="3.5">
-      ALL-IN-ONE WORKSPACE
+    <text x="74" y="53" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#38BDF8" letter-spacing="2.8">
+      FILES • CODING • STUDIO
     </text>
 
-    <!-- Main Headline -->
-    <text x="0" y="156" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="52" font-weight="800" fill="#FFFFFF" letter-spacing="-1.2">
-      All Your Files, Coding &amp;
+    <!-- Strong, Readable Headline -->
+    <text x="0" y="138" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="48" font-weight="800" fill="#FFFFFF" letter-spacing="-1.1">
+      Your All-in-One
     </text>
-    <text x="0" y="218" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="52" font-weight="800" fill="url(#brandCyan)" letter-spacing="-1.2">
-      Productivity Tools
+    <text x="0" y="198" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="48" font-weight="800" fill="url(#headlineGrad)" letter-spacing="-1.1">
+      Productivity
     </text>
-
-    <!-- Supporting Capability Line -->
-    <rect x="0" y="252" width="560" height="44" rx="12" fill="#132038" stroke="#2563EB" stroke-opacity="0.45" stroke-width="1.5" />
-    <text x="20" y="280" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#E2E8F0">
-      PDF  •  Images  •  Compiler  •  Whiteboard  •  Productivity
+    <text x="0" y="258" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="48" font-weight="800" fill="#FFFFFF" letter-spacing="-1.1">
+      Workspace
     </text>
 
-    <!-- Concise Subtitle -->
-    <text x="0" y="342" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="20" font-weight="500" fill="#94A3B8">
-      Convert, compress, and edit documents &amp; images. Write and run
-    </text>
-    <text x="0" y="372" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="20" font-weight="500" fill="#94A3B8">
-      Python, C &amp; C++ online or offline directly in your browser.
+    <!-- Supporting Capability Subtitle Bar -->
+    <rect x="0" y="288" width="526" height="44" rx="12" fill="#132038" stroke="#3B82F6" stroke-opacity="0.5" stroke-width="1.5" />
+    <text x="18" y="316" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="18.5" font-weight="700" fill="#F1F5F9">
+      PDF  •  Images  •  Compiler  •  Whiteboard  •  Documents
     </text>
 
-    <!-- Domain Footer Pill -->
-    <rect x="0" y="412" width="270" height="38" rx="10" fill="#0F172A" stroke="#334155" stroke-width="1.5" />
-    <circle cx="22" cy="431" r="5" fill="#10B981" />
-    <text x="38" y="437" font-family="monospace" font-size="16" font-weight="700" fill="#CBD5E1">
+    <!-- Short Supporting Tagline -->
+    <text x="0" y="372" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="18.5" font-weight="500" fill="#94A3B8">
+      Convert, compress &amp; edit files, or run Python, C &amp; C++
+    </text>
+    <text x="0" y="400" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="18.5" font-weight="500" fill="#94A3B8">
+      online and offline directly in your browser.
+    </text>
+
+    <!-- Domain & Privacy Pill -->
+    <rect x="0" y="432" width="256" height="38" rx="10" fill="#0F172A" stroke="#334155" stroke-width="1.5" />
+    <circle cx="20" cy="451" r="5" fill="#10B981" />
+    <text x="35" y="457" font-family="monospace" font-size="15.5" font-weight="700" fill="#E2E8F0">
       tooltracker.vercel.app
+    </text>
+
+    <rect x="270" y="432" width="196" height="38" rx="10" fill="#0F172A" stroke="#1E293B" stroke-width="1.5" />
+    <text x="288" y="456" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="700" fill="#38BDF8">
+      60+ Built-In Tools
     </text>
   </g>
 
-  <!-- RIGHT COLUMN: 2x2 Visual Capability Grid -->
-  <g transform="translate(684, 86)">
-    <!-- Card 1: PDF & Documents -->
+  <!-- ======================================================================= -->
+  <!-- RIGHT SECTION: 4 Product-Interface Preview Cards (2x2 Grid)              -->
+  <!-- ======================================================================= -->
+  <g transform="translate(632, 68)">
+    <!-- CARD 1: PDF & Documents UI Preview (Top-Left) -->
     <g transform="translate(0, 0)">
-      <rect width="212" height="212" rx="22" fill="url(#cardBg)" stroke="#1E293B" stroke-width="2" />
-      <rect x="22" y="22" width="48" height="48" rx="14" fill="#1E3A8A" fill-opacity="0.55" stroke="#3B82F6" stroke-width="1.5" />
-      <text x="33" y="52" font-family="system-ui, sans-serif" font-size="16" font-weight="800" fill="#60A5FA">PDF</text>
-      <text x="22" y="106" font-family="system-ui, sans-serif" font-size="22" font-weight="800" fill="#F8FAFC">PDF &amp; Office</text>
-      <text x="22" y="134" font-family="system-ui, sans-serif" font-size="14" font-weight="500" fill="#94A3B8">Merge, Split, Compress</text>
-      <text x="22" y="156" font-family="system-ui, sans-serif" font-size="14" font-weight="500" fill="#94A3B8">Word, Excel &amp; OCR</text>
-      <rect x="22" y="174" width="96" height="18" rx="5" fill="#1E293B" />
-      <rect x="22" y="174" width="68" height="18" rx="5" fill="#3B82F6" />
+      <rect width="242" height="236" rx="22" fill="url(#cardSurface)" stroke="#1E3A8A" stroke-width="2" />
+      <!-- Mini UI Preview Box -->
+      <rect x="16" y="16" width="210" height="114" rx="14" fill="#09101D" stroke="#1E293B" stroke-width="1.5" />
+      <!-- Vector PDF Document Sheet Icon -->
+      <g transform="translate(30, 30)">
+        <rect x="0" y="0" width="52" height="68" rx="7" fill="#1E293B" stroke="#3B82F6" stroke-width="1.5" />
+        <path d="M 36 0 L 52 16 L 36 16 Z" fill="#60A5FA" />
+        <rect x="8" y="24" width="36" height="16" rx="4" fill="#2563EB" />
+        <text x="13" y="36" font-family="system-ui, sans-serif" font-size="11" font-weight="800" fill="#FFFFFF">PDF</text>
+        <rect x="8" y="47" width="34" height="4" rx="2" fill="#475569" />
+        <rect x="8" y="55" width="24" height="4" rx="2" fill="#475569" />
+      </g>
+      <!-- Mini Action Pills inside PDF UI -->
+      <g transform="translate(92, 30)">
+        <rect x="0" y="0" width="118" height="24" rx="6" fill="#172554" stroke="#2563EB" stroke-opacity="0.5" />
+        <text x="12" y="16" font-family="system-ui, sans-serif" font-size="11.5" font-weight="700" fill="#93C5FD">PDF → Word</text>
+        <rect x="0" y="31" width="118" height="24" rx="6" fill="#0F172A" stroke="#1E293B" />
+        <text x="12" y="47" font-family="system-ui, sans-serif" font-size="11.5" font-weight="700" fill="#CBD5E1">Merge &amp; Split</text>
+        <rect x="0" y="62" width="118" height="22" rx="6" fill="#064E3B" />
+        <text x="10" y="77" font-family="monospace" font-size="10.5" font-weight="700" fill="#6EE7B7">-68% Compressed</text>
+      </g>
+      <!-- Card Label -->
+      <text x="20" y="164" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" fill="#F8FAFC">PDF &amp; Documents</text>
+      <text x="20" y="190" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="500" fill="#94A3B8">Merge, Split, Compress</text>
+      <text x="20" y="210" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="500" fill="#94A3B8">Word, Excel &amp; OCR</text>
     </g>
 
-    <!-- Card 2: Compiler IDE -->
-    <g transform="translate(230, 0)">
-      <rect width="212" height="212" rx="22" fill="url(#cardBg)" stroke="#2563EB" stroke-width="2" />
-      <rect x="22" y="22" width="48" height="48" rx="14" fill="#064E3B" fill-opacity="0.6" stroke="#10B981" stroke-width="1.5" />
-      <text x="31" y="52" font-family="monospace" font-size="18" font-weight="800" fill="#34D399">&lt;/&gt;</text>
-      <text x="22" y="106" font-family="system-ui, sans-serif" font-size="22" font-weight="800" fill="#F8FAFC">Compiler IDE</text>
-      <text x="22" y="134" font-family="system-ui, sans-serif" font-size="14" font-weight="500" fill="#94A3B8">Python 3, C &amp; C++20</text>
-      <text x="22" y="156" font-family="system-ui, sans-serif" font-size="14" font-weight="500" fill="#94A3B8">NumPy, Pandas &amp; Plots</text>
-      <rect x="22" y="174" width="134" height="20" rx="6" fill="#064E3B" />
-      <text x="32" y="188" font-family="monospace" font-size="11" font-weight="700" fill="#6EE7B7">ONLINE &amp; OFFLINE</text>
+    <!-- CARD 2: Python, C, C++ Compiler IDE Preview (Top-Right) -->
+    <g transform="translate(260, 0)">
+      <rect width="242" height="236" rx="22" fill="url(#cardSurface)" stroke="#2563EB" stroke-width="2" />
+      <!-- Mini Code Editor Window -->
+      <rect x="16" y="16" width="210" height="114" rx="14" fill="#070B14" stroke="#1E293B" stroke-width="1.5" />
+      <!-- Editor Top Bar -->
+      <rect x="17" y="17" width="208" height="26" rx="12" fill="#0F172A" />
+      <circle cx="31" cy="30" r="4" fill="#EF4444" />
+      <circle cx="43" cy="30" r="4" fill="#F59E0B" />
+      <circle cx="55" cy="30" r="4" fill="#10B981" />
+      <text x="72" y="34" font-family="monospace" font-size="11" font-weight="700" fill="#60A5FA">main.py</text>
+      <rect x="172" y="21" width="44" height="18" rx="5" fill="#059669" />
+      <text x="180" y="33" font-family="system-ui, sans-serif" font-size="10" font-weight="800" fill="#FFFFFF">▶ Run</text>
+      <!-- Code Lines with explicit x positions so spaces never collapse -->
+      <g font-family="monospace" font-size="12" font-weight="700">
+        <text x="28" y="62" fill="#C084FC">import</text>
+        <text x="78" y="62" fill="#E2E8F0">numpy</text>
+        <text x="122" y="62" fill="#C084FC">as</text>
+        <text x="144" y="62" fill="#38BDF8">np</text>
+        <text x="28" y="82" fill="#38BDF8">print</text>
+        <text x="65" y="82" fill="#E2E8F0">(</text>
+        <text x="73" y="82" fill="#34D399">"Mean: 95.0"</text>
+        <text x="160" y="82" fill="#E2E8F0">)</text>
+      </g>
+      <rect x="28" y="94" width="186" height="24" rx="6" fill="#064E3B" fill-opacity="0.75" />
+      <text x="38" y="110" font-family="monospace" font-size="11" font-weight="700" fill="#6EE7B7">&gt; Mean: 95.0 (12ms)</text>
+      <!-- Card Label -->
+      <text x="20" y="164" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" fill="#F8FAFC">Compiler IDE</text>
+      <text x="20" y="190" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="500" fill="#94A3B8">Python, C &amp; C++</text>
+      <text x="20" y="210" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="600" fill="#34D399">Online &amp; Offline Ready</text>
     </g>
 
-    <!-- Card 3: Image Studio -->
-    <g transform="translate(0, 230)">
-      <rect width="212" height="212" rx="22" fill="url(#cardBg)" stroke="#1E293B" stroke-width="2" />
-      <rect x="22" y="22" width="48" height="48" rx="14" fill="#311042" fill-opacity="0.6" stroke="#A855F7" stroke-width="1.5" />
-      <text x="31" y="52" font-family="system-ui, sans-serif" font-size="16" font-weight="800" fill="#C084FC">IMG</text>
-      <text x="22" y="106" font-family="system-ui, sans-serif" font-size="22" font-weight="800" fill="#F8FAFC">Image Studio</text>
-      <text x="22" y="134" font-family="system-ui, sans-serif" font-size="14" font-weight="500" fill="#94A3B8">Compress, Resize, Crop</text>
-      <text x="22" y="156" font-family="system-ui, sans-serif" font-size="14" font-weight="500" fill="#94A3B8">Remove BG &amp; Convert</text>
-      <rect x="22" y="174" width="112" height="18" rx="5" fill="#1E293B" />
-      <rect x="22" y="174" width="84" height="18" rx="5" fill="#A855F7" />
+    <!-- CARD 3: Image Studio Preview (Bottom-Left) -->
+    <g transform="translate(0, 254)">
+      <rect width="242" height="236" rx="22" fill="url(#cardSurface)" stroke="#4C1D95" stroke-width="2" />
+      <!-- Mini Image Editor Canvas -->
+      <rect x="16" y="16" width="210" height="114" rx="14" fill="#09101D" stroke="#1E293B" stroke-width="1.5" />
+      <!-- Left half: Original Photo Frame with Mountain & Sun -->
+      <rect x="28" y="28" width="88" height="88" rx="10" fill="#1E1B4B" stroke="#8B5CF6" stroke-width="1.5" />
+      <circle cx="52" cy="50" r="9" fill="#FBBF24" />
+      <path d="M 32 108 L 58 72 L 78 94 L 92 78 L 112 108 Z" fill="#6366F1" />
+      <!-- Split Slider Line -->
+      <line x1="116" y1="24" x2="116" y2="120" stroke="#C084FC" stroke-width="2.5" />
+      <circle cx="116" cy="72" r="8" fill="#A855F7" stroke="#FFFFFF" stroke-width="2" />
+      <!-- Right half: BG Removed & Format Pills -->
+      <g transform="translate(128, 30)">
+        <rect x="0" y="0" width="88" height="24" rx="6" fill="#2E1065" stroke="#A855F7" stroke-opacity="0.5" />
+        <text x="10" y="16" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#E9D5FF">Remove BG</text>
+        <rect x="0" y="31" width="88" height="24" rx="6" fill="#0F172A" stroke="#1E293B" />
+        <text x="8" y="47" font-family="system-ui, sans-serif" font-size="10.5" font-weight="700" fill="#CBD5E1">Crop / Resize</text>
+        <rect x="0" y="62" width="88" height="22" rx="6" fill="#1E293B" />
+        <text x="10" y="77" font-family="monospace" font-size="10.5" font-weight="700" fill="#38BDF8">PNG • WEBP</text>
+      </g>
+      <!-- Card Label -->
+      <text x="20" y="164" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" fill="#F8FAFC">Image Tools</text>
+      <text x="20" y="190" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="500" fill="#94A3B8">Compress, Resize, Crop</text>
+      <text x="20" y="210" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="500" fill="#94A3B8">BG Remover &amp; Convert</text>
     </g>
 
-    <!-- Card 4: Whiteboard & Utilities -->
-    <g transform="translate(230, 230)">
-      <rect width="212" height="212" rx="22" fill="url(#cardBg)" stroke="#1E293B" stroke-width="2" />
-      <rect x="22" y="22" width="48" height="48" rx="14" fill="#0C4A6E" fill-opacity="0.6" stroke="#38BDF8" stroke-width="1.5" />
-      <text x="31" y="52" font-family="system-ui, sans-serif" font-size="16" font-weight="800" fill="#38BDF8">PRO</text>
-      <text x="22" y="106" font-family="system-ui, sans-serif" font-size="22" font-weight="800" fill="#F8FAFC">Whiteboard</text>
-      <text x="22" y="134" font-family="system-ui, sans-serif" font-size="14" font-weight="500" fill="#94A3B8">Infinite Vector Canvas</text>
-      <text x="22" y="156" font-family="system-ui, sans-serif" font-size="14" font-weight="500" fill="#94A3B8">&amp; 60+ Daily Utilities</text>
-      <rect x="22" y="174" width="112" height="18" rx="5" fill="#1E293B" />
-      <rect x="22" y="174" width="90" height="18" rx="5" fill="#38BDF8" />
+    <!-- CARD 4: Whiteboard & Canvas Preview (Bottom-Right) -->
+    <g transform="translate(260, 254)">
+      <rect width="242" height="236" rx="22" fill="url(#cardSurface)" stroke="#0369A1" stroke-width="2" />
+      <!-- Mini Infinite Canvas Preview -->
+      <rect x="16" y="16" width="210" height="114" rx="14" fill="#09101D" stroke="#1E293B" stroke-width="1.5" />
+      <!-- Flowchart Nodes & Freehand Vector Curve -->
+      <rect x="30" y="34" width="64" height="32" rx="8" fill="#0C4A6E" stroke="#38BDF8" stroke-width="1.5" />
+      <text x="45" y="54" font-family="system-ui, sans-serif" font-size="11" font-weight="800" fill="#E0F2FE">Idea</text>
+      <path d="M 94 50 C 116 50, 118 82, 140 82" stroke="#38BDF8" stroke-width="2.5" fill="none" stroke-dasharray="4 3" />
+      <rect x="140" y="66" width="72" height="32" rx="8" fill="#064E3B" stroke="#10B981" stroke-width="1.5" />
+      <text x="155" y="86" font-family="system-ui, sans-serif" font-size="11" font-weight="800" fill="#D1FAE5">Sketch</text>
+      <!-- Highlight Stroke -->
+      <path d="M 34 102 Q 68 82, 106 104" stroke="#FBBF24" stroke-width="3.5" fill="none" stroke-linecap="round" />
+      <!-- Card Label -->
+      <text x="20" y="164" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" fill="#F8FAFC">Whiteboard</text>
+      <text x="20" y="190" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="500" fill="#94A3B8">Infinite Vector Canvas</text>
+      <text x="20" y="210" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="500" fill="#94A3B8">Diagrams &amp; PDF Markup</text>
     </g>
   </g>
 </svg>`;
 
 /**
  * 2. Compiler Open Graph Social Preview Image (1200 x 630)
+ * Dedicated preview for https://tooltracker.vercel.app/compiler
+ * - Left: "ToolTrack Compiler", "Python • C • C++", concise capabilities & URL.
+ * - Right: Clean VS Code-style code editor interface with console output & Matplotlib plot card.
  */
 export const OG_COMPILER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
   <defs>
@@ -415,48 +476,48 @@ export const OG_COMPILER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1
   <rect x="28" y="28" width="1144" height="574" rx="28" fill="none" stroke="#1E293B" stroke-width="2" />
 
   <!-- LEFT COLUMN -->
-  <g transform="translate(76, 88)">
-    <!-- ToolTrack Brand Header -->
-    <rect x="0" y="0" width="72" height="72" rx="18" fill="#0F172A" stroke="#3B82F6" stroke-width="2" />
-    <rect x="17" y="17" width="17" height="11" rx="3.5" fill="#3B82F6" />
-    <rect x="38" y="17" width="17" height="11" rx="3.5" fill="#38BDF8" />
-    <rect x="29" y="32" width="14" height="23" rx="3.5" fill="#2563EB" />
-    <path d="M 49 39 L 55 45 L 49 51" stroke="#38BDF8" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
-    <circle cx="21" cy="45" r="2.5" fill="#3B82F6" />
+  <g transform="translate(72, 82)">
+    <!-- Small ToolTrack Brand Header -->
+    <rect x="0" y="0" width="58" height="58" rx="15" fill="#0F172A" stroke="#3B82F6" stroke-width="2" />
+    <rect x="13" y="13" width="14" height="9" rx="3" fill="#3B82F6" />
+    <rect x="31" y="13" width="14" height="9" rx="3" fill="#38BDF8" />
+    <rect x="23" y="25" width="12" height="19" rx="3" fill="#2563EB" />
+    <path d="M 40 31 L 45 36 L 40 41" stroke="#38BDF8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="17" cy="36" r="2.2" fill="#3B82F6" />
 
-    <text x="90" y="45" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="38" font-weight="800" fill="#F8FAFC" letter-spacing="-0.8">
+    <text x="74" y="37" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="800" fill="#F8FAFC" letter-spacing="-0.8">
       Tool<tspan fill="#3B82F6">Track</tspan>
     </text>
-    <text x="92" y="66" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700" fill="#34D399" letter-spacing="3.5">
+    <text x="76" y="54" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="11.5" font-weight="700" fill="#34D399" letter-spacing="3">
       ONLINE &amp; OFFLINE IDE
     </text>
 
     <!-- Main Title -->
-    <text x="0" y="158" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="56" font-weight="800" fill="#FFFFFF" letter-spacing="-1.2">
+    <text x="0" y="152" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="56" font-weight="800" fill="#FFFFFF" letter-spacing="-1.2">
       ToolTrack
     </text>
-    <text x="0" y="222" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="56" font-weight="800" fill="url(#compTitleGrad)" letter-spacing="-1.2">
+    <text x="0" y="216" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="56" font-weight="800" fill="url(#compTitleGrad)" letter-spacing="-1.2">
       Compiler
     </text>
 
     <!-- Language Pill Strip -->
-    <rect x="0" y="254" width="350" height="46" rx="12" fill="#132238" stroke="#38BDF8" stroke-opacity="0.5" stroke-width="1.5" />
-    <text x="24" y="284" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="800" fill="#F8FAFC">
+    <rect x="0" y="248" width="350" height="46" rx="12" fill="#132238" stroke="#38BDF8" stroke-opacity="0.5" stroke-width="1.5" />
+    <text x="24" y="278" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="800" fill="#F8FAFC">
       Python  •  C  •  C++
     </text>
 
     <!-- Feature summary -->
-    <text x="0" y="344" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="19" font-weight="500" fill="#94A3B8">
+    <text x="0" y="340" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="19" font-weight="500" fill="#94A3B8">
       Code editor, STDIN/STDOUT console, supported
     </text>
-    <text x="0" y="372" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="19" font-weight="500" fill="#94A3B8">
+    <text x="0" y="368" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="19" font-weight="500" fill="#94A3B8">
       scientific Python libraries, plots &amp; offline mode.
     </text>
 
     <!-- URL Badge -->
-    <rect x="0" y="410" width="356" height="38" rx="10" fill="#0F172A" stroke="#334155" stroke-width="1.5" />
-    <circle cx="22" cy="429" r="5" fill="#38BDF8" />
-    <text x="38" y="435" font-family="monospace" font-size="16" font-weight="700" fill="#CBD5E1">
+    <rect x="0" y="414" width="356" height="38" rx="10" fill="#0F172A" stroke="#334155" stroke-width="1.5" />
+    <circle cx="22" cy="433" r="5" fill="#38BDF8" />
+    <text x="38" y="439" font-family="monospace" font-size="16" font-weight="700" fill="#CBD5E1">
       tooltracker.vercel.app/compiler
     </text>
   </g>
@@ -540,8 +601,12 @@ export const OG_COMPILER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1
 
 async function main() {
   const publicDir = path.resolve('public');
+  const ogDir = path.join(publicDir, 'og');
   if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
+  }
+  if (!fs.existsSync(ogDir)) {
+    fs.mkdirSync(ogDir, { recursive: true });
   }
 
   // 1. Write SVG assets
@@ -549,7 +614,7 @@ async function main() {
   fs.writeFileSync(path.join(publicDir, 'tooltrack-icon.svg'), TOOLTRACK_ICON_SVG);
   fs.writeFileSync(path.join(publicDir, 'tooltrack-logo.svg'), TOOLTRACK_FULL_LOGO_DARK_SVG);
 
-  // 2. Generate PNG Favicons
+  // 2. Generate PNG Favicons & PWA App Icons (strictly separated from social preview banners)
   const sizes = [16, 32, 48, 180, 192, 512];
   for (const s of sizes) {
     const filename =
@@ -567,32 +632,57 @@ async function main() {
     console.log(`Generated ${filename}`);
   }
 
-  // Generate 32x32 favicon.ico as PNG for browser compatibility
   await sharp(Buffer.from(TOOLTRACK_ICON_SVG))
     .resize(32, 32)
     .png()
     .toFile(path.join(publicDir, 'favicon.ico'));
 
-  // 3. Generate 1200x630 Social Preview Images (Open Graph & Twitter Cards)
-  await sharp(Buffer.from(OG_HOMEPAGE_SVG))
+  // 3. Generate 1200x630 Landscape Social Preview Images in PNG, WebP, and JPEG
+  const homeSvgBuf = Buffer.from(OG_HOMEPAGE_SVG);
+  await sharp(homeSvgBuf)
     .resize(1200, 630)
-    .png({ compressionLevel: 9, palette: true, quality: 92 })
+    .png({ compressionLevel: 9, palette: true, quality: 95 })
+    .toFile(path.join(ogDir, 'tooltrack-social-preview-v3.png'));
+  await sharp(homeSvgBuf)
+    .resize(1200, 630)
+    .webp({ quality: 92 })
+    .toFile(path.join(ogDir, 'tooltrack-social-preview.webp'));
+  await sharp(homeSvgBuf)
+    .resize(1200, 630)
+    .jpeg({ quality: 92, progressive: true })
+    .toFile(path.join(ogDir, 'tooltrack-social-preview.jpg'));
+  await sharp(homeSvgBuf)
+    .resize(1200, 630)
+    .png({ compressionLevel: 9, palette: true, quality: 95 })
     .toFile(path.join(publicDir, 'og-tooltrack.png'));
-  console.log('Generated og-tooltrack.png (1200x630)');
+  console.log('Generated Homepage 1200x630 OG banners in /og/ and /og-tooltrack.png');
 
-  await sharp(Buffer.from(OG_COMPILER_SVG))
+  const compilerSvgBuf = Buffer.from(OG_COMPILER_SVG);
+  await sharp(compilerSvgBuf)
     .resize(1200, 630)
-    .png({ compressionLevel: 9, palette: true, quality: 92 })
+    .png({ compressionLevel: 9, palette: true, quality: 95 })
+    .toFile(path.join(ogDir, 'tooltrack-compiler-preview-v3.png'));
+  await sharp(compilerSvgBuf)
+    .resize(1200, 630)
+    .webp({ quality: 92 })
+    .toFile(path.join(ogDir, 'tooltrack-compiler-preview.webp'));
+  await sharp(compilerSvgBuf)
+    .resize(1200, 630)
+    .jpeg({ quality: 92, progressive: true })
+    .toFile(path.join(ogDir, 'tooltrack-compiler-preview.jpg'));
+  await sharp(compilerSvgBuf)
+    .resize(1200, 630)
+    .png({ compressionLevel: 9, palette: true, quality: 95 })
     .toFile(path.join(publicDir, 'og-compiler.png'));
-  console.log('Generated og-compiler.png (1200x630)');
+  console.log('Generated Compiler 1200x630 OG banners in /og/ and /og-compiler.png');
 
   // 4. Write PWA Web App Manifest
   const manifest = {
     id: '/',
-    name: 'ToolTrack — All Your Files, Coding & Productivity Tools in One Place',
+    name: 'ToolTrack | PDF, Compiler, Image & Productivity Tools',
     short_name: 'ToolTrack',
     description:
-      'Convert, compress, edit, and organize PDFs, documents, and images. Write and run Python, C, and C++ with our online/offline compiler, and explore Whiteboard, OCR, and everyday productivity tools.',
+      'All-in-one PDF, image and document tools, Python/C/C++ compiler, Whiteboard and more.',
     start_url: '/',
     scope: '/',
     display: 'standalone',

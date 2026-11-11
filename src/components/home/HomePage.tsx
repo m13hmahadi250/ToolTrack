@@ -235,12 +235,8 @@ export const HomePage: React.FC = () => {
           className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 w-full max-w-4xl h-80 bg-gradient-to-b from-[#2563EB]/10 via-[#7C3AED]/5 to-transparent blur-3xl -z-10"
         />
 
-        {/* Brand Positioning Label & Primary Headline */}
+        {/* Primary Headline */}
         <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[#EFF6FF] dark:bg-[#1E293B] border border-[#BFDBFE] dark:border-[#334155] text-[11px] sm:text-xs font-semibold text-[#1D4ED8] dark:text-[#60A5FA]">
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span>All Your Files, Coding &amp; Productivity Tools in One Place</span>
-          </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight leading-[1.08] text-balance">
             One Workspace.{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2563EB] via-[#1D4ED8] to-[#7C3AED] dark:from-[#3B82F6] dark:via-[#60A5FA] dark:to-[#8B5CF6]">
@@ -280,43 +276,6 @@ export const HomePage: React.FC = () => {
                 {s.label}
               </button>
             ))}
-          </div>
-
-          {/* Prominent Featured Compiler Quick-Entry Card */}
-          <div
-            onClick={() => setActiveToolId('compiler')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setActiveToolId('compiler');
-              }
-            }}
-            className="mt-3 p-3.5 sm:px-5 sm:py-3.5 rounded-2xl bg-gradient-to-r from-[#0F172A] via-[#1E293B] to-[#0F172A] border border-[#334155] hover:border-[#3B82F6] text-left flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md hover:shadow-lg transition cursor-pointer group"
-          >
-            <div className="flex items-start sm:items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-[#2563EB]/20 border border-[#3B82F6]/40 text-[#60A5FA] flex items-center justify-center shrink-0">
-                <Code2 className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-sm text-white group-hover:text-[#60A5FA] transition">
-                    Online &amp; Offline Compiler
-                  </span>
-                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                    Python 3.12 · C17 · C++20
-                  </span>
-                </div>
-                <p className="text-xs text-slate-300 mt-0.5 leading-snug">
-                  Write, run, and practice Python, C, and C++ directly in your browser.
-                </p>
-              </div>
-            </div>
-            <div className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#2563EB] group-hover:bg-[#1D4ED8] text-white text-xs font-semibold shrink-0 transition">
-              <span>Open Compiler</span>
-              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-            </div>
           </div>
         </div>
 

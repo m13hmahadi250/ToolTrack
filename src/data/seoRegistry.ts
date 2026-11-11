@@ -11,10 +11,10 @@ import type { ToolItem } from '../types';
 export const SITE_CONFIG = {
   url: 'https://tooltracker.vercel.app',
   name: 'ToolTrack',
-  tagline: 'All Your Files, Coding & Productivity Tools in One Place',
-  defaultTitle: 'ToolTrack — PDF, Image, Compiler & Productivity Tools',
+  tagline: 'Your All-in-One Productivity Workspace',
+  defaultTitle: 'ToolTrack | PDF, Compiler, Image & Productivity Tools',
   defaultDescription:
-    'All-in-one PDF, document, image, Whiteboard, and productivity tools with an online/offline Python, C & C++ compiler.',
+    'All-in-one PDF, image and document tools, Python/C/C++ compiler, Whiteboard and more.',
   supportingDescription:
     'Convert, compress, edit, and organize PDFs, documents, and images. Write and run Python, C, and C++ with our online/offline compiler, and explore Whiteboard, OCR, and everyday productivity tools.',
   keywords: [
@@ -44,12 +44,12 @@ export const SITE_CONFIG = {
     'productivity workspace',
   ],
   logoUrl: 'https://tooltracker.vercel.app/icon-512.png',
-  ogImageUrl: 'https://tooltracker.vercel.app/og-tooltrack.png?v=2',
-  ogImageAlt: 'ToolTrack — PDF • Images • Compiler • Whiteboard • Productivity',
-  compilerOgImageUrl: 'https://tooltracker.vercel.app/og-compiler.png?v=2',
+  ogImageUrl: 'https://tooltracker.vercel.app/og/tooltrack-social-preview-v3.png',
+  ogImageAlt: 'ToolTrack — Your All-in-One Productivity Workspace: PDF • Images • Compiler • Whiteboard • Documents',
+  compilerOgImageUrl: 'https://tooltracker.vercel.app/og/tooltrack-compiler-preview-v3.png',
   compilerOgImageAlt: 'ToolTrack Compiler — Online & Offline Python, C & C++ IDE',
   lastModifiedDefault: '2026-10-10',
-  lastModifiedUpdated: '2026-11-10',
+  lastModifiedUpdated: '2026-11-11',
 };
 
 export interface ToolSeoData {
@@ -251,7 +251,7 @@ export const TOOLS_SEO: Record<string, ToolSeoData> = {
     h1: 'Online & Offline Python, C & C++ Compiler',
     tagline:
       'Write, run, and practice Python, C, and C++ directly in your browser with syntax highlighting, standard input/output, supported scientific Python libraries, and offline execution.',
-    ogImage: 'https://tooltracker.vercel.app/og-compiler.png?v=2',
+    ogImage: 'https://tooltracker.vercel.app/og/tooltrack-compiler-preview-v3.png',
     ogImageAlt: 'ToolTrack Compiler — Online & Offline Python, C & C++ IDE',
     keywords: [
       'Python Compiler',
@@ -2156,6 +2156,7 @@ export function generateToolJsonLd(tool: ToolSeoData): object {
         '@id': `${SITE_CONFIG.url}${tool.route}#webapp`,
         name: `ToolTrack ${tool.name}`,
         url: `${SITE_CONFIG.url}${tool.route}`,
+        image: tool.ogImage || (tool.toolId === 'compiler' ? SITE_CONFIG.compilerOgImageUrl : SITE_CONFIG.ogImageUrl),
         applicationCategory: 'UtilitiesApplication',
         operatingSystem: 'All',
         browserRequirements: 'Requires JavaScript. Requires HTML5.',
@@ -2239,7 +2240,8 @@ export function generateHomepageJsonLd(): object {
         '@id': `${SITE_CONFIG.url}/#website`,
         url: `${SITE_CONFIG.url}/`,
         name: SITE_CONFIG.name,
-        description: `${SITE_CONFIG.tagline} — ${SITE_CONFIG.supportingDescription}`,
+        image: SITE_CONFIG.ogImageUrl,
+        description: SITE_CONFIG.defaultDescription,
         potentialAction: {
           '@type': 'SearchAction',
           target: {
@@ -2266,10 +2268,11 @@ export function generateHomepageJsonLd(): object {
         '@id': `${SITE_CONFIG.url}/#application`,
         name: SITE_CONFIG.name,
         url: `${SITE_CONFIG.url}/`,
+        image: SITE_CONFIG.ogImageUrl,
         applicationCategory: 'UtilitiesApplication',
         operatingSystem: 'All',
         browserRequirements: 'Requires JavaScript. Requires HTML5.',
-        description: SITE_CONFIG.supportingDescription,
+        description: SITE_CONFIG.defaultDescription,
         offers: {
           '@type': 'Offer',
           price: '0',
@@ -2348,6 +2351,7 @@ export function updateDocumentSeo(params: {
   setMetaProperty('og:type', params.ogType || 'website');
   setMetaProperty('og:site_name', SITE_CONFIG.name);
   setMetaProperty('og:image', resolvedOgImage);
+  setMetaProperty('og:image:secure_url', resolvedOgImage);
   setMetaProperty('og:image:width', '1200');
   setMetaProperty('og:image:height', '630');
   setMetaProperty('og:image:type', 'image/png');
@@ -2481,6 +2485,7 @@ export function injectSeoIntoHtml(htmlTemplate: string, pathname: string): strin
   replaceOgProp('og:description', safeDesc);
   replaceOgProp('og:url', safeCanonical);
   replaceOgProp('og:image', safeOgImage);
+  replaceOgProp('og:image:secure_url', safeOgImage);
   replaceOgProp('og:image:alt', safeOgImageAlt);
 
   // Replace Twitter Card names

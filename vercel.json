@@ -32,6 +32,45 @@
       ]
     },
     {
+      "source": "/og/(.*)\\.png",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "image/png"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, s-maxage=86400"
+        }
+      ]
+    },
+    {
+      "source": "/og/(.*)\\.webp",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "image/webp"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, s-maxage=86400"
+        }
+      ]
+    },
+    {
+      "source": "/og/(.*)\\.jpg",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "image/jpeg"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, s-maxage=86400"
+        }
+      ]
+    },
+    {
       "source": "/og-(.*)\\.png",
       "headers": [
         {
@@ -49,6 +88,7 @@
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
     { "source": "/robots.txt", "destination": "/robots.txt" },
+    { "source": "/og/(.*)", "destination": "/og/$1" },
     { "source": "/og-tooltrack.png", "destination": "/og-tooltrack.png" },
     { "source": "/og-compiler.png", "destination": "/og-compiler.png" },
     { "source": "/site.webmanifest", "destination": "/site.webmanifest" },
@@ -56,6 +96,7 @@
     { "source": "/compiler", "destination": "/compiler/index.html" },
     { "source": "/whiteboard", "destination": "/whiteboard/index.html" },
     { "source": "/tools/:slug", "destination": "/tools/:slug/index.html" },
-    { "source": "/((?!api/|sitemap\\.xml|robots\\.txt|og-.*\\.png|site\\.webmanifest|favicon.*|icon-.*|pwa-.*|apple-touch-icon\\.png|pdf\\.worker\\.min\\.mjs|google[a-z0-9]+\\.html|assets/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|sitemap\\.xml|robots\\.txt|og/.*|og-.*\\.png|site\\.webmanifest|favicon.*|icon-.*|pwa-.*|apple-touch-icon\\.png|pdf\\.worker\\.min\\.mjs|google[a-z0-9]+\\.html|assets/).*)", "destination": "/index.html" }
   ]
 }
+

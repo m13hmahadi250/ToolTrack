@@ -239,6 +239,7 @@ Allow: /compiler
 Allow: /whiteboard
 Allow: /tools/
 Allow: /category/
+Allow: /og/
 Allow: /assets/
 Disallow: /api/
 
@@ -248,13 +249,17 @@ Allow: /compiler
 Allow: /whiteboard
 Allow: /tools/
 Allow: /category/
+Allow: /og/
 Allow: /assets/
 Disallow: /api/
 
 User-agent: Googlebot-Image
-Allow: /assets/
+Allow: /og/
+Allow: /og/tooltrack-social-preview-v3.png
+Allow: /og/tooltrack-compiler-preview-v3.png
 Allow: /og-tooltrack.png
 Allow: /og-compiler.png
+Allow: /assets/
 Allow: /
 
 Sitemap: ${BASE_URL}/sitemap.xml

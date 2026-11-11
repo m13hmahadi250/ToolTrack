@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "ToolTrack — All Your Files, Coding & Productivity Tools in One Place",
+  "name": "ToolTrack | PDF, Compiler, Image & Productivity Tools",
   "short_name": "ToolTrack",
-  "description": "Convert, compress, edit, and organize PDFs, documents, and images. Write and run Python, C, and C++ with our online/offline compiler, and explore Whiteboard, OCR, and everyday productivity tools.",
+  "description": "All-in-one PDF, image and document tools, Python/C/C++ compiler, Whiteboard and more.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
