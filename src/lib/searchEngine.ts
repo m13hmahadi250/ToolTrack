@@ -82,6 +82,20 @@ const SYNONYM_MAP: Record<string, string[]> = {
   md: ['markdown editor'],
   case: ['text case converter', 'uppercase', 'lowercase'],
   slug: ['url slug generator', 'kebab case'],
+  code: ['compiler', 'online compiler', 'offline compiler', 'code editor'],
+  coding: ['compiler', 'online compiler', 'offline compiler', 'programming ide'],
+  compile: ['compiler', 'online compiler', 'offline compiler'],
+  compiler: ['online compiler', 'offline compiler', 'python compiler', 'c++ compiler', 'c compiler'],
+  ide: ['compiler', 'programming ide', 'code editor'],
+  py: ['python', 'python compiler', 'compiler'],
+  python: ['python compiler', 'online compiler', 'offline compiler', 'python data science'],
+  cpp: ['c++', 'c++ compiler', 'compiler'],
+  'c++': ['c++ compiler', 'online compiler', 'offline compiler'],
+  numpy: ['python compiler', 'python data science', 'compiler'],
+  pandas: ['python compiler', 'python data science', 'compiler'],
+  matplotlib: ['python plotting', 'python compiler', 'compiler'],
+  plot: ['python plotting', 'matplotlib', 'compiler'],
+  plotting: ['python plotting', 'matplotlib', 'compiler'],
 };
 
 // Levenshtein distance for fuzzy matching
@@ -373,14 +387,14 @@ export function searchTools(query: string, maxResults = 10): SearchResult[] {
  */
 export function getPopularTools(): ToolItem[] {
   const priorityIds = [
+    'compiler',
     'pdf-to-word',
     'compress-pdf',
     'image-compressor',
+    'whiteboard',
     'images-to-pdf',
     'image-background-remover',
     'ocr-pdf',
-    'normalize-pdf-page-size',
-    'image-converter',
   ];
 
   const tools: ToolItem[] = [];

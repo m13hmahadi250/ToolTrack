@@ -153,11 +153,11 @@ export const Footer: React.FC = () => {
             </button>
 
             <p className="text-xs text-[#CBD5E1] leading-relaxed max-w-sm">
-              All-in-one file, document, image and productivity toolkit. Work with PDFs, Word, Excel, images, OCR, notes and an interactive Whiteboard directly in your browser with complete privacy and zero server storage.
+              Work with PDFs, Word and Excel documents, images, an online/offline Python, C, and C++ compiler, Whiteboard, OCR, and everyday productivity tools in one fast, clean web platform.
             </p>
 
             <div className="pt-1 text-[11px] text-[#94A3B8]">
-              Zero server uploads · 100% private in-browser memory
+              Zero server uploads · 100% private in-browser execution
             </div>
           </div>
 
@@ -209,14 +209,14 @@ export const Footer: React.FC = () => {
             </ul>
           </div>
 
-          {/* Productivity & Whiteboard Column */}
+          {/* Coding & Productivity Column */}
           <div className="col-span-1 lg:col-span-1 space-y-3">
             <h5 className="text-xs font-bold text-[#F2F4F7] uppercase tracking-wider">
-              Productivity
+              Code &amp; Studio
             </h5>
             <ul className="space-y-1.5 text-xs text-[#B8C4D6]">
+              {renderToolLink('compiler', 'Compiler & IDE', 'PY/C++')}
               {renderToolLink('whiteboard', 'Whiteboard', 'PRO')}
-              {renderToolLink('compiler', 'Compiler & IDE', 'NEW')}
               {renderToolLink('ocr-pdf', 'OCR Text Scan')}
               {renderToolLink('assignment-pdf-maker', 'Assignment Maker')}
               {renderToolLink('notes-to-pdf', 'Notes to PDF')}
@@ -241,7 +241,7 @@ export const Footer: React.FC = () => {
                   onClick={navigateToDirectory}
                   className="group flex items-center gap-1.5 transition-all cursor-pointer text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#3B82F6] rounded-sm py-0.5 text-[#B8C4D6] hover:text-[#3B82F6] hover:translate-x-0.5 font-medium"
                 >
-                  <span>All 38+ Tools Directory</span>
+                  <span>All 60+ Tools Directory</span>
                 </button>
               </li>
               <li className="pt-2">
@@ -258,7 +258,7 @@ export const Footer: React.FC = () => {
         <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-[#8292A9]">
           {/* Copyright & Core Statement */}
           <div className="flex flex-wrap items-center gap-2 text-center md:text-left">
-            <span>© {new Date().getFullYear()} ToolTrack. All Your Files & Productivity Tools in One Place.</span>
+            <span>© {new Date().getFullYear()} ToolTrack. All Your Files, Coding &amp; Productivity Tools in One Place.</span>
           </div>
 
           {/* Actions & Designer Credit */}

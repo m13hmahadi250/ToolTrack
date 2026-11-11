@@ -22,6 +22,8 @@ import {
   Scissors,
   Minimize2,
   LayoutGrid,
+  Code2,
+  Terminal,
 } from 'lucide-react';
 import { useToolTrack } from '../../context/ToolTrackContext';
 import { TOOLS_LIST } from '../../data/toolsList';
@@ -151,11 +153,11 @@ export const HomePage: React.FC = () => {
   // Exactly 8 high-utility quick action tools near the top
   const popularTools = useMemo(() => {
     const curatedIds = [
+      'compiler',
+      'pdf-to-word',
       'compress-pdf',
       'merge-pdf',
-      'pdf-to-word',
       'image-compressor',
-      'image-resizer',
       'image-background-remover',
       'whiteboard',
       'image-converter',
@@ -196,12 +198,16 @@ export const HomePage: React.FC = () => {
 
   const faqs = [
     {
-      q: 'Are my files uploaded or stored on any server?',
-      a: 'No. ToolTrack processes all documents, images, and text locally in your browser memory using WebAssembly and HTML5 APIs. Nothing is uploaded to a remote server or cloud database.',
+      q: 'How does the Online & Offline Python, C & C++ Compiler work?',
+      a: 'The ToolTrack Compiler (/compiler) lets you write, compile, and run Python 3.12, C17, and C++20 directly in your browser with syntax highlighting, STDIN input, terminal output, and scientific Python libraries (NumPy, pandas, Matplotlib, scikit-learn). Once the core runtime and selected packages are cached locally via the Offline Manager, supported programs run even without an internet connection.',
+    },
+    {
+      q: 'Are my files and source code uploaded or stored on any server?',
+      a: 'No. ToolTrack processes your PDFs, documents, images, and code locally in your browser memory using WebAssembly and HTML5 APIs. Your private files remain on your device.',
     },
     {
       q: 'Do tools like calculators, password generators, and QR codes work offline?',
-      a: 'Yes. Once loaded, ToolTrack functions as a Progressive Web App (PWA). All text tools, QR generators, calculators, and offline PDF tools continue working even without an active internet connection.',
+      a: 'Yes. Once loaded, ToolTrack functions as a Progressive Web App (PWA). Text utilities, QR generators, calculators, the Whiteboard, cached Compiler runtimes, and local PDF tools continue working without an active internet connection.',
     },
     {
       q: 'How does the Whiteboard tool work and do I need to register?',
@@ -209,11 +215,11 @@ export const HomePage: React.FC = () => {
     },
     {
       q: 'Can I use ToolTrack on mobile phones and tablets?',
-      a: 'Yes. Every tool interface is fully responsive and optimized for smartphones, iPads, Android tablets, laptops, and touch screens.',
+      a: 'Yes. Every tool interface is responsive and optimized for smartphones, iPads, Android tablets, Chromebooks, laptops, and desktop browsers.',
     },
     {
-      q: 'How are my favorites and recent tools stored?',
-      a: 'Your favorites and recent history are saved solely inside your local browser storage (localStorage) as simple tool identifiers. No private document text, files, or passwords are ever stored.',
+      q: 'How are my favorites, projects, and recent tools stored?',
+      a: 'Your favorites, compiler projects, and recent tool history are saved inside your local browser storage (localStorage and IndexedDB) on your device.',
     },
   ];
 
@@ -229,16 +235,20 @@ export const HomePage: React.FC = () => {
           className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 w-full max-w-4xl h-80 bg-gradient-to-b from-[#2563EB]/10 via-[#7C3AED]/5 to-transparent blur-3xl -z-10"
         />
 
-        {/* Primary Headline */}
+        {/* Brand Positioning Label & Primary Headline */}
         <div className="space-y-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[#EFF6FF] dark:bg-[#1E293B] border border-[#BFDBFE] dark:border-[#334155] text-[11px] sm:text-xs font-semibold text-[#1D4ED8] dark:text-[#60A5FA]">
+            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+            <span>All Your Files, Coding &amp; Productivity Tools in One Place</span>
+          </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight leading-[1.08] text-balance">
-            Every file. Every task.{' '}
+            One Workspace.{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2563EB] via-[#1D4ED8] to-[#7C3AED] dark:from-[#3B82F6] dark:via-[#60A5FA] dark:to-[#8B5CF6]">
-              One workspace.
+              More Possibilities.
             </span>
           </h1>
           <p className="text-base sm:text-lg text-[#475569] dark:text-[#CBD5E1] leading-relaxed max-w-2xl mx-auto text-balance font-normal">
-            Convert, compress, organize, edit, and work with PDFs, documents, spreadsheets, images, Whiteboard, and everyday utilities in one convenient place.
+            Your all-in-one workspace for PDF, document, image, coding, Whiteboard, and productivity tools. Convert, compress, edit, and organize files, or write and run Python, C, and C++ directly in your browser.
           </p>
         </div>
 
@@ -246,20 +256,20 @@ export const HomePage: React.FC = () => {
         <div className="pt-2 max-w-2xl mx-auto space-y-3.5">
           <GlobalToolSearch
             variant="home"
-            placeholder="Search 60+ tools (e.g., PDF to Word, compress, resize, background)..."
+            placeholder="Search 60+ tools (e.g., Python compiler, PDF to Word, compress, Whiteboard)..."
           />
 
           {/* Quick Jump Suggestions */}
           <div className="flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-[#64748B] dark:text-[#94A3B8]">
             <span className="font-semibold text-[#475569] dark:text-[#CBD5E1] shrink-0">Popular:</span>
             {[
+              { id: 'compiler', label: 'Python / C++ Compiler' },
+              { id: 'pdf-to-word', label: 'PDF to Word' },
               { id: 'compress-pdf', label: 'Compress PDF' },
               { id: 'merge-pdf', label: 'Merge PDF' },
-              { id: 'pdf-to-word', label: 'PDF to Word' },
               { id: 'image-compressor', label: 'Compress Image' },
               { id: 'image-background-remover', label: 'Remove BG' },
               { id: 'whiteboard', label: 'Whiteboard' },
-              { id: 'compiler', label: 'Compiler IDE' },
               { id: 'qr-code-generator', label: 'QR Generator' },
             ].map((s) => (
               <button
@@ -270,6 +280,43 @@ export const HomePage: React.FC = () => {
                 {s.label}
               </button>
             ))}
+          </div>
+
+          {/* Prominent Featured Compiler Quick-Entry Card */}
+          <div
+            onClick={() => setActiveToolId('compiler')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setActiveToolId('compiler');
+              }
+            }}
+            className="mt-3 p-3.5 sm:px-5 sm:py-3.5 rounded-2xl bg-gradient-to-r from-[#0F172A] via-[#1E293B] to-[#0F172A] border border-[#334155] hover:border-[#3B82F6] text-left flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md hover:shadow-lg transition cursor-pointer group"
+          >
+            <div className="flex items-start sm:items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-[#2563EB]/20 border border-[#3B82F6]/40 text-[#60A5FA] flex items-center justify-center shrink-0">
+                <Code2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-sm text-white group-hover:text-[#60A5FA] transition">
+                    Online &amp; Offline Compiler
+                  </span>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                    Python 3.12 · C17 · C++20
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5 leading-snug">
+                  Write, run, and practice Python, C, and C++ directly in your browser.
+                </p>
+              </div>
+            </div>
+            <div className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#2563EB] group-hover:bg-[#1D4ED8] text-white text-xs font-semibold shrink-0 transition">
+              <span>Open Compiler</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </div>
           </div>
         </div>
 
@@ -285,7 +332,7 @@ export const HomePage: React.FC = () => {
           </div>
           <div className="flex items-center gap-1.5 text-[#475569] dark:text-[#CBD5E1]">
             <CheckCircle2 className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-            <span>Free & Offline-Ready</span>
+            <span>Free &amp; Offline-Ready</span>
           </div>
         </div>
       </section>
@@ -300,7 +347,7 @@ export const HomePage: React.FC = () => {
               Popular Tools
             </h2>
             <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
-              Direct access to our most used PDF, image, document, and canvas tools
+              Direct access to our most used coding, PDF, image, document, and canvas tools
             </p>
           </div>
           <button
@@ -377,49 +424,155 @@ export const HomePage: React.FC = () => {
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. FEATURED FLAGSHIP: INTERACTIVE WHITEBOARD                               */}
+      {/* 3. FEATURED COMPILER PRESENTATION & INTERACTIVE WHITEBOARD                 */}
       {/* ========================================================================= */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0B1220] border border-[#1E293B] p-6 sm:p-8 text-white shadow-xl">
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-3 max-w-2xl text-left">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#60A5FA]">
-              <Sparkles className="w-3.5 h-3.5 text-[#60A5FA]" />
-              <span>Flagship Workspace · 100% Client-Side Vector Canvas</span>
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* Dedicated Online & Offline Compiler Feature Presentation (7 cols on lg) */}
+        <div className="lg:col-span-7 relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0B1220] via-[#111827] to-[#0F172A] border border-[#1E293B] p-6 sm:p-7 text-white shadow-xl flex flex-col justify-between gap-5">
+          <div className="space-y-3 text-left">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-[#60A5FA]">
+                <Code2 className="w-4 h-4 text-[#60A5FA]" />
+                <span>Featured IDE · Python 3.12, C17 &amp; C++20</span>
+              </div>
+              <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                Online &amp; Offline Ready
+              </span>
             </div>
 
             <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
-              Interactive Infinite Whiteboard & PDF Annotation
+              Online &amp; Offline Python, C &amp; C++ Compiler
             </h2>
 
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Sketch diagrams, brainstorm workflows, import and annotate PDF lecture slides, and draw with precision tools. Instant launch with zero lag, hardware-accelerated rendering, and export to vector PDF, PNG, or SVG.
+              Write, compile, and execute Python, C, and C++ directly in your browser with VS Code-grade editing, STDIN/STDOUT console, scientific Python libraries, Matplotlib plot rendering, and local runtime caching for offline coding.
             </p>
 
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-300 pt-1">
+            {/* Lightweight Static Code & Console Visual Preview (zero runtime overhead) */}
+            <div className="rounded-xl bg-[#070B14] border border-slate-800/90 overflow-hidden font-mono text-[11px] leading-relaxed shadow-inner">
+              <div className="px-3 py-1.5 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-400 font-semibold">main.py</span>
+                  <span>·</span>
+                  <span>solution.cpp</span>
+                </div>
+                <span className="text-emerald-400 flex items-center gap-1">
+                  <Terminal className="w-3 h-3" /> Ready
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-800/80">
+                <div className="p-3 space-y-0.5 text-slate-200">
+                  <div>
+                    <span className="text-purple-400">import</span> numpy <span className="text-purple-400">as</span> np
+                  </div>
+                  <div>
+                    scores = np.array([<span className="text-amber-300">88, 92, 95, 99</span>])
+                  </div>
+                  <div>
+                    <span className="text-sky-400">print</span>(f<span className="text-emerald-300">"Mean: &#123;scores.mean():.1f&#125;"</span>)
+                  </div>
+                </div>
+                <div className="p-3 bg-[#090E1A] space-y-1 text-slate-300">
+                  <div className="text-[10px] uppercase tracking-wider text-slate-400">Console Output</div>
+                  <div className="text-emerald-400">Mean: 93.5</div>
+                  <div className="text-[10px] text-slate-400">Finished in 18 ms · 0 errors</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-xs text-slate-300 pt-1">
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                Infinite Pan & Zoom
+                Python, C &amp; C++
               </span>
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                PDF & Image Markup
+                NumPy, pandas &amp; Plots
               </span>
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                Smart Shapes & Connectors
+                Syntax &amp; Autocomplete
               </span>
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                Vector PDF & SVG Export
+                STDIN &amp; Console Output
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                Cached Offline Mode
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                Practice &amp; Classroom
               </span>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row lg:flex-col gap-2.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={() => setActiveToolId('compiler')}
+              className="px-5 py-2.5 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-[#2563EB]/25 transition cursor-pointer"
+            >
+              <Code2 className="w-4 h-4" />
+              <span>Launch Compiler (/compiler)</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategory('utilities');
+                const el = document.getElementById('tools-directory');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 font-medium text-xs flex items-center justify-center gap-1.5 transition cursor-pointer border border-white/10"
+            >
+              <span>Developer &amp; Utility Tools</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Interactive Infinite Whiteboard Showcase (5 cols on lg) */}
+        <div className="lg:col-span-5 relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0B1220] border border-[#1E293B] p-6 sm:p-7 text-white shadow-xl flex flex-col justify-between gap-5">
+          <div className="space-y-3 text-left">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#60A5FA]">
+              <Sparkles className="w-3.5 h-3.5 text-[#60A5FA]" />
+              <span>Visual Studio · 100% Client-Side Vector Canvas</span>
+            </div>
+
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+              Interactive Infinite Whiteboard &amp; PDF Annotation
+            </h2>
+
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              Sketch diagrams, brainstorm workflows, import and annotate PDF lecture slides, and draw with precision tools. Instant launch with hardware-accelerated rendering and export to vector PDF, PNG, or SVG.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs text-slate-300 pt-1">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                Infinite Pan &amp; Zoom
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                PDF &amp; Image Markup
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                Smart Shapes &amp; Connectors
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                Vector PDF &amp; SVG Export
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 pt-1">
             <button
               type="button"
               onClick={() => setActiveToolId('whiteboard')}
-              className="px-5 py-3 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-[#2563EB]/25 transition cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-[#2563EB]/25 transition cursor-pointer"
             >
               <PenTool className="w-4 h-4" />
               <span>Launch Whiteboard</span>
@@ -434,7 +587,7 @@ export const HomePage: React.FC = () => {
               }}
               className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 font-medium text-xs flex items-center justify-center gap-1.5 transition cursor-pointer border border-white/10"
             >
-              <span>Explore Design & Canvas Tools</span>
+              <span>Design Tools</span>
             </button>
           </div>
         </div>

@@ -91,6 +91,8 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
           title: routeInfo.tool.seoTitle,
           description: routeInfo.tool.seoDescription,
           canonicalUrl: routeInfo.canonicalUrl,
+          ogImage: routeInfo.tool.ogImage || (routeInfo.tool.toolId === 'compiler' ? SITE_CONFIG.compilerOgImageUrl : SITE_CONFIG.ogImageUrl),
+          ogImageAlt: routeInfo.tool.ogImageAlt || (routeInfo.tool.toolId === 'compiler' ? SITE_CONFIG.compilerOgImageAlt : `${routeInfo.tool.name} | ToolTrack`),
           jsonLd: generateToolJsonLd(routeInfo.tool),
         });
       } else if (routeInfo.type === 'category' && routeInfo.category) {
@@ -103,6 +105,8 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
           title: routeInfo.category.seoTitle,
           description: routeInfo.category.seoDescription,
           canonicalUrl: routeInfo.canonicalUrl,
+          ogImage: SITE_CONFIG.ogImageUrl,
+          ogImageAlt: `${routeInfo.category.name} | ToolTrack`,
           jsonLd: generateCategoryJsonLd(routeInfo.category),
         });
       } else {
@@ -115,6 +119,8 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
           title: SITE_CONFIG.defaultTitle,
           description: SITE_CONFIG.defaultDescription,
           canonicalUrl: `${SITE_CONFIG.url}/`,
+          ogImage: SITE_CONFIG.ogImageUrl,
+          ogImageAlt: SITE_CONFIG.ogImageAlt,
         });
       }
     }
@@ -286,6 +292,8 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
             title: toolDef.seoTitle,
             description: toolDef.seoDescription,
             canonicalUrl: `${SITE_CONFIG.url}${toolDef.route}`,
+            ogImage: toolDef.ogImage || (toolDef.toolId === 'compiler' ? SITE_CONFIG.compilerOgImageUrl : SITE_CONFIG.ogImageUrl),
+            ogImageAlt: toolDef.ogImageAlt || (toolDef.toolId === 'compiler' ? SITE_CONFIG.compilerOgImageAlt : `${toolDef.name} | ToolTrack`),
             jsonLd: generateToolJsonLd(toolDef),
           });
         }
@@ -299,6 +307,8 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
           title: SITE_CONFIG.defaultTitle,
           description: SITE_CONFIG.defaultDescription,
           canonicalUrl: `${SITE_CONFIG.url}/`,
+          ogImage: SITE_CONFIG.ogImageUrl,
+          ogImageAlt: SITE_CONFIG.ogImageAlt,
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -318,6 +328,8 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
             title: catDef.seoTitle,
             description: catDef.seoDescription,
             canonicalUrl: `${SITE_CONFIG.url}${catDef.route}`,
+            ogImage: SITE_CONFIG.ogImageUrl,
+            ogImageAlt: `${catDef.name} | ToolTrack`,
             jsonLd: generateCategoryJsonLd(catDef),
           });
         }
@@ -330,6 +342,8 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
           title: SITE_CONFIG.defaultTitle,
           description: SITE_CONFIG.defaultDescription,
           canonicalUrl: `${SITE_CONFIG.url}/`,
+          ogImage: SITE_CONFIG.ogImageUrl,
+          ogImageAlt: SITE_CONFIG.ogImageAlt,
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -343,15 +357,39 @@ export function ToolTrackProvider({ children }: { children: React.ReactNode }) {
         setActiveToolIdState(routeInfo.tool.toolId);
         setActiveCategoryKeyState(null);
         trackAccessedTool(routeInfo.tool.toolId);
+        updateDocumentSeo({
+          title: routeInfo.tool.seoTitle,
+          description: routeInfo.tool.seoDescription,
+          canonicalUrl: routeInfo.canonicalUrl,
+          ogImage: routeInfo.tool.ogImage || (routeInfo.tool.toolId === 'compiler' ? SITE_CONFIG.compilerOgImageUrl : SITE_CONFIG.ogImageUrl),
+          ogImageAlt: routeInfo.tool.ogImageAlt || (routeInfo.tool.toolId === 'compiler' ? SITE_CONFIG.compilerOgImageAlt : `${routeInfo.tool.name} | ToolTrack`),
+          jsonLd: generateToolJsonLd(routeInfo.tool),
+        });
       } else if (routeInfo.type === 'category' && routeInfo.category) {
         setActiveCategoryKeyState(routeInfo.category.key);
         setActiveToolIdState(null);
+        updateDocumentSeo({
+          title: routeInfo.category.seoTitle,
+          description: routeInfo.category.seoDescription,
+          canonicalUrl: routeInfo.canonicalUrl,
+          ogImage: SITE_CONFIG.ogImageUrl,
+          ogImageAlt: `${routeInfo.category.name} | ToolTrack`,
+          jsonLd: generateCategoryJsonLd(routeInfo.category),
+        });
       } else {
         const hash = window.location.hash.replace('#', '');
         setActiveToolIdState(hash || null);
         setActiveCategoryKeyState(null);
         if (hash) {
           trackAccessedTool(hash);
+        } else {
+          updateDocumentSeo({
+            title: SITE_CONFIG.defaultTitle,
+            description: SITE_CONFIG.defaultDescription,
+            canonicalUrl: `${SITE_CONFIG.url}/`,
+            ogImage: SITE_CONFIG.ogImageUrl,
+            ogImageAlt: SITE_CONFIG.ogImageAlt,
+          });
         }
       }
     };

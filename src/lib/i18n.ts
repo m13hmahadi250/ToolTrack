@@ -3,10 +3,10 @@ export type SupportedLanguage = 'en' | 'bn' | 'ar';
 export const TRANSLATIONS = {
   en: {
     appName: 'ToolTrack',
-    tagline: 'All Your Files & Productivity Tools in One Place',
-    heroTitle: 'All Your Files & Productivity Tools in One Place',
-    heroSubtitle: 'Work with PDFs, Word, Excel, images, OCR, notes and an interactive Whiteboard directly in your browser. Fast, private and easy to use.',
-    searchPlaceholder: 'Search 38+ tools (e.g. whiteboard, pdf to word, remove background, compress, excel)...',
+    tagline: 'All Your Files, Coding & Productivity Tools in One Place',
+    heroTitle: 'One Workspace. More Possibilities.',
+    heroSubtitle: 'Work with PDFs, Word and Excel documents, images, an online/offline Python, C, and C++ compiler, Whiteboard, OCR, and everyday productivity tools in one fast, clean web platform.',
+    searchPlaceholder: 'Search 60+ tools (e.g., Python compiler, PDF to Word, compress, Whiteboard, OCR)...',
     allTools: 'All Tools',
     popularTools: 'Popular Tools',
     recentlyUsed: 'Recently Used',

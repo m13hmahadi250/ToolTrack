@@ -50,10 +50,10 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
   const defaultPlaceholder =
     placeholder ||
     (variant === 'home'
-      ? t.searchPlaceholder || 'Search 60+ tools (e.g., PDF to Word, compress, resize, background)...'
+      ? t.searchPlaceholder || 'Search 60+ tools (e.g., Python compiler, PDF to Word, compress, Whiteboard)...'
       : variant === 'header'
-      ? 'Search tools (Ctrl+K)...'
-      : 'Search all document, image & utility tools...');
+      ? 'Search tools & compiler (Ctrl+K)...'
+      : 'Search all PDF, image, compiler & utility tools...');
 
   // Update query state if initialQuery changes from outside
   useEffect(() => {
@@ -507,7 +507,7 @@ export const GlobalToolSearch: React.FC<GlobalToolSearchProps> = ({
 
                   {/* Quick suggestion chips */}
                   <div className="flex flex-wrap items-center justify-center gap-1.5 pt-2">
-                    {['PDF', 'Image', 'Compress', 'Word', 'Calculator', 'QR Code', 'Resize', 'OCR'].map((chip) => (
+                    {['Compiler', 'Python', 'PDF', 'Image', 'Compress', 'Word', 'Whiteboard', 'QR Code'].map((chip) => (
                       <button
                         key={chip}
                         type="button"

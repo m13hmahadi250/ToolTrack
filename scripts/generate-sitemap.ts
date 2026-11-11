@@ -1,15 +1,24 @@
 import fs from 'fs';
 import path from 'path';
 import { TOOLS_LIST } from '../src/data/toolsList';
-import { getToolSeo, CATEGORIES_SEO, escapeXml } from '../src/data/seoRegistry';
+import {
+  SITE_CONFIG,
+  getToolSeo,
+  CATEGORIES_SEO,
+  escapeXml,
+  injectSeoIntoHtml,
+} from '../src/data/seoRegistry';
 
 /**
- * ToolTrack Sitemap Generator
- * Synchronizes public/sitemap.xml from the live TOOLS_LIST registry
+ * ToolTrack Sitemap, Robots.txt & Static Route Metadata Prerenderer
+ * 1. Synchronizes public/sitemap.xml and public/robots.txt from the live TOOLS_LIST registry.
+ * 2. When dist/index.html exists (post-vite build), prerenders route-specific static HTML
+ *    files with initial Open Graph, Twitter Card, Canonical, and Schema.org metadata so
+ *    social crawlers (WhatsApp, Telegram, LinkedIn, Discord, X) receive accurate previews
+ *    without executing client-side JavaScript.
  */
-const BASE_URL = 'https://tooltracker.vercel.app';
+const BASE_URL = SITE_CONFIG.url;
 
-// Set of internal / non-public tool IDs or patterns to exclude if any
 const EXCLUDED_TOOL_IDS = new Set<string>([
   'admin',
   'debug',
@@ -21,9 +30,8 @@ const EXCLUDED_TOOL_IDS = new Set<string>([
 
 interface SitemapEntry {
   loc: string;
+  routePath: string;
   lastmod: string;
-  changefreq: 'daily' | 'weekly' | 'monthly';
-  priority: string;
   sortRank: number;
   label: string;
 }
@@ -35,7 +43,6 @@ export function generateStaticSitemap(): {
   excludedCount: number;
   entries: SitemapEntry[];
 } {
-  const currentDate = new Date().toISOString().split('T')[0];
   const entries: SitemapEntry[] = [];
   const seenLocs = new Set<string>();
 
@@ -43,15 +50,32 @@ export function generateStaticSitemap(): {
   const homeLoc = `${BASE_URL}/`;
   entries.push({
     loc: homeLoc,
-    lastmod: currentDate,
-    changefreq: 'daily',
-    priority: '1.0',
+    routePath: '/',
+    lastmod: SITE_CONFIG.lastModifiedUpdated,
     sortRank: 0,
     label: 'Home Page',
   });
   seenLocs.add(homeLoc);
 
-  // 2. Public Category Hub Pages
+  // 2. Primary Flagship Routes (/compiler and /whiteboard)
+  const flagshipIds = ['compiler', 'whiteboard'];
+  for (const fid of flagshipIds) {
+    const seo = getToolSeo(fid);
+    const routePath = seo.route.startsWith('/') ? seo.route : `/${seo.route}`;
+    const loc = `${BASE_URL}${routePath}`;
+    if (!seenLocs.has(loc)) {
+      seenLocs.add(loc);
+      entries.push({
+        loc,
+        routePath,
+        lastmod: SITE_CONFIG.lastModifiedUpdated,
+        sortRank: 5,
+        label: `Flagship: ${seo.name}`,
+      });
+    }
+  }
+
+  // 3. Public Category Hub Pages
   const categoryValues = Object.values(CATEGORIES_SEO);
   for (const cat of categoryValues) {
     const catLoc = `${BASE_URL}${cat.route}`;
@@ -59,28 +83,29 @@ export function generateStaticSitemap(): {
       seenLocs.add(catLoc);
       entries.push({
         loc: catLoc,
-        lastmod: currentDate,
-        changefreq: 'weekly',
-        priority: '0.9',
+        routePath: cat.route,
+        lastmod: cat.key === 'utilities' ? SITE_CONFIG.lastModifiedUpdated : SITE_CONFIG.lastModifiedDefault,
         sortRank: 10,
         label: `Category: ${cat.name}`,
       });
     }
   }
 
-  // 3. Process TOOLS_LIST
+  // 4. Process TOOLS_LIST
   let excludedCount = 0;
   const verifiedTools = [];
 
   for (const tool of TOOLS_LIST) {
-    // Verify tool ID and ensure it is non-empty and public
     if (!tool.id || typeof tool.id !== 'string' || tool.id.trim() === '') {
       console.warn(`[WARN] Skipping tool with missing or invalid ID:`, tool);
       continue;
     }
 
-    // Exclude internal, test, or draft IDs
-    if (EXCLUDED_TOOL_IDS.has(tool.id) || tool.id.startsWith('test-') || tool.id.startsWith('internal-')) {
+    if (
+      EXCLUDED_TOOL_IDS.has(tool.id) ||
+      tool.id.startsWith('test-') ||
+      tool.id.startsWith('internal-')
+    ) {
       excludedCount++;
       continue;
     }
@@ -89,31 +114,29 @@ export function generateStaticSitemap(): {
     const toolRoute = seo.route.startsWith('/') ? seo.route : `/${seo.route}`;
     const toolLoc = `${BASE_URL}${toolRoute}`;
 
-    // Verify valid canonical format (no hash, no query params, HTTPS production base)
     if (!toolLoc.startsWith(`${BASE_URL}/`)) {
       console.warn(`[WARN] Tool ${tool.id} generated non-standard URL: ${toolLoc}`);
       continue;
     }
 
+    verifiedTools.push(tool);
+
     if (!seenLocs.has(toolLoc)) {
       seenLocs.add(toolLoc);
-      verifiedTools.push(tool);
       entries.push({
         loc: toolLoc,
-        lastmod: currentDate,
-        changefreq: 'weekly',
-        priority: tool.popular ? '0.85' : '0.8',
+        routePath: toolRoute,
+        lastmod:
+          tool.id === 'compiler' || tool.id === 'whiteboard'
+            ? SITE_CONFIG.lastModifiedUpdated
+            : SITE_CONFIG.lastModifiedDefault,
         sortRank: tool.popular ? 20 : 30,
         label: `Tool: ${tool.name}`,
       });
     }
   }
 
-  // 4. Sort entries logically:
-  // - Level 0: Homepage (rank 0)
-  // - Level 1: Categories (rank 10, sorted by route)
-  // - Level 2: Popular Tools (rank 20, alphabetical by name)
-  // - Level 3: Standard Tools (rank 30, alphabetical by name)
+  // 5. Sort entries logically
   entries.sort((a, b) => {
     if (a.sortRank !== b.sortRank) {
       return a.sortRank - b.sortRank;
@@ -121,7 +144,7 @@ export function generateStaticSitemap(): {
     return a.label.localeCompare(b.label);
   });
 
-  // 5. Construct strict, formatted XML
+  // 6. Construct strict, valid XML without fabricated priority/changefreq values
   const xmlBody = entries
     .map(
       (entry) => `  <url>
@@ -146,16 +169,50 @@ ${xmlBody}
 }
 
 /**
- * Main execution function for npm run build / build pipelines
+ * Prerenders static route HTML files into dist/ so social preview crawlers
+ * receive route-specific Open Graph & Twitter tags in the initial HTTP response.
  */
+function prerenderDistRouteHtmlFiles(distDir: string, entries: SitemapEntry[]) {
+  const distIndexPath = path.join(distDir, 'index.html');
+  if (!fs.existsSync(distIndexPath)) {
+    return 0;
+  }
+
+  const baseTemplate = fs.readFileSync(distIndexPath, 'utf-8');
+  // Ensure root dist/index.html also has homepage metadata injected cleanly
+  fs.writeFileSync(distIndexPath, injectSeoIntoHtml(baseTemplate, '/'), 'utf-8');
+
+  let prerenderedCount = 1;
+  for (const entry of entries) {
+    if (entry.routePath === '/') continue;
+    const relativeRoute = entry.routePath.replace(/^\/+/, '').replace(/\/+$/, '');
+    if (!relativeRoute) continue;
+
+    const routeHtml = injectSeoIntoHtml(baseTemplate, entry.routePath);
+
+    // Write dist/<route>/index.html
+    const routeDir = path.join(distDir, relativeRoute);
+    fs.mkdirSync(routeDir, { recursive: true });
+    fs.writeFileSync(path.join(routeDir, 'index.html'), routeHtml, 'utf-8');
+
+    // Also write dist/<route>.html for cleanUrls compatibility
+    const parentDir = path.dirname(path.join(distDir, `${relativeRoute}.html`));
+    fs.mkdirSync(parentDir, { recursive: true });
+    fs.writeFileSync(path.join(distDir, `${relativeRoute}.html`), routeHtml, 'utf-8');
+
+    prerenderedCount++;
+  }
+
+  return prerenderedCount;
+}
+
 function main() {
   console.log('====================================================');
-  console.log('  ToolTrack Dynamic XML Sitemap Build Generator');
+  console.log('  ToolTrack Sitemap & Static SEO Prerender Pipeline');
   console.log('====================================================');
 
-  const { xml, totalTools, totalUrls, excludedCount } = generateStaticSitemap();
+  const { xml, totalTools, totalUrls, excludedCount, entries } = generateStaticSitemap();
 
-  // Validate strict XML format
   if (!xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>')) {
     throw new Error('Malformed XML: Missing XML declaration header.');
   }
@@ -163,7 +220,6 @@ function main() {
     throw new Error('Malformed XML: Missing standard sitemaps.org schema namespace.');
   }
 
-  // Write to public/
   const publicDir = path.resolve(process.cwd(), 'public');
   if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
@@ -173,25 +229,32 @@ function main() {
   fs.writeFileSync(sitemapPath, xml, 'utf-8');
   console.log(`[OK] Generated: ${sitemapPath} (${totalUrls} unique URLs)`);
 
-  // Ensure public/robots.txt points to this sitemap
   const robotsPath = path.join(publicDir, 'robots.txt');
   const robotsTxt = `# ToolTrack Robots Configuration
 # https://tooltracker.vercel.app/robots.txt
 
 User-agent: *
 Allow: /
+Allow: /compiler
+Allow: /whiteboard
 Allow: /tools/
 Allow: /category/
 Allow: /assets/
+Disallow: /api/
 
 User-agent: Googlebot
 Allow: /
+Allow: /compiler
+Allow: /whiteboard
 Allow: /tools/
 Allow: /category/
 Allow: /assets/
+Disallow: /api/
 
 User-agent: Googlebot-Image
 Allow: /assets/
+Allow: /og-tooltrack.png
+Allow: /og-compiler.png
 Allow: /
 
 Sitemap: ${BASE_URL}/sitemap.xml
@@ -199,12 +262,14 @@ Sitemap: ${BASE_URL}/sitemap.xml
   fs.writeFileSync(robotsPath, robotsTxt, 'utf-8');
   console.log(`[OK] Verified: ${robotsPath}`);
 
-  // Also sync to dist/ if building
   const distDir = path.resolve(process.cwd(), 'dist');
   if (fs.existsSync(distDir)) {
     fs.writeFileSync(path.join(distDir, 'sitemap.xml'), xml, 'utf-8');
     fs.writeFileSync(path.join(distDir, 'robots.txt'), robotsTxt, 'utf-8');
-    console.log(`[OK] Synchronized sitemap.xml and robots.txt to dist/`);
+    const prerenderedCount = prerenderDistRouteHtmlFiles(distDir, entries);
+    console.log(
+      `[OK] Synchronized sitemap.xml, robots.txt, and prerendered ${prerenderedCount} route HTML files in dist/`
+    );
   }
 
   console.log('----------------------------------------------------');

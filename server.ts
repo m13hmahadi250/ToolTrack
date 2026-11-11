@@ -9,7 +9,7 @@ import os from 'os';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { PDFDocument } from 'pdf-lib';
-import { generateSitemapXml, runSeoAudit } from './src/data/seoRegistry';
+import { generateSitemapXml, runSeoAudit, injectSeoIntoHtml } from './src/data/seoRegistry';
 import { runClientCpp, parseCompilerDiagnostics } from './src/lib/clientCppRunner';
 
 const execFileAsync = promisify(execFile);
@@ -1442,7 +1442,11 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   if (fs.existsSync(robotsPath)) {
     return res.sendFile(robotsPath);
   }
-  return res.status(200).send(`User-agent: *\nAllow: /\nAllow: /tools/\nAllow: /category/\nAllow: /assets/\n\nUser-agent: Googlebot\nAllow: /\nAllow: /tools/\nAllow: /category/\nAllow: /assets/\n\nSitemap: https://tooltracker.vercel.app/sitemap.xml\n`);
+  return res
+    .status(200)
+    .send(
+      `User-agent: *\nAllow: /\nAllow: /compiler\nAllow: /whiteboard\nAllow: /tools/\nAllow: /category/\nAllow: /assets/\nDisallow: /api/\n\nUser-agent: Googlebot\nAllow: /\nAllow: /compiler\nAllow: /whiteboard\nAllow: /tools/\nAllow: /category/\nAllow: /assets/\nDisallow: /api/\n\nSitemap: https://tooltracker.vercel.app/sitemap.xml\n`
+    );
 });
 
 // sitemap.xml endpoint (Dynamic from full live Tool Registry)
@@ -2298,9 +2302,43 @@ async function startServer() {
       },
       appType: 'spa',
     });
+
+    // Serve initial HTML with route-specific Open Graph, Twitter Card, Canonical, and JSON-LD metadata
+    app.use(async (req, res, next) => {
+      if (
+        req.method !== 'GET' ||
+        req.path.startsWith('/api/') ||
+        req.path.startsWith('/src/') ||
+        req.path.startsWith('/@') ||
+        req.path.startsWith('/node_modules/') ||
+        path.extname(req.path) !== ''
+      ) {
+        return next();
+      }
+
+      try {
+        const indexHtmlPath = path.resolve(process.cwd(), 'index.html');
+        const rawTemplate = fs.readFileSync(indexHtmlPath, 'utf-8');
+        const transformed = await vite.transformIndexHtml(req.originalUrl, rawTemplate);
+        const withSeo = injectSeoIntoHtml(transformed, req.path);
+        res.status(200).set({ 'Content-Type': 'text/html; charset=utf-8' }).end(withSeo);
+      } catch (err) {
+        next(err);
+      }
+    });
+
     app.use(vite.middlewares);
   } else {
     app.use(express.static('dist'));
+    app.get('*', (req: Request, res: Response) => {
+      const distIndex = path.resolve(process.cwd(), 'dist/index.html');
+      if (fs.existsSync(distIndex)) {
+        const rawHtml = fs.readFileSync(distIndex, 'utf-8');
+        const withSeo = injectSeoIntoHtml(rawHtml, req.path);
+        return res.status(200).set({ 'Content-Type': 'text/html; charset=utf-8' }).send(withSeo);
+      }
+      return res.status(404).send('Not found');
+    });
   }
 
   httpServer.listen(PORT, '0.0.0.0', () => {

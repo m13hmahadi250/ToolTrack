@@ -55,7 +55,7 @@ export const HEADER_CATEGORIES: CategoryHeaderConfig[] = [
     id: 'utilities-tools',
     name: 'Everyday Utilities',
     shortName: 'Utilities',
-    description: 'Calculators, QR codes, password generators, unit converters, text counters & dev tools.',
+    description: 'Python/C/C++ compiler, calculators, QR codes, password generators, unit converters & dev tools.',
     homepageCategoryId: 'utilities',
     categories: ['utilities'],
   },
@@ -63,7 +63,7 @@ export const HEADER_CATEGORIES: CategoryHeaderConfig[] = [
     id: 'all-tools',
     name: 'All Tools',
     shortName: 'All Tools',
-    description: 'Complete directory of 60+ file, document, image, and productivity utilities.',
+    description: 'Complete directory of 60+ PDF, document, image, coding, Whiteboard, and productivity tools.',
     homepageCategoryId: 'all',
     categories: [
       'page-tools',
@@ -83,18 +83,18 @@ export const HEADER_CATEGORIES: CategoryHeaderConfig[] = [
 ];
 
 export const POPULAR_TOOL_IDS = [
+  'compiler',
   'pdf-to-word',
   'image-background-remover',
   'whiteboard',
-  'qr-code-generator',
   'compress-pdf',
+  'qr-code-generator',
   'word-counter',
   'password-generator',
   'calculator',
   'normalize-pdf-page-size',
   'excel-to-pdf',
   'ocr-pdf',
-  'unit-converter',
 ];
 
 export function getToolsForHeaderCategory(config: CategoryHeaderConfig): ToolItem[] {

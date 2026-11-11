@@ -8,7 +8,7 @@ import { HomePage } from './components/home/HomePage';
 import { ToolGuideSection } from './components/common/ToolGuideSection';
 import { NotFoundPage } from './components/common/NotFoundPage';
 import { CategoryLandingPage } from './components/category/CategoryLandingPage';
-import { CATEGORIES_SEO } from './data/seoRegistry';
+import { CATEGORIES_SEO, TOOLS_SEO, SITE_CONFIG } from './data/seoRegistry';
 import { ToolContentSkeleton } from './components/common/SkeletonLoader';
 
 // Specialized tool components
@@ -94,13 +94,14 @@ function MainContent() {
   // Dynamic document title and meta tag update for SEO and browser tabs
   useEffect(() => {
     if (currentTool) {
-      document.title = `${currentTool.name} – ToolTrack`;
+      const seoDef = TOOLS_SEO[currentTool.id];
+      document.title = seoDef ? seoDef.seoTitle : `${currentTool.name} | ToolTrack`;
       window.scrollTo({ top: 0, behavior: 'instant' });
     } else if (activeCategoryKey && CATEGORIES_SEO[activeCategoryKey]) {
       document.title = CATEGORIES_SEO[activeCategoryKey].seoTitle;
       window.scrollTo({ top: 0, behavior: 'instant' });
     } else {
-      document.title = 'ToolTrack – All Your Files & Productivity Tools in One Place';
+      document.title = SITE_CONFIG.defaultTitle;
     }
   }, [activeToolId, currentTool, activeCategoryKey]);
 
@@ -377,29 +378,42 @@ function MainContent() {
               activeToolId === 'compiler' ? 'mb-2 pb-1.5' : 'mb-6 pb-3'
             } border-b border-[#E2E8F0] dark:border-[#1E293B]`}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
               <button
                 onClick={() => {
                   setActiveToolId(null);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F1F5F9] dark:bg-[#1E293B] hover:bg-[#E2E8F0] dark:hover:bg-[#334155] text-[#0F172A] dark:text-[#F8FAFC] border border-[#E2E8F0] dark:border-[#1E293B] transition cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F1F5F9] dark:bg-[#1E293B] hover:bg-[#E2E8F0] dark:hover:bg-[#334155] text-[#0F172A] dark:text-[#F8FAFC] border border-[#E2E8F0] dark:border-[#1E293B] transition cursor-pointer shrink-0"
               >
                 <Home className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#3B82F6]" />
                 <span>All Tools</span>
               </button>
-              <ChevronRight className="w-3.5 h-3.5 text-[#64748B] dark:text-[#94A3B8]" />
-              {currentTool.category && (
-                <>
-                  <span className="text-[#64748B] dark:text-[#94A3B8] font-medium">
-                    {currentTool.category.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+              <ChevronRight className="w-3.5 h-3.5 text-[#64748B] dark:text-[#94A3B8] shrink-0" />
+              {activeToolId === 'compiler' ? (
+                <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 min-w-0">
+                  <h1 className="text-xs sm:text-sm font-extrabold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">
+                    Online &amp; Offline Python, C &amp; C++ Compiler
+                  </h1>
+                  <span className="hidden lg:inline text-[11px] font-normal text-[#64748B] dark:text-[#94A3B8]">
+                    Run Python 3.12 (NumPy, pandas, Matplotlib), C17 &amp; C++20 in your browser — works offline once runtimes are cached locally.
                   </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-[#64748B] dark:text-[#94A3B8]" />
+                </div>
+              ) : (
+                <>
+                  {currentTool.category && (
+                    <>
+                      <span className="text-[#64748B] dark:text-[#94A3B8] font-medium">
+                        {currentTool.category.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </span>
+                      <ChevronRight className="w-3.5 h-3.5 text-[#64748B] dark:text-[#94A3B8]" />
+                    </>
+                  )}
+                  <span className="text-[#0F172A] dark:text-[#F8FAFC] font-bold truncate max-w-xs sm:max-w-md">
+                    {currentTool.name}
+                  </span>
                 </>
               )}
-              <span className="text-[#0F172A] dark:text-[#F8FAFC] font-bold truncate max-w-xs sm:max-w-md">
-                {currentTool.name}
-              </span>
             </div>
 
             <div className="flex items-center gap-3">

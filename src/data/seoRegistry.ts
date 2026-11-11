@@ -11,15 +11,26 @@ import type { ToolItem } from '../types';
 export const SITE_CONFIG = {
   url: 'https://tooltracker.vercel.app',
   name: 'ToolTrack',
-  tagline: 'All Your Files & Productivity Tools in One Place',
-  defaultTitle: 'ToolTrack – All Your Files & Productivity Tools in One Place',
+  tagline: 'All Your Files, Coding & Productivity Tools in One Place',
+  defaultTitle: 'ToolTrack — PDF, Image, Compiler & Productivity Tools',
   defaultDescription:
-    'All-in-one file, document, image, and productivity toolkit. Work with PDFs, Word, Excel, images, OCR, Whiteboard, and design utilities directly in your browser.',
+    'All-in-one PDF, document, image, Whiteboard, and productivity tools with an online/offline Python, C & C++ compiler.',
+  supportingDescription:
+    'Convert, compress, edit, and organize PDFs, documents, and images. Write and run Python, C, and C++ with our online/offline compiler, and explore Whiteboard, OCR, and everyday productivity tools.',
   keywords: [
     'PDF tools',
+    'image tools',
+    'online compiler',
+    'Python compiler',
+    'C++ compiler',
+    'C compiler',
+    'offline compiler',
+    'code editor',
+    'programming IDE',
+    'Python data science',
+    'Python plotting',
     'Word to PDF',
     'Excel to PDF',
-    'image tools',
     'Whiteboard online',
     'OCR online',
     'image compressor',
@@ -33,6 +44,12 @@ export const SITE_CONFIG = {
     'productivity workspace',
   ],
   logoUrl: 'https://tooltracker.vercel.app/icon-512.png',
+  ogImageUrl: 'https://tooltracker.vercel.app/og-tooltrack.png?v=2',
+  ogImageAlt: 'ToolTrack — PDF • Images • Compiler • Whiteboard • Productivity',
+  compilerOgImageUrl: 'https://tooltracker.vercel.app/og-compiler.png?v=2',
+  compilerOgImageAlt: 'ToolTrack Compiler — Online & Offline Python, C & C++ IDE',
+  lastModifiedDefault: '2026-10-10',
+  lastModifiedUpdated: '2026-11-10',
 };
 
 export interface ToolSeoData {
@@ -48,6 +65,8 @@ export interface ToolSeoData {
   h1: string;
   tagline: string;
   keywords: string[];
+  ogImage?: string;
+  ogImageAlt?: string;
   supportedFormats: {
     input: string[];
     output: string[];
@@ -226,23 +245,31 @@ export const TOOLS_SEO: Record<string, ToolSeoData> = {
     categoryKey: 'utilities',
     categoryName: 'Everyday & Developer Utilities',
     categoryRoute: '/tools/utilities',
-    seoTitle: 'Online & Offline Compiler – Python, C++, C with Data Science & ML | ToolTrack',
+    seoTitle: 'Online & Offline Python, C & C++ Compiler | ToolTrack',
     seoDescription:
-      'Free online and offline programming compiler for Python 3 (Pandas, NumPy, Matplotlib, Scikit-learn), C++20 (GCC 12), and C17. Fast in-browser execution with full PWA offline support.',
-    h1: 'Online & Offline Programming Compiler',
-    tagline: 'Write, compile, and execute Python 3, C++, and C with full data science libraries and offline PWA capability.',
+      'Write, run, and practice Python, C, and C++ in your browser with code editing, console output, supported scientific Python libraries, and offline capabilities.',
+    h1: 'Online & Offline Python, C & C++ Compiler',
+    tagline:
+      'Write, run, and practice Python, C, and C++ directly in your browser with syntax highlighting, standard input/output, supported scientific Python libraries, and offline execution.',
+    ogImage: 'https://tooltracker.vercel.app/og-compiler.png?v=2',
+    ogImageAlt: 'ToolTrack Compiler — Online & Offline Python, C & C++ IDE',
     keywords: [
-      'online compiler',
-      'offline compiler',
+      'Python Compiler',
+      'C Compiler',
+      'C++ Compiler',
+      'Online Compiler',
+      'Offline Compiler',
+      'Code Editor',
+      'Programming IDE',
+      'Python Data Science',
+      'Python Plotting',
       'python compiler online',
       'c++ online compiler',
-      'c compiler',
       'pandas online',
       'numpy in browser',
       'matplotlib online',
       'scikit-learn browser',
       'pyodide ide',
-      'bits stdc++ online',
       'webassembly compiler',
     ],
     supportedFormats: {
@@ -250,33 +277,34 @@ export const TOOLS_SEO: Record<string, ToolSeoData> = {
       output: ['Terminal Output', 'Matplotlib Plots (.png)', 'Source Code (.py, .cpp, .c)'],
     },
     features: [
-      'In-browser Pyodide WebAssembly Python 3 runtime with real NumPy, Pandas, Matplotlib, and Scikit-learn',
-      'Native GCC and G++ 12 compilation engine with <bits/stdc++.h> and C++20 support',
-      'Offline PWA CacheStorage: pre-cache runtimes once and execute code completely disconnected',
-      'Interactive standard input (stdin) and colored terminal output console',
-      'Matplotlib figure extraction with direct high-DPI plot viewing and PNG downloads',
-      'Virtual dataset mounting to load uploaded CSV files directly into Pandas',
+      'Browser-based Python 3.12 runtime powered by Pyodide WebAssembly with supported NumPy, pandas, Matplotlib, and Scikit-learn packages',
+      'C17 and C++20 compilation and execution with standard library and <bits/stdc++.h> support',
+      'Offline execution support for C/C++ and cached Python runtimes and libraries once required assets are downloaded locally',
+      'Monaco code editor with syntax highlighting, auto-closing brackets, and context-aware completions',
+      'Interactive standard input (STDIN) and real-time console output with beginner-friendly error hints',
+      'High-resolution Matplotlib plot rendering, DataFrame inspection, and shareable classroom exercises',
     ],
     howTo: [
-      { step: 1, title: 'Select Programming Language', description: 'Choose Python 3, C++ 20, or C 17 from the compiler tabs.' },
-      { step: 2, title: 'Write or Paste Code', description: 'Enter your source code or choose from the built-in starter templates.' },
-      { step: 3, title: 'Provide Stdin & Run', description: 'Enter standard input values if needed, then click Run or press Ctrl+Enter to execute.' },
+      { step: 1, title: 'Select Programming Language', description: 'Choose Python 3.12, C++20, or C17 from the compiler workspace bar.' },
+      { step: 2, title: 'Write Code or Load Example', description: 'Type your program in the editor, upload a source or CSV file, or pick a starter example.' },
+      { step: 3, title: 'Provide STDIN & Run', description: 'Enter optional standard input values, then click Run (or press Ctrl+Enter) to view console output and plots.' },
+      { step: 4, title: 'Cache for Offline Use (Optional)', description: 'Open the Offline Manager to cache the Python runtime and selected packages for disconnected coding.' },
     ],
     faq: [
       {
-        question: 'Does this compiler run real Python code or just syntax checking?',
+        question: 'Does this compiler run real Python, C, and C++ code?',
         answer:
-          'ToolTrack executes genuine Python 3.12 bytecode using the official Pyodide WebAssembly runtime inside a dedicated Web Worker. Variables, functions, loops, lists, dictionaries, exceptions, and data science operations with Pandas, NumPy, and Scikit-learn execute for real.',
+          'Yes. Python 3.12 executes inside a dedicated WebAssembly worker using Pyodide, supporting real data structures and supported scientific packages (NumPy, pandas, Matplotlib, Scikit-learn). C and C++ programs compile and run with standard input/output support.',
       },
       {
-        question: 'Can I use this compiler offline without an internet connection?',
+        question: 'How does offline execution work?',
         answer:
-          'Yes! ToolTrack includes full PWA support. Click "Download Offline Runtimes" inside the Compiler to cache the WebAssembly engine and scientific packages into your browser. Once cached, you can disconnect from the internet and continue editing, compiling, and running code.',
+          'Offline execution works for supported C/C++ and Python runtimes and packages once the required WebAssembly assets have been downloaded locally in your browser via the Offline Manager. Note that only browser-compatible Pyodide packages cached locally are available while disconnected.',
       },
       {
-        question: 'Are C and C++ programs compiled with a real compiler?',
+        question: 'Can teachers and students share coding exercises?',
         answer:
-          'Yes. In online mode, programs are compiled using GCC and G++ 12.3 with -O2 optimization and support for standard headers including <bits/stdc++.h>. In offline mode, ToolTrack uses an in-browser client execution engine with standard library support.',
+          'Yes. You can generate a 1-click shareable exercise link containing starter code and sample input, or create a classroom assignment with test cases for student practice.',
       },
     ],
     relatedToolIds: ['json-formatter', 'csv-json-converter', 'base64-converter', 'notes-to-pdf'],
@@ -2200,6 +2228,72 @@ export function generateCategoryJsonLd(cat: CategorySeoData): object {
 }
 
 /**
+ * Generates Schema.org JSON-LD structured data for the Homepage
+ */
+export function generateHomepageJsonLd(): object {
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'WebSite',
+        '@id': `${SITE_CONFIG.url}/#website`,
+        url: `${SITE_CONFIG.url}/`,
+        name: SITE_CONFIG.name,
+        description: `${SITE_CONFIG.tagline} — ${SITE_CONFIG.supportingDescription}`,
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: {
+            '@type': 'EntryPoint',
+            urlTemplate: `${SITE_CONFIG.url}/?q={search_term_string}`,
+          },
+          'query-input': 'required name=search_term_string',
+        },
+      },
+      {
+        '@type': 'Organization',
+        '@id': `${SITE_CONFIG.url}/#organization`,
+        name: SITE_CONFIG.name,
+        url: `${SITE_CONFIG.url}/`,
+        logo: {
+          '@type': 'ImageObject',
+          url: SITE_CONFIG.logoUrl,
+          width: 512,
+          height: 512,
+        },
+      },
+      {
+        '@type': 'WebApplication',
+        '@id': `${SITE_CONFIG.url}/#application`,
+        name: SITE_CONFIG.name,
+        url: `${SITE_CONFIG.url}/`,
+        applicationCategory: 'UtilitiesApplication',
+        operatingSystem: 'All',
+        browserRequirements: 'Requires JavaScript. Requires HTML5.',
+        description: SITE_CONFIG.supportingDescription,
+        offers: {
+          '@type': 'Offer',
+          price: '0',
+          priceCurrency: 'USD',
+        },
+        featureList: [
+          'Online & Offline Python, C & C++ Compiler with Scientific Python (NumPy, pandas, Matplotlib, Scikit-learn)',
+          'Interactive Infinite Whiteboard with Real-Time Drawing & PDF Annotation',
+          'Normalize PDF Page Size & Proportions',
+          'Merge, Split, Rotate & Reorder PDF Pages',
+          'PDF to Word DOCX & Word to PDF Conversion',
+          'Excel Spreadsheet & CSV to PDF Converter',
+          'Background Remover with Alpha Transparency',
+          'Multilingual OCR Text Recognition (English, Bengali, Arabic)',
+          'Batch Image Compression, Resize, Crop & Watermark',
+          'Student Academic Assignment & Scan Clean Suite',
+          'Everyday Developer & Productivity Utilities (JSON, QR Code, Calculators, Passwords)',
+        ],
+      },
+    ],
+  };
+}
+
+/**
  * Dynamically updates document <head> with SEO tags, canonical URL, OpenGraph, Twitter, and JSON-LD
  */
 export function updateDocumentSeo(params: {
@@ -2208,8 +2302,13 @@ export function updateDocumentSeo(params: {
   canonicalUrl: string;
   jsonLd?: object;
   ogType?: string;
+  ogImage?: string;
+  ogImageAlt?: string;
 }): void {
   if (typeof document === 'undefined') return;
+
+  const resolvedOgImage = params.ogImage || SITE_CONFIG.ogImageUrl;
+  const resolvedOgImageAlt = params.ogImageAlt || SITE_CONFIG.ogImageAlt;
 
   // 1. Page Title
   document.title = params.title;
@@ -2248,7 +2347,11 @@ export function updateDocumentSeo(params: {
   setMetaProperty('og:url', params.canonicalUrl);
   setMetaProperty('og:type', params.ogType || 'website');
   setMetaProperty('og:site_name', SITE_CONFIG.name);
-  setMetaProperty('og:image', SITE_CONFIG.logoUrl);
+  setMetaProperty('og:image', resolvedOgImage);
+  setMetaProperty('og:image:width', '1200');
+  setMetaProperty('og:image:height', '630');
+  setMetaProperty('og:image:type', 'image/png');
+  setMetaProperty('og:image:alt', resolvedOgImageAlt);
 
   // 5. Twitter Card Tags
   const setMetaName = (name: string, content: string) => {
@@ -2264,10 +2367,11 @@ export function updateDocumentSeo(params: {
   setMetaName('twitter:card', 'summary_large_image');
   setMetaName('twitter:title', params.title);
   setMetaName('twitter:description', params.description);
-  setMetaName('twitter:image', SITE_CONFIG.logoUrl);
+  setMetaName('twitter:image', resolvedOgImage);
+  setMetaName('twitter:image:alt', resolvedOgImageAlt);
 
   // 6. JSON-LD Structured Data
-  let scriptLd = document.getElementById('dynamic-seo-jsonld');
+  let scriptLd = document.getElementById('dynamic-seo-jsonld') || document.getElementById('root-schema-jsonld');
   if (!scriptLd) {
     scriptLd = document.createElement('script');
     scriptLd.id = 'dynamic-seo-jsonld';
@@ -2276,7 +2380,128 @@ export function updateDocumentSeo(params: {
   }
   if (params.jsonLd) {
     scriptLd.textContent = JSON.stringify(params.jsonLd);
+  } else {
+    scriptLd.textContent = JSON.stringify(generateHomepageJsonLd());
   }
+}
+
+/**
+ * Escapes HTML attribute / text values safely
+ */
+function escapeHtmlAttr(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Resolves metadata payload (title, description, canonicalUrl, ogImage, ogImageAlt, jsonLd) for any pathname
+ */
+export function getRouteMetadataPayload(pathname: string): {
+  title: string;
+  description: string;
+  canonicalUrl: string;
+  ogImage: string;
+  ogImageAlt: string;
+  jsonLd: object;
+} {
+  const routeInfo = resolveSeoRoute(pathname);
+  if (routeInfo.type === 'tool' && routeInfo.tool) {
+    const t = routeInfo.tool;
+    return {
+      title: t.seoTitle,
+      description: t.seoDescription,
+      canonicalUrl: routeInfo.canonicalUrl,
+      ogImage: t.ogImage || (t.toolId === 'compiler' ? SITE_CONFIG.compilerOgImageUrl : SITE_CONFIG.ogImageUrl),
+      ogImageAlt: t.ogImageAlt || (t.toolId === 'compiler' ? SITE_CONFIG.compilerOgImageAlt : `${t.name} | ToolTrack`),
+      jsonLd: generateToolJsonLd(t),
+    };
+  }
+  if (routeInfo.type === 'category' && routeInfo.category) {
+    const c = routeInfo.category;
+    return {
+      title: c.seoTitle,
+      description: c.seoDescription,
+      canonicalUrl: routeInfo.canonicalUrl,
+      ogImage: SITE_CONFIG.ogImageUrl,
+      ogImageAlt: `${c.name} | ToolTrack`,
+      jsonLd: generateCategoryJsonLd(c),
+    };
+  }
+  return {
+    title: SITE_CONFIG.defaultTitle,
+    description: SITE_CONFIG.defaultDescription,
+    canonicalUrl: `${SITE_CONFIG.url}/`,
+    ogImage: SITE_CONFIG.ogImageUrl,
+    ogImageAlt: SITE_CONFIG.ogImageAlt,
+    jsonLd: generateHomepageJsonLd(),
+  };
+}
+
+/**
+ * Injects route-specific <title>, <meta name="description">, <link rel="canonical">,
+ * Open Graph tags, Twitter Card tags, and JSON-LD directly into an initial HTML string.
+ * Used both at build time (prerendered static route HTML) and at runtime in server.ts.
+ */
+export function injectSeoIntoHtml(htmlTemplate: string, pathname: string): string {
+  const meta = getRouteMetadataPayload(pathname);
+  const safeTitle = escapeHtmlAttr(meta.title);
+  const safeDesc = escapeHtmlAttr(meta.description);
+  const safeCanonical = escapeHtmlAttr(meta.canonicalUrl);
+  const safeOgImage = escapeHtmlAttr(meta.ogImage);
+  const safeOgImageAlt = escapeHtmlAttr(meta.ogImageAlt);
+
+  let html = htmlTemplate;
+
+  // Replace <title>...</title>
+  html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${safeTitle}</title>`);
+
+  // Replace <meta name="description" ...>
+  html = html.replace(
+    /<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i,
+    `<meta name="description" content="${safeDesc}" />`
+  );
+
+  // Replace <link rel="canonical" ...>
+  html = html.replace(
+    /<link\s+rel="canonical"\s+href="[^"]*"[^>]*\/?>/i,
+    `<link rel="canonical" href="${safeCanonical}" id="canonical-url" />`
+  );
+
+  // Replace Open Graph properties
+  const replaceOgProp = (prop: string, val: string) => {
+    const re = new RegExp(`<meta\\s+property="${prop}"\\s+content="[^"]*"\\s*\\/?>`, 'i');
+    if (re.test(html)) {
+      html = html.replace(re, `<meta property="${prop}" content="${val}" />`);
+    }
+  };
+  replaceOgProp('og:title', safeTitle);
+  replaceOgProp('og:description', safeDesc);
+  replaceOgProp('og:url', safeCanonical);
+  replaceOgProp('og:image', safeOgImage);
+  replaceOgProp('og:image:alt', safeOgImageAlt);
+
+  // Replace Twitter Card names
+  const replaceTwName = (name: string, val: string) => {
+    const re = new RegExp(`<meta\\s+name="${name}"\\s+content="[^"]*"\\s*\\/?>`, 'i');
+    if (re.test(html)) {
+      html = html.replace(re, `<meta name="${name}" content="${val}" />`);
+    }
+  };
+  replaceTwName('twitter:title', safeTitle);
+  replaceTwName('twitter:description', safeDesc);
+  replaceTwName('twitter:image', safeOgImage);
+  replaceTwName('twitter:image:alt', safeOgImageAlt);
+
+  // Replace root JSON-LD block
+  html = html.replace(
+    /<script\s+type="application\/ld\+json"\s+id="root-schema-jsonld">[\s\S]*?<\/script>/i,
+    `<script type="application/ld+json" id="root-schema-jsonld">\n${JSON.stringify(meta.jsonLd, null, 2)}\n    </script>`
+  );
+
+  return html;
 }
 
 /**
@@ -2295,19 +2520,17 @@ export function escapeXml(str: string): string {
  * Builds the complete sitemap.xml dynamically from the live registry including all tools
  */
 export function generateSitemapXml(): string {
-  const currentDate = new Date().toISOString().split('T')[0];
-
-  const rawUrls: { loc: string; lastmod: string; changefreq: string; priority: string }[] = [
-    { loc: `${SITE_CONFIG.url}/`, lastmod: currentDate, changefreq: 'daily', priority: '1.0' },
+  const rawUrls: { loc: string; lastmod: string }[] = [
+    { loc: `${SITE_CONFIG.url}/`, lastmod: SITE_CONFIG.lastModifiedUpdated },
+    { loc: `${SITE_CONFIG.url}/compiler`, lastmod: SITE_CONFIG.lastModifiedUpdated },
+    { loc: `${SITE_CONFIG.url}/whiteboard`, lastmod: SITE_CONFIG.lastModifiedUpdated },
   ];
 
   // Category Pages
   for (const cat of Object.values(CATEGORIES_SEO)) {
     rawUrls.push({
       loc: `${SITE_CONFIG.url}${cat.route}`,
-      lastmod: currentDate,
-      changefreq: 'weekly',
-      priority: '0.9',
+      lastmod: cat.key === 'utilities' ? SITE_CONFIG.lastModifiedUpdated : SITE_CONFIG.lastModifiedDefault,
     });
   }
 
@@ -2316,15 +2539,13 @@ export function generateSitemapXml(): string {
     const seo = getToolSeo(tool.id);
     rawUrls.push({
       loc: `${SITE_CONFIG.url}${seo.route}`,
-      lastmod: currentDate,
-      changefreq: 'weekly',
-      priority: tool.popular ? '0.85' : '0.8',
+      lastmod: tool.id === 'compiler' || tool.id === 'whiteboard' ? SITE_CONFIG.lastModifiedUpdated : SITE_CONFIG.lastModifiedDefault,
     });
   }
 
   // Strict deduplication by canonical loc
   const seenLocs = new Set<string>();
-  const uniqueUrls: { loc: string; lastmod: string; changefreq: string; priority: string }[] = [];
+  const uniqueUrls: { loc: string; lastmod: string }[] = [];
 
   for (const u of rawUrls) {
     if (!seenLocs.has(u.loc)) {

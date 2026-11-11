@@ -2,7 +2,15 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://tooltracker.vercel.app/</loc>
-    <lastmod>2026-10-10</lastmod>
+    <lastmod>2026-11-10</lastmod>
+  </url>
+  <url>
+    <loc>https://tooltracker.vercel.app/compiler</loc>
+    <lastmod>2026-11-10</lastmod>
+  </url>
+  <url>
+    <loc>https://tooltracker.vercel.app/whiteboard</loc>
+    <lastmod>2026-11-10</lastmod>
   </url>
   <url>
     <loc>https://tooltracker.vercel.app/tools/design</loc>
@@ -14,7 +22,7 @@
   </url>
   <url>
     <loc>https://tooltracker.vercel.app/tools/utilities</loc>
-    <lastmod>2026-10-10</lastmod>
+    <lastmod>2026-11-10</lastmod>
   </url>
   <url>
     <loc>https://tooltracker.vercel.app/tools/image</loc>
@@ -102,10 +110,6 @@
   </url>
   <url>
     <loc>https://tooltracker.vercel.app/tools/pdf-ocr</loc>
-    <lastmod>2026-10-10</lastmod>
-  </url>
-  <url>
-    <loc>https://tooltracker.vercel.app/whiteboard</loc>
     <lastmod>2026-10-10</lastmod>
   </url>
   <url>

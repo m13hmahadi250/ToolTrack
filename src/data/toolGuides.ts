@@ -1301,6 +1301,44 @@ export const TOOL_GUIDES: Record<string, ToolGuideData> = {
     ],
     relatedToolIds: ['image-color-picker', 'image-text', 'whiteboard'],
   },
+
+  'compiler': {
+    howItWorks: [
+      {
+        step: 1,
+        title: 'Choose Language (Python, C, or C++)',
+        description: 'Select Python 3.12, C17, or C++20 from the top bar, or open an existing .py, .c, or .cpp source file.',
+      },
+      {
+        step: 2,
+        title: 'Write Code & Provide Input (STDIN)',
+        description: 'Use the VS Code-powered Monaco editor with syntax highlighting and autocomplete, and optionally enter STDIN lines.',
+      },
+      {
+        step: 3,
+        title: 'Run in Browser & Inspect Output',
+        description: 'Press Run Code (Ctrl+Enter) to view real-time terminal output, Matplotlib scientific plots, and pandas DataFrames.',
+      },
+      {
+        step: 4,
+        title: 'Cache Runtimes for Offline Use',
+        description: 'Use the Packages & Offline panel to cache Python wheels and C/C++ WebAssembly toolchains locally in IndexedDB.',
+      },
+    ],
+    specs: {
+      supportedFormats: 'Python (.py), C (.c), C++ (.cpp), CSV (.csv), JSON (.json), Text (.txt)',
+      outputFormat: 'STDOUT / STDERR Terminal Output, PNG Plots, CSV Tables, Source Archives (.zip)',
+      maxLimit: 'Multi-file projects & local datasets up to 50MB',
+      processingType: 'Pyodide 0.26.2 WebAssembly (Python 3.12) & Clang/LLVM WebAssembly (C17/C++20)',
+      privacyNote: '100% Client-Side execution. Source code, datasets, and cached runtimes remain in your local browser storage.',
+    },
+    goodToKnow: [
+      'Supports scientific Python packages including NumPy, pandas, Matplotlib, SciPy, scikit-learn, and SymPy directly in the browser.',
+      'Once core runtimes and desired Python wheels are cached via the Offline Manager, you can compile and run code without an internet connection.',
+      'Upload CSV or Excel datasets into the project file explorer to analyze data and export high-resolution Matplotlib charts.',
+    ],
+    relatedToolIds: ['json-formatter', 'csv-json-converter', 'markdown-editor', 'whiteboard'],
+  },
 };
 
 /**

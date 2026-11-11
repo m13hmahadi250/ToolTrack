@@ -112,7 +112,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({ type, onClose }) => {
         {type === 'about' && (
           <div className="space-y-4 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             <p>
-              <strong className="text-slate-900 dark:text-white">ToolTrack</strong> is an all-in-one file utility platform designed to make common document, PDF, image, and conversion tasks simpler, faster, and completely private.
+              <strong className="text-slate-900 dark:text-white">ToolTrack</strong> is an all-in-one file, coding, and productivity platform designed to make PDF, Word, Excel, image, Whiteboard, OCR, and Python/C/C++ programming workflows faster, cleaner, and completely private in your browser.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
@@ -124,14 +124,14 @@ export const InfoModal: React.FC<InfoModalProps> = ({ type, onClose }) => {
 
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-1">
                 <Cpu className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                <h5 className="font-bold text-slate-900 dark:text-white text-xs">Wasm Powered</h5>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">High-speed client WebAssembly vector computation.</p>
+                <h5 className="font-bold text-slate-900 dark:text-white text-xs">Wasm &amp; IDE Engine</h5>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">High-speed WebAssembly document &amp; code execution.</p>
               </div>
 
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-1">
                 <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <h5 className="font-bold text-slate-900 dark:text-white text-xs">38+ Utilities</h5>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">PDF, Word, Excel, Images, Whiteboard, and OCR.</p>
+                <h5 className="font-bold text-slate-900 dark:text-white text-xs">60+ Built-In Tools</h5>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">PDF, Word, Excel, Images, Compiler, Whiteboard &amp; OCR.</p>
               </div>
             </div>
 
@@ -140,7 +140,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({ type, onClose }) => {
                 Our Mission
               </h4>
               <p>
-                Eliminate the need for expensive subscriptions, intrusive software installations, and privacy-compromising upload sites. ToolTrack gives students, academics, designers, and professionals immediate access to reliable file tooling on any device.
+                Eliminate the need for expensive subscriptions, heavy software installations, and privacy-compromising upload sites. ToolTrack gives students, developers, educators, designers, and professionals immediate access to reliable file and coding tools on any device.
               </p>
             </div>
           </div>

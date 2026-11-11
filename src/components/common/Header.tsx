@@ -111,7 +111,24 @@ export const Header: React.FC = () => {
                 Home
               </button>
 
-              {/* 2. Whiteboard */}
+              {/* 2. Compiler */}
+              <button
+                onClick={() => {
+                  setActiveToolId('compiler');
+                  setActiveDropdownCatId(null);
+                }}
+                className={`flex items-center gap-1.5 px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs 2xl:text-sm transition cursor-pointer shrink-0 whitespace-nowrap ${
+                  activeToolId === 'compiler'
+                    ? 'bg-[#2563EB] text-white font-semibold shadow-2xs'
+                    : 'text-[#475569] dark:text-[#CBD5E1] hover:text-[#2563EB] dark:hover:text-[#3B82F6] hover:bg-[#F1F5F9] dark:hover:bg-[#1E293B]/70 font-medium'
+                }`}
+                title="Online & Offline Python, C & C++ Compiler"
+              >
+                <Code2 className="w-3.5 h-3.5" />
+                <span>Compiler</span>
+              </button>
+
+              {/* 3. Whiteboard */}
               <button
                 onClick={() => {
                   setActiveToolId('whiteboard');
@@ -126,23 +143,6 @@ export const Header: React.FC = () => {
               >
                 <PenTool className="w-3.5 h-3.5" />
                 <span>Whiteboard</span>
-              </button>
-
-              {/* 3. Compiler */}
-              <button
-                onClick={() => {
-                  setActiveToolId('compiler');
-                  setActiveDropdownCatId(null);
-                }}
-                className={`flex items-center gap-1.5 px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs 2xl:text-sm transition cursor-pointer shrink-0 whitespace-nowrap ${
-                  activeToolId === 'compiler'
-                    ? 'bg-[#2563EB] text-white font-semibold shadow-2xs'
-                    : 'text-[#475569] dark:text-[#CBD5E1] hover:text-[#2563EB] dark:hover:text-[#3B82F6] hover:bg-[#F1F5F9] dark:hover:bg-[#1E293B]/70 font-medium'
-                }`}
-                title="Online & Offline Compiler (Python 3, C++, C)"
-              >
-                <Code2 className="w-3.5 h-3.5" />
-                <span>Compiler</span>
               </button>
 
               {/* 4. Category Dropdowns: PDF ▾, Convert ▾, Images ▾, Student ▾, Design ▾, Utilities ▾, All Tools ▾ */}
@@ -313,27 +313,10 @@ export const Header: React.FC = () => {
 
                   <button
                     onClick={() => {
-                      setActiveToolId('whiteboard');
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className={`p-2.5 rounded-xl border text-left text-xs font-semibold flex items-center justify-between cursor-pointer transition ${
-                      activeToolId === 'whiteboard'
-                        ? 'border-[#2563EB] bg-[#2563EB] text-white font-bold shadow-xs'
-                        : 'border-[#E2E8F0] dark:border-[#1E293B] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#3B82F6]'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <PenTool className="w-3.5 h-3.5" />
-                      <span>Whiteboard</span>
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => {
                       setActiveToolId('compiler');
                       setIsMobileMenuOpen(false);
                     }}
-                    className={`p-2.5 rounded-xl border text-left text-xs font-semibold flex items-center justify-between cursor-pointer transition col-span-2 ${
+                    className={`p-2.5 rounded-xl border text-left text-xs font-semibold flex items-center justify-between cursor-pointer transition ${
                       activeToolId === 'compiler'
                         ? 'border-[#2563EB] bg-[#2563EB] text-white font-bold shadow-xs'
                         : 'border-[#E2E8F0] dark:border-[#1E293B] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#3B82F6]'
@@ -341,7 +324,24 @@ export const Header: React.FC = () => {
                   >
                     <span className="flex items-center gap-1.5">
                       <Code2 className="w-3.5 h-3.5" />
-                      <span>Compiler & IDE (Python, C++, C)</span>
+                      <span>Compiler (Python/C++)</span>
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveToolId('whiteboard');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`p-2.5 rounded-xl border text-left text-xs font-semibold flex items-center justify-between cursor-pointer transition col-span-2 ${
+                      activeToolId === 'whiteboard'
+                        ? 'border-[#2563EB] bg-[#2563EB] text-white font-bold shadow-xs'
+                        : 'border-[#E2E8F0] dark:border-[#1E293B] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#3B82F6]'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <PenTool className="w-3.5 h-3.5" />
+                      <span>Interactive Infinite Whiteboard</span>
                     </span>
                   </button>
                 </div>

@@ -3,18 +3,26 @@
 
 User-agent: *
 Allow: /
+Allow: /compiler
+Allow: /whiteboard
 Allow: /tools/
 Allow: /category/
 Allow: /assets/
+Disallow: /api/
 
 User-agent: Googlebot
 Allow: /
+Allow: /compiler
+Allow: /whiteboard
 Allow: /tools/
 Allow: /category/
 Allow: /assets/
+Disallow: /api/
 
 User-agent: Googlebot-Image
 Allow: /assets/
+Allow: /og-tooltrack.png
+Allow: /og-compiler.png
 Allow: /
 
 Sitemap: https://tooltracker.vercel.app/sitemap.xml
